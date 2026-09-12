@@ -1255,6 +1255,7 @@ public class ChatExecutionServiceJobTrackingTests
         public ChatHistoryService ChatService { get; }
         public ChatExecutionService ExecService { get; }
         public PlanDatabaseService Database { get; }
+        public FakeChatJobService JobService { get; }
 
         public PlanEditFanOutHarness(string? planChatSessionId = null, string planFolder = "00400-PlanEdits")
         {
@@ -1275,6 +1276,7 @@ public class ChatExecutionServiceJobTrackingTests
             Database.UpsertPlan(Plan);
 
             var agentRunner = TestAgentRunner.Create();
+            JobService = new FakeChatJobService();
             ExecService = new ChatExecutionService(
                 configService,
                 ChatService,
@@ -1283,7 +1285,7 @@ public class ChatExecutionServiceJobTrackingTests
                 new JsonEventSerializer(),
                 logger: null,
                 serviceProvider: null,
-                jobService: new FakeChatJobService(),
+                jobService: JobService,
                 planReaderService: null,
                 database: Database);
         }
@@ -1293,6 +1295,12 @@ public class ChatExecutionServiceJobTrackingTests
         public List<string> EditEvents(string sessionId) =>
             ChatService.GetSession(sessionId)?.Messages
                 .Where(m => m.Role == "system" && m.Content.Contains("was edited directly"))
+                .Select(m => m.Content)
+                .ToList() ?? [];
+
+        public List<string> CompletionEvents(string sessionId) =>
+            ChatService.GetSession(sessionId)?.Messages
+                .Where(m => m.Role == "system" && m.Content.Contains("has finished with status"))
                 .Select(m => m.Content)
                 .ToList() ?? [];
 
@@ -1473,6 +1481,229 @@ public class ChatExecutionServiceJobTrackingTests
         public Type GetStateType() => typeof(T);
         public object? GetValueAsObject() => Value;
         public IEffectTrigger ToTrigger() => throw new NotImplementedException();
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WhileAJobRunsForThePlan_IsHeldBackAndFoldedIntoTheCompletionEvent()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetFormat set to Pass");
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetTest set to Pass");
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification CheckResult set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        Assert.Empty(harness.EditEvents(side.Id));
+        Assert.Empty(harness.CompletionEvents(side.Id));
+
+        job.Status = JobStatus.Completed;
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+
+        var completions = harness.CompletionEvents(side.Id);
+        Assert.Single(completions);
+        Assert.Contains("has finished with status", completions[0]);
+        Assert.Contains("verification DotnetFormat set to Pass", completions[0]);
+        Assert.Contains("verification DotnetBuild set to Pass", completions[0]);
+        Assert.Contains("verification DotnetTest set to Pass", completions[0]);
+        Assert.Contains("verification CheckResult set to Pass", completions[0]);
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WhileAJobRunsForAnotherPlan_IsAnnouncedImmediately()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = "00099-SomethingElse",
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForEventsAsync(side.Id, 1);
+
+        Assert.Single(harness.EditEvents(side.Id));
+    }
+
+    [Theory]
+    [InlineData(JobStatus.Queued)]
+    [InlineData(JobStatus.Pending)]
+    [InlineData(JobStatus.Blocked)]
+    public async Task NotifyPlanEdit_WithAJobThatIsNotRunning_IsAnnouncedImmediately(JobStatus status)
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = status
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForEventsAsync(side.Id, 1);
+
+        Assert.Single(harness.EditEvents(side.Id));
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WithARunningJobRecordedByFullPlanPath_IsStillHeldBack()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.PlanFolder,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        Assert.Empty(harness.EditEvents(side.Id));
+
+        job.Status = JobStatus.Completed;
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+
+        Assert.Single(harness.CompletionEvents(side.Id));
+    }
+
+    [Fact]
+    public async Task JobFinished_WithNothingHeldBack_LeavesTheCompletionEventUnchanged()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Completed
+        };
+
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+
+        var completions = harness.CompletionEvents(side.Id);
+        Assert.Single(completions);
+        Assert.DoesNotContain("edited", completions[0]);
+    }
+
+    [Fact]
+    public async Task HeldBackEdits_ReachThePlansOtherSessionsExactlyOnce()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var general = harness.ChatService.CreateSession("codex", "gpt-5.6-sol");
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+        harness.Database.UpsertPlan(harness.Plan with
+        {
+            Metadata = harness.Plan.Metadata with { ChatSessionId = general.Id }
+        });
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        job.Status = JobStatus.Completed;
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+        await harness.WaitForIdleAsync(general.Id);
+
+        var sideMessages = harness.ChatService.GetSession(side.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+        var generalMessages = harness.ChatService.GetSession(general.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+
+        Assert.Single(sideMessages);
+        Assert.Single(generalMessages);
+
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+        await harness.WaitForIdleAsync(general.Id);
+
+        var sideMessagesAfter = harness.ChatService.GetSession(side.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+        var generalMessagesAfter = harness.ChatService.GetSession(general.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+
+        Assert.Single(sideMessagesAfter);
+        Assert.Single(generalMessagesAfter);
+    }
+
+    [Fact]
+    public async Task HeldBackEdit_ReportedAgainAfterTheJobFinished_IsNotAnnouncedTwice()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        job.Status = JobStatus.Completed;
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        var messages = harness.ChatService.GetSession(side.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+
+        Assert.Single(messages);
     }
 }
 
