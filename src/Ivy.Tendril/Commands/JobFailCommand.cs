@@ -38,8 +38,10 @@ public class JobFailCommand : Command<JobFailSettings>
             return 0;
         }
 
-        // This only records the failure reason. The promptware is still responsible
-        // for exiting non-zero (e.g. `exit 1`) to actually fail the job.
+        // Recording the reason alone now fails the job (JobService.SetCompletionStatus honors
+        // ReportedFailureReason on any exit code). A non-zero exit (e.g. `exit 1`) remains the
+        // recommended practice regardless, since it is what surfaces the failure immediately
+        // rather than after the process eventually exits.
         Console.WriteLine($"Failure reported for job {settings.JobId}");
         return 0;
     }

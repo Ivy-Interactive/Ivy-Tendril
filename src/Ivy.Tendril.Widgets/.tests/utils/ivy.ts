@@ -26,6 +26,23 @@ export async function waitForPageReady(page: Page): Promise<void> {
 }
 
 /**
+ * The workspace is ready once its tab strip is laid out AND rendering text. An inactive shell pane
+ * stays mounted with `visibility: hidden`, which keeps `aria-selected` and `textContent` intact while
+ * emptying `innerText` and making every click time out, so presence alone is not readiness.
+ */
+export async function waitForPlanWorkspace(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const root = document.querySelector(".pws-root");
+      if (!root) return false;
+      const tabs = [...root.querySelectorAll(".pws-tab")];
+      return tabs.length > 0 && tabs.every((tab) => (tab as HTMLElement).innerText.trim().length > 0);
+    },
+    { timeout: 20_000 },
+  );
+}
+
+/**
  * Drags across the first `chars` characters of `target`'s first text node and
  * returns the resulting selection. Anchored to the first client rect of a Range
  * rather than the element's bounding box: the box midpoint of a wrapped

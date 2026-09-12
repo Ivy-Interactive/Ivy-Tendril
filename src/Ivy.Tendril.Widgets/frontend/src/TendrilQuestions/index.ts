@@ -11,5 +11,7 @@ export {
   documentOtherOpen,
   entryTitle,
   hasEntries,
+  submitNote,
+  unansweredRequired,
 } from "./answers";
 export type { AnswerMap } from "./answers";

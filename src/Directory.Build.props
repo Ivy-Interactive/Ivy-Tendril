@@ -8,5 +8,17 @@
     <!-- Ivy.Tendril.Widgets manages its own frontend build and embedding -->
     <IvyEnableExternalWidgets>false</IvyEnableExternalWidgets>
     <RestorePackagesPath Condition="'$(RestorePackagesPath)' == '' and '$(HOME)' != '' and Exists('$(HOME)/.nuget/packages')">$(HOME)/.nuget/packages</RestorePackagesPath>
+    <!-- Any hook rule violation is a real bug (order can change between renders, or the hook runs
+         somewhere the framework doesn't expect): never ship one as a warning -->
+    <WarningsAsErrors>$(WarningsAsErrors);IVYHOOK002;IVYHOOK003;IVYHOOK004;IVYHOOK005;IVYHOOK007</WarningsAsErrors>
   </PropertyGroup>
+  <!-- Ivy Analyser: wired once here so every project under src/ gets hook checking in source mode -->
+  <ItemGroup Condition="'$(IvySource)' == 'true' And Exists('$(MSBuildThisFileDirectory)../../Ivy-Framework/src/Ivy.Analyser/Ivy.Analyser.csproj')">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../Ivy-Framework/src/Ivy.Analyser/Ivy.Analyser.csproj">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>Analyzer</OutputItemType>
+    </ProjectReference>
+  </ItemGroup>
 </Project>

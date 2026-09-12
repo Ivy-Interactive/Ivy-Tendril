@@ -29,14 +29,21 @@ internal static class PlanYamlHelper
         return File.Exists(planYamlPath) ? FileHelper.ReadAllText(planYamlPath) : null;
     }
 
-    internal static void UpdatePlanYamlFields(string planFolder, params (string field, string value)[] updates)
+    /// <summary>
+    ///     Applies best-effort textual field updates to plan.yaml. Unlike
+    ///     <see cref="PlanCommandHelpers.WritePlan" />, this does not run
+    ///     <see cref="PlanValidationService.Validate" /> — it is also used against legacy/fragmentary
+    ///     files that lack required fields like <c>project</c>/<c>title</c>. Returns <c>false</c>
+    ///     (without writing) when the plan.yaml is missing or the updated content fails to deserialize.
+    /// </summary>
+    internal static bool UpdatePlanYamlFields(string planFolder, params (string field, string value)[] updates)
     {
         var content = ReadPlanYamlRaw(planFolder);
-        if (content == null) return;
+        if (content == null) return false;
 
         foreach (var (field, value) in updates)
         {
-            var pattern = $@"(?m)^{Regex.Escape(field)}:\s*.*$";
+            var pattern = $@"(?m)^{Regex.Escape(field)}:[^\r\n]*$";
             if (Regex.IsMatch(content, pattern))
             {
                 var replacement = $"{field}: {value}";
@@ -53,8 +60,27 @@ internal static class PlanYamlHelper
             }
         }
 
+        if (ParsePlanYaml(content) == null) return false;
+
         var planYamlPath = Path.Combine(planFolder, "plan.yaml");
-        FileHelper.WriteAllText(planYamlPath, content);
+        var tempPath = Path.Combine(planFolder, $"plan.yaml.tmp.{Guid.NewGuid():N}");
+
+        using var lockFile = PlanFileLock.Acquire(planFolder);
+        try
+        {
+            FileHelper.WriteAllText(tempPath, content);
+
+            var roundTrip = FileHelper.ReadAllText(tempPath);
+            if (ParsePlanYaml(roundTrip) == null) return false;
+
+            File.Move(tempPath, planYamlPath, overwrite: true);
+            return true;
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+        }
     }
 
     internal static void SetPlanStateByFolder(string planFolder, string state)

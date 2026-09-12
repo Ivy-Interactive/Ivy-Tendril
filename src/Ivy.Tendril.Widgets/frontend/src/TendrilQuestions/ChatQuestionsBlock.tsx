@@ -9,6 +9,7 @@ import {
   documentAnswers,
   documentOtherOpen,
   hasEntries,
+  submitNote,
 } from "./answers";
 
 interface ChatQuestionsBlockProps {
@@ -60,9 +61,15 @@ export const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ question
   const handleSubmit = () => {
     if (!submitEnabled) return;
     onSubmit(draft.answers, buildAnswersSummary(questions, draft.answers));
-    // The answers now live in the message document, so nothing is left to draft for this block.
-    store?.clear(blockKey);
+    // Submitted to the host, but not yet written into the message document — keep showing the
+    // submitted answers instead of clearing the draft, so Submit doesn't visibly reset the form
+    // while the document round-trips.
+    update((prev) => ({ ...prev, submitted: true }));
   };
+
+  if (draft.submitted) {
+    return <QuestionsForm questions={questions} answers={draft.answers} readOnly />;
+  }
 
   return (
     <QuestionsForm
@@ -72,7 +79,12 @@ export const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ question
       onAnswer={handleAnswer}
       onOtherOpenChange={handleOtherOpenChange}
       onClear={hasAnyAnswers ? clearAll : undefined}
-      submit={{ label: "Submit response", disabled: !submitEnabled, onSubmit: handleSubmit }}
+      submit={{
+        label: "Submit response",
+        disabled: !submitEnabled,
+        note: submitNote(questions, draft.answers),
+        onSubmit: handleSubmit,
+      }}
     />
   );
 };

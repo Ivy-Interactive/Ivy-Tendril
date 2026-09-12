@@ -176,4 +176,18 @@ public class PlansContentViewRefreshTests
         {
         }
     }
+
+    // A revalidation (loading: true, hasLoadedContent: true) keeping the last-known-good content mounted
+    // is the regression #2650 is about: without it the placeholder swaps in a different widget, unmounting
+    // PlanMarkdown's scroll box and throwing the reader back to the top of the plan.
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    public void ShouldShowLoadingPlaceholder_OnlyForAFetchWithNothingYetToShow(
+        bool loading, bool hasLoadedContent, bool expected)
+    {
+        Assert.Equal(expected, PlansContentView.ShouldShowLoadingPlaceholder(loading, hasLoadedContent));
+    }
 }

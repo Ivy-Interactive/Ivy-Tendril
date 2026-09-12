@@ -12,6 +12,7 @@ public interface IChatExecutionService : IDisposable
     event Action<string>? StreamUpdated;
     bool IsGenerating(string sessionId);
     string GetStreamSnapshot(string sessionId);
+    string? GetStreamingMessageId(string sessionId);
     IObservable<string> GetLiveStreamObservable(string sessionId);
     Task SendMessageAsync(
         string sessionId,
@@ -24,6 +25,14 @@ public interface IChatExecutionService : IDisposable
         CancellationToken ct = default);
     Task CancelAsync(string sessionId);
     Task InterruptAsync(string sessionId);
+
+    /// <summary>
+    ///     Patches the buffer of an in-progress execution so a mid-run question answer survives the
+    ///     next persist tick, which otherwise overwrites the stored message's <c>Content</c>/
+    ///     <c>RawStream</c> from this same buffer roughly once a second. No-ops when
+    ///     <paramref name="sessionId"/> has no active execution.
+    /// </summary>
+    void ApplyQuestionAnswers(string sessionId, IReadOnlyDictionary<string, string[]> answers);
 
     /// <summary>
     ///     Announces a direct edit to a plan — one made without a job, from a chat or the CLI — to

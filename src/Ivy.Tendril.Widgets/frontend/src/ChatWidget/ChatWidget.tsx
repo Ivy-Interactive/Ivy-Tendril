@@ -185,6 +185,7 @@ export function ChatWidget({
   supportsEffort = true,
   isStreaming = false,
   streamingText = "",
+  streamingMessageId,
   queuedMessages: queuedMessagesProp,
   runningJobs = [],
   greeting,
@@ -875,11 +876,20 @@ export function ChatWidget({
                 );
               })}
 
-              {effectiveIsStreaming && (
-                <div className="chat-message-row assistant chat-message-row--live">
-                  <AssistantTurn stream={streamingText} live />
-                </div>
-              )}
+              {effectiveIsStreaming &&
+                (streamingMessageId ? (
+                  <div className="chat-message-row assistant chat-message-row--live">
+                    <QuestionsDraftContext.Provider value={draftStoreFor(streamingMessageId)}>
+                      <QuestionsSubmitContext.Provider value={submitHandlerFor(streamingMessageId)}>
+                        <AssistantTurn stream={streamingText} live />
+                      </QuestionsSubmitContext.Provider>
+                    </QuestionsDraftContext.Provider>
+                  </div>
+                ) : (
+                  <div className="chat-message-row assistant chat-message-row--live">
+                    <AssistantTurn stream={streamingText} live />
+                  </div>
+                ))}
             </>
           ) : (
             <div className="chat-empty-state">

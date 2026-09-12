@@ -1179,10 +1179,22 @@ public class PlanReaderService(
             // Fall back to the repair pass for malformed agent-generated YAML.
             logger.LogWarning(ex, "Failed to parse plan YAML {PlanYamlPath}, attempting repair", planYamlPath);
             var repaired = PlanSchemaVersion.Stamp(PlanYamlRepairService.RepairPlanYaml(yamlContent), PlanYaml.CurrentSchemaVersion);
-            if (repaired != yamlContent)
-                FileHelper.WriteAllText(planYamlPath, repaired);
 
-            planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(repaired);
+            try
+            {
+                planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(repaired);
+            }
+            catch (Exception repairEx)
+            {
+                logger.LogWarning(repairEx, "Repair pass produced unparseable YAML for {PlanYamlPath}, leaving file untouched", planYamlPath);
+                throw ex;
+            }
+
+            if (repaired != yamlContent)
+            {
+                using var _ = PlanFileLock.Acquire(Path.GetDirectoryName(planYamlPath)!);
+                FileHelper.WriteAllText(planYamlPath, repaired);
+            }
         }
 
         return planYaml;

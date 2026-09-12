@@ -4,7 +4,7 @@ import "@testing-library/jest-dom";
 import { TendrilQuestions } from "./TendrilQuestions";
 import { QuestionsForm } from "./QuestionsForm";
 import { parseQuestions } from "../PlanMarkdown/questionsSchema";
-import { buildAnswersSummary } from "./answers";
+import { buildAnswersSummary, unansweredRequired } from "./answers";
 
 const yaml = (...lines: string[]) => lines.join("\n");
 
@@ -48,6 +48,23 @@ const withOther = yaml(
 );
 
 const freeText = yaml("- id: notes", "  title: Anything else?", "  optional: true");
+
+const twoRequired = yaml(
+  "- id: cost",
+  "  title: How should cost be attributed?",
+  "  options:",
+  "    - title: Per session",
+  "      value: session",
+  "    - title: Per token",
+  "      value: token",
+  "- id: scope",
+  "  title: Which scope should ship first?",
+  "  options:",
+  "    - title: Ledger first",
+  "      value: ledger",
+  "    - title: Surfacing first",
+  "      value: surfacing",
+);
 
 const answered = yaml(
   "- id: proceed",
@@ -174,6 +191,27 @@ describe("TendrilQuestions widget", () => {
     render(<TendrilQuestions id="q" eventHandler={vi.fn()} content={"Just a note for the reader"} />);
     expect(screen.getByText("Just a note for the reader")).toHaveClass("tq-static");
   });
+
+  it("stays disabled with a note until something is answered, then enables and names what is left", () => {
+    render(<TendrilQuestions id="q" eventHandler={vi.fn()} content={twoRequired} showSubmit />);
+
+    const submit = screen.getByRole("button", { name: "Submit response" });
+    expect(submit).toBeDisabled();
+    expect(screen.getByText("Answer a question to submit.")).toBeInTheDocument();
+    expect(submit).toHaveAttribute("title", "Answer a question to submit.");
+
+    fireEvent.click(screen.getByRole("radio", { name: /Ledger first/i }));
+
+    expect(submit).not.toBeDisabled();
+    const note = 'Unanswered: "How should cost be attributed?". Submitting leaves it to me.';
+    expect(screen.getByText(note)).toBeInTheDocument();
+    expect(submit).toHaveAttribute("title", note);
+
+    const costQuestion = screen.getByText("How should cost be attributed?").closest(".tq-question");
+    expect(costQuestion).toHaveAttribute("data-unanswered", "true");
+    const scopeQuestion = screen.getByText("Which scope should ship first?").closest(".tq-question");
+    expect(scopeQuestion).not.toHaveAttribute("data-unanswered");
+  });
 });
 
 describe("QuestionsForm", () => {
@@ -196,5 +234,41 @@ describe("QuestionsForm", () => {
     expect(buildAnswersSummary(questions, { env: ["canary"] })).toBe(
       "Answers:\n- **Which environment?**: canary\n- **Anything else?**: *(skipped)*",
     );
+  });
+
+  it("summarises a required question left to the agent, distinct from an optional skip", () => {
+    const questions = [...questionsOf(withOther), ...questionsOf(freeText)];
+    expect(buildAnswersSummary(questions, {})).toBe(
+      "Answers:\n- **Which environment?**: *(no preference, your call)*\n- **Anything else?**: *(skipped)*",
+    );
+  });
+
+  it("unansweredRequired ignores optional questions and ones the document already answers", () => {
+    const questions = [...questionsOf(answered), ...questionsOf(withOther)];
+    expect(unansweredRequired(questions, {}).map((question) => question.id)).toEqual(["env"]);
+  });
+
+  it("does not toggle a card when the selection is anchored inside it, but does toggle when the selection is elsewhere", () => {
+    const onAnswer = vi.fn();
+    const questions = questionsOf(singleSelect);
+    render(<QuestionsForm questions={questions} answers={{}} onAnswer={onAnswer} />);
+
+    const openPrCard = screen.getByText("Open a PR").closest(".tq-option") as HTMLElement;
+    const reviewCard = screen.getByText("Review the diff first").closest(".tq-option") as HTMLElement;
+
+    const getSelectionSpy = vi.spyOn(window, "getSelection");
+    getSelectionSpy.mockReturnValue({
+      isCollapsed: false,
+      anchorNode: openPrCard,
+      toString: () => "some selected text",
+    } as unknown as Selection);
+
+    fireEvent.click(openPrCard);
+    expect(onAnswer).not.toHaveBeenCalled();
+
+    fireEvent.click(reviewCard);
+    expect(onAnswer).toHaveBeenCalledWith("proceed", ["review"]);
+
+    getSelectionSpy.mockRestore();
   });
 });

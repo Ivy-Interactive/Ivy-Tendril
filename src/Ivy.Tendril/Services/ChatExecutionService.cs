@@ -236,6 +236,87 @@ public sealed class ChatExecutionService : IChatExecutionService
         return string.Empty;
     }
 
+    public string? GetStreamingMessageId(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return null;
+        return _activeExecutions.TryGetValue(sessionId, out var exec) ? exec.AssistantMessageId : null;
+    }
+
+    public void ApplyQuestionAnswers(string sessionId, IReadOnlyDictionary<string, string[]> answers)
+    {
+        if (string.IsNullOrEmpty(sessionId) || answers == null || answers.Count == 0) return;
+        if (!_activeExecutions.TryGetValue(sessionId, out var exec)) return;
+
+        lock (exec.Lock)
+        {
+            if (!string.IsNullOrEmpty(exec.LastText))
+            {
+                var lastText = exec.LastText;
+                foreach (var (qId, ansValues) in answers)
+                {
+                    if (QuestionAnswers.TryApply(lastText, new QuestionAnswer(qId, ansValues), out var updated))
+                    {
+                        lastText = updated;
+                    }
+                }
+                exec.LastText = lastText;
+            }
+
+            for (int i = 0; i < exec.RawLines.Count; i++)
+            {
+                var line = exec.RawLines[i].Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+                try
+                {
+                    var node = System.Text.Json.Nodes.JsonNode.Parse(line);
+                    if (node is not System.Text.Json.Nodes.JsonObject obj) continue;
+
+                    bool lineChanged = false;
+                    if (obj.TryGetPropertyValue("text", out var textNode) && textNode != null)
+                    {
+                        var textVal = textNode.GetValue<string>();
+                        foreach (var (qId, ansValues) in answers)
+                        {
+                            if (QuestionAnswers.TryApply(textVal, new QuestionAnswer(qId, ansValues), out var updatedTextVal))
+                            {
+                                textVal = updatedTextVal;
+                                lineChanged = true;
+                            }
+                        }
+                        if (lineChanged) obj["text"] = textVal;
+                    }
+                    if (obj.TryGetPropertyValue("response", out var respNode) && respNode != null)
+                    {
+                        var respVal = respNode.GetValue<string>();
+                        bool respChanged = false;
+                        foreach (var (qId, ansValues) in answers)
+                        {
+                            if (QuestionAnswers.TryApply(respVal, new QuestionAnswer(qId, ansValues), out var updatedRespVal))
+                            {
+                                respVal = updatedRespVal;
+                                respChanged = true;
+                            }
+                        }
+                        if (respChanged)
+                        {
+                            obj["response"] = respVal;
+                            lineChanged = true;
+                        }
+                    }
+
+                    if (lineChanged)
+                    {
+                        exec.RawLines[i] = obj.ToJsonString();
+                    }
+                }
+                catch
+                {
+                    // ignore malformed lines
+                }
+            }
+        }
+    }
+
     public IObservable<string> GetLiveStreamObservable(string sessionId)
     {
         if (string.IsNullOrEmpty(sessionId)) return Observable.Empty<string>();
@@ -516,8 +597,6 @@ public sealed class ChatExecutionService : IChatExecutionService
         // Launch background agent execution
         var executionTask = Task.Run(async () =>
         {
-            string? lastTextEvent = null;
-
             try
             {
                 var effortOverride = targetEffort != "default" ? AgentProviderFactory.ParseEffort(targetEffort) : null;
@@ -554,18 +633,9 @@ public sealed class ChatExecutionService : IChatExecutionService
                         {
                             lock (activeExec.Lock)
                             {
-                                if (textEvt.IsDelta)
-                                {
-                                    lastTextEvent = (lastTextEvent ?? "") + textEvt.Text;
-                                }
-                                else
-                                {
-                                    lastTextEvent = textEvt.Text;
-                                }
-                            }
-                            lock (activeExec.Lock)
-                            {
-                                activeExec.LastText = textEvt.Text;
+                                activeExec.LastText = textEvt.IsDelta
+                                    ? (activeExec.LastText ?? "") + textEvt.Text
+                                    : textEvt.Text;
                             }
                         }
 
@@ -605,7 +675,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 string? fullRawStream = null;
                 lock (activeExec.Lock)
                 {
-                    collectedText = lastTextEvent ?? activeExec.LastText;
+                    collectedText = activeExec.LastText;
 
                     // Reconcile any unclosed tool calls
                     var missingResults = ToolStreamReconciler.BuildMissingResultLines(
@@ -646,7 +716,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                     : $"Agent execution timed out: total timeout limit of {(int)totalTimeout.TotalMinutes} minutes exceeded.";
                 lock (activeExec.Lock)
                 {
-                    collectedText = lastTextEvent ?? activeExec.LastText;
+                    collectedText = activeExec.LastText;
 
                     // Reconcile any unclosed tool calls
                     var missingResults = ToolStreamReconciler.BuildMissingResultLines(
@@ -695,7 +765,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 string? collectedText = null;
                 lock (activeExec.Lock)
                 {
-                    collectedText = lastTextEvent ?? activeExec.LastText;
+                    collectedText = activeExec.LastText;
 
                     // Reconcile any unclosed tool calls
                     var missingResults = ToolStreamReconciler.BuildMissingResultLines(

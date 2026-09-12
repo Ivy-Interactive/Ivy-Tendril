@@ -551,18 +551,40 @@ describe("DraftMarkdown interactive questions", () => {
     expect(eventHandler).not.toHaveBeenCalled();
   });
 
-  it("ignores card click when user has an active text selection", () => {
+  it("ignores card click when the active text selection is anchored inside that card", () => {
     const { container, eventHandler } = renderInteractive(SINGLE);
-
-    const selectionSpy = vi.spyOn(window, "getSelection").mockReturnValue({
-      toString: () => "selected text",
-    } as Selection);
 
     const card = container.querySelector<HTMLElement>(".tq-option");
     expect(card).not.toBeNull();
+
+    const selectionSpy = vi.spyOn(window, "getSelection").mockReturnValue({
+      isCollapsed: false,
+      anchorNode: card,
+      toString: () => "selected text",
+    } as unknown as Selection);
+
     fireEvent.click(card!);
 
     expect(eventHandler).not.toHaveBeenCalled();
+    selectionSpy.mockRestore();
+  });
+
+  it("still handles a card click when the active text selection is anchored elsewhere", () => {
+    const { container, eventHandler } = renderInteractive(SINGLE);
+
+    const cards = container.querySelectorAll<HTMLElement>(".tq-option");
+    const [firstCard, secondCard] = Array.from(cards);
+    expect(secondCard).not.toBeUndefined();
+
+    const selectionSpy = vi.spyOn(window, "getSelection").mockReturnValue({
+      isCollapsed: false,
+      anchorNode: firstCard,
+      toString: () => "selected text",
+    } as unknown as Selection);
+
+    fireEvent.click(secondCard);
+
+    expect(eventHandler).toHaveBeenCalled();
     selectionSpy.mockRestore();
   });
 
@@ -734,6 +756,125 @@ describe("DraftMarkdown interactive questions", () => {
 
     expect(container.querySelector(".pmv-code-block")).not.toBeNull();
     expect(container.querySelector("pre")).not.toBeNull();
+  });
+});
+
+describe("DraftMarkdown interactive questions — optimistic answers", () => {
+  it("marks an option selected immediately, with the content prop unchanged", () => {
+    const eventHandler = vi.fn();
+    const { container } = render(
+      <DraftMarkdown id="w1" content={SINGLE} events={["OnAnswersChange"]} eventHandler={eventHandler} />,
+    );
+
+    fireEvent.click(checks(container)[0]);
+
+    // No document round trip happened — the content the picker was handed is the same content it
+    // was given, yet the selection shows immediately.
+    expect(checks(container)[0].checked).toBe(true);
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "budget", answer: ["per-request"] }]);
+  });
+
+  it("accumulates two multi-select clicks with no echo in between", () => {
+    const { container, eventHandler } = renderInteractive(MULTI_ANSWERED);
+
+    fireEvent.click(checks(container)[1]); // Email, on top of the document's In-app.
+    fireEvent.click(checks(container)[2]); // Push, on top of the still-pending In-app + Email.
+
+    // Only the three named options — the trailing checkbox is the always-present Other toggle.
+    expect(checks(container).slice(0, 3).map((c) => c.checked)).toEqual([true, true, true]);
+    expect(answerCalls(eventHandler)).toEqual([
+      { questionId: "channels", answer: ["in-app", "email"] },
+      { questionId: "channels", answer: ["in-app", "email", "push"] },
+    ]);
+  });
+
+  it("keeps typed Other text and the open field, with no echo", () => {
+    const { container } = renderInteractive(SINGLE);
+
+    const otherRow = container.querySelector(".tq-option--other")!;
+    fireEvent.click(otherRow.querySelector<HTMLInputElement>(".tq-option-input")!);
+    const input = container.querySelector<HTMLInputElement>(".tq-text-input")!;
+    fireEvent.change(input, { target: { value: "per-tenant" } });
+
+    expect(container.querySelector<HTMLInputElement>(".tq-text-input")?.value).toBe("per-tenant");
+    expect(container.querySelector(".tq-option--other")?.getAttribute("data-selected")).toBe("true");
+  });
+
+  it("deselects immediately on Clear, with no echo", () => {
+    const { container, eventHandler } = renderInteractive(SINGLE_ANSWERED);
+
+    fireEvent.click(container.querySelector<HTMLButtonElement>(".tq-clear")!);
+
+    expect(checks(container).some((c) => c.checked)).toBe(false);
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "budget", answer: null }]);
+  });
+
+  it("keeps the answer selected once the document catches up, and yields to a differing document answer", () => {
+    const eventHandler = vi.fn();
+    const { container, rerender } = render(
+      <DraftMarkdown id="w1" content={SINGLE} events={["OnAnswersChange"]} eventHandler={eventHandler} />,
+    );
+
+    fireEvent.click(checks(container)[0]); // Selects per-request.
+    expect(checks(container)[0].checked).toBe(true);
+
+    // The host echoes back a document that agrees with the pending selection.
+    rerender(
+      <DraftMarkdown
+        id="w1"
+        content={SINGLE_ANSWERED}
+        events={["OnAnswersChange"]}
+        eventHandler={eventHandler}
+      />,
+    );
+    expect(checks(container)[0].checked).toBe(true);
+
+    // The pending entry has now reconciled, so a later document change — even one that disagrees —
+    // flows straight through rather than being masked by a stale pending value.
+    const differentAnswer = fence(
+      "questions:",
+      "  - id: budget",
+      "    title: Retry budget scope?",
+      "    options:",
+      "      - title: Per request",
+      "        value: per-request",
+      "      - title: Per session",
+      "        value: per-session",
+      "    answer: per-session",
+    );
+    rerender(
+      <DraftMarkdown
+        id="w1"
+        content={differentAnswer}
+        events={["OnAnswersChange"]}
+        eventHandler={eventHandler}
+      />,
+    );
+    expect(checks(container)[0].checked).toBe(false);
+    expect(checks(container)[1].checked).toBe(true);
+  });
+
+  it("reverts to the document after the timeout when the host never echoes", () => {
+    vi.useFakeTimers();
+    try {
+      const eventHandler = vi.fn();
+      const { container } = render(
+        <DraftMarkdown id="w1" content={SINGLE} events={["OnAnswersChange"]} eventHandler={eventHandler} />,
+      );
+
+      fireEvent.click(checks(container)[0]);
+      expect(checks(container)[0].checked).toBe(true);
+
+      act(() => {
+        vi.advanceTimersByTime(4000);
+      });
+
+      // A rejected write (or a dropped connection) cannot leave the picker stuck on a selection
+      // the document never actually saved.
+      expect(checks(container).some((c) => c.checked)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

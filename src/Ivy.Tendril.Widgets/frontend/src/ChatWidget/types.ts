@@ -105,6 +105,8 @@ export interface ChatWidgetProps {
   supportsEffort?: boolean;
   isStreaming?: boolean;
   streamingText?: string;
+  /** Id of the in-progress assistant message the live row previews. Absent on an older host that hasn't sent it — the live row then stays read-only. */
+  streamingMessageId?: string;
   queuedMessages?: ChatQueuedMessageDto[];
   runningJobs?: ChatJobDto[];
   /** Shown above the headline while the conversation is empty, e.g. "Good Morning, Joel!". */

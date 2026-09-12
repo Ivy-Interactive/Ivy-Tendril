@@ -1,4 +1,7 @@
 using System.Text;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Providers.OpenCode;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 
@@ -112,12 +115,19 @@ public static class JobLogWriter
             sb.AppendLine();
         }
 
-        var result = ExtractFinalOutput(job);
-        if (!string.IsNullOrEmpty(result))
+        var finalOutput = ExtractFinalOutput(job);
+        if (finalOutput != null)
         {
-            sb.AppendLine("## Final Output");
+            sb.AppendLine(finalOutput.HeadingSuffix != null
+                ? $"## Final Output ({finalOutput.HeadingSuffix})"
+                : "## Final Output");
             sb.AppendLine();
-            sb.AppendLine(result);
+            if (!string.IsNullOrEmpty(finalOutput.IncompleteReason))
+            {
+                sb.AppendLine($"*{finalOutput.IncompleteReason}*");
+                sb.AppendLine();
+            }
+            sb.AppendLine(finalOutput.Text);
             sb.AppendLine();
         }
 
@@ -153,21 +163,66 @@ public static class JobLogWriter
         }
     }
 
-    private static string? ExtractFinalOutput(JobItem job)
+    /// <param name="Text">The assistant's final response, or its partial text when truncated/incomplete.</param>
+    /// <param name="IncompleteReason">The flagged <see cref="ErrorEvent.Message"/>, rendered as an italic note.</param>
+    /// <param name="HeadingSuffix">Appended to the <c>## Final Output</c> heading in parentheses, e.g. <c>truncated</c>.</param>
+    private sealed record FinalOutput(string Text, string? IncompleteReason, string? HeadingSuffix);
+
+    /// <summary>
+    /// Only <see cref="ResultEvent.Response"/> counts as today's "final output". When a run ends without one
+    /// (a truncation or unhandled stop reason flagged by <see cref="OpenCodeEventParser"/>), fall back to the
+    /// assistant's partial <see cref="TextEvent"/> text instead of discarding it — but only for those flagged
+    /// codes, so every other job log stays byte-identical to before.
+    /// </summary>
+    private static FinalOutput? ExtractFinalOutput(JobItem job)
     {
         if (job.OutputLines.Count == 0) return null;
 
         try
         {
-            var serializer = new Ivy.Tendril.Agents.Runtime.JsonEventSerializer();
-            string? lastResult = null;
+            var serializer = new JsonEventSerializer();
+            string? lastResponse = null;
+            string? partialText = null;
+            string? incompleteReason = null;
+            string? headingSuffix = null;
+
             foreach (var line in job.OutputLines)
             {
-                var evt = serializer.Deserialize(line);
-                if (evt is Ivy.Tendril.Agents.Abstractions.ResultEvent r && r.Response != null)
-                    lastResult = r.Response;
+                switch (serializer.Deserialize(line))
+                {
+                    case ResultEvent { Response: { } response }:
+                        lastResponse = response;
+                        break;
+
+                    // Skip Tendril's own synthetic completion/hook lines — they're enqueued as TextEvents
+                    // too (JobItem.EnqueueSystemOutput) and would otherwise look like the model's own text.
+                    case TextEvent text when text.Text.StartsWith("[Tendril] ", StringComparison.Ordinal)
+                        || text.Text.StartsWith("[hook:", StringComparison.Ordinal):
+                        break;
+
+                    case TextEvent text:
+                        partialText = text.IsDelta ? (partialText ?? "") + text.Text : text.Text;
+                        break;
+
+                    case ErrorEvent { Code: OpenCodeEventParser.OutputTruncatedCode } error:
+                        incompleteReason = error.Message;
+                        headingSuffix = "truncated";
+                        break;
+
+                    case ErrorEvent { Code: OpenCodeEventParser.UnhandledStopReasonCode } error:
+                        incompleteReason = error.Message;
+                        headingSuffix = "incomplete";
+                        break;
+                }
             }
-            return lastResult;
+
+            if (!string.IsNullOrEmpty(lastResponse))
+                return new FinalOutput(lastResponse, headingSuffix != null ? incompleteReason : null, headingSuffix);
+
+            if (headingSuffix != null && !string.IsNullOrEmpty(partialText))
+                return new FinalOutput(partialText, incompleteReason, headingSuffix);
+
+            return null;
         }
         catch
         {

@@ -1393,6 +1393,72 @@ public class ChatExecutionServiceJobTrackingTests
     }
 
     /// <summary>
+    /// Every LaunchAsync call returns a session that is already complete, so notifying a plan edit
+    /// never spawns a real agent CLI process. Without this, PlanEditFanOutHarness resolved "codex"
+    /// through the real TestAgentRunner registration and each SendMessageAsync launched an actual
+    /// `codex exec` subprocess against a live model, which cannot finish inside WaitForIdleAsync's
+    /// 20-second budget (plan 00462 recommendation).
+    /// </summary>
+    private sealed class InstantAgentRunner : IAgentRunner
+    {
+        private readonly IAgentRunner _inner;
+
+        public InstantAgentRunner(IAgentRunner inner) => _inner = inner;
+
+        public Task<IAgentSession> LaunchAsync(AgentResolutionContext context, CancellationToken ct = default)
+            => Task.FromResult<IAgentSession>(new InstantCompletionTestSession());
+
+        public Task<ResultEvent> RunToCompletionAsync(AgentResolutionContext context, CancellationToken ct = default)
+            => _inner.RunToCompletionAsync(context, ct);
+
+        public IReadOnlyList<IAgentSession> ActiveSessions => _inner.ActiveSessions;
+        public IObservable<IAgentSession> Sessions => _inner.Sessions;
+        public Task StopAllAsync(CancellationToken ct = default) => _inner.StopAllAsync(ct);
+        public IReadOnlyList<string> RegisteredAgents => _inner.RegisteredAgents;
+        public IAgentCli GetCli(string agentId) => _inner.GetCli(agentId);
+        public IEventParser GetParser(string agentId) => _inner.GetParser(agentId);
+        public IAgentHealthCheck GetHealthCheck(string agentId) => _inner.GetHealthCheck(agentId);
+        public IAgentDescriptor GetDescriptor(string agentId) => _inner.GetDescriptor(agentId);
+        public IFailureAnalyzer? GetFailureAnalyzer(string agentId) => _inner.GetFailureAnalyzer(agentId);
+        public ISessionCostParser? GetCostParser(string agentId) => _inner.GetCostParser(agentId);
+        public IAgentPty? GetPty(string agentId) => _inner.GetPty(agentId);
+        public IModelCatalogProvider? GetModelCatalog(string agentId) => _inner.GetModelCatalog(agentId);
+        public IEnumerable<IModelCatalogProvider> ModelCatalogs => _inner.ModelCatalogs;
+    }
+
+    private sealed class InstantCompletionTestSession : IAgentSession
+    {
+        private static readonly ResultEvent CompletedResult = new()
+        {
+            Kind = AgentEventKind.Result,
+            IsSuccess = true,
+            Response = "Task completed successfully."
+        };
+
+        public string SessionId { get; } = "sess-instant-" + Guid.NewGuid().ToString("N");
+        public string AgentId { get; } = "codex";
+        public SessionState State => SessionState.Completed;
+        public DateTimeOffset StartedAt { get; } = DateTimeOffset.UtcNow;
+        public DateTimeOffset? CompletedAt { get; } = DateTimeOffset.UtcNow;
+        public SessionMetadata? Metadata => null;
+        public IObservable<AgentEvent> Events { get; } = System.Reactive.Linq.Observable.Empty<AgentEvent>();
+        public IObservable<string>? RawOutput => null;
+        public IObservable<string>? RawStderr => null;
+        public ResultEvent? Result => CompletedResult;
+        public bool SupportsPermissionResponse => false;
+        public bool SupportsQuestionResponse => false;
+        public bool SupportsMultiTurn => false;
+
+        public Task<ResultEvent> WaitForCompletionAsync(CancellationToken ct = default) => Task.FromResult(CompletedResult);
+        public Task StopAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task KillAsync() => Task.CompletedTask;
+        public Task RespondToPermissionAsync(string requestId, PermissionDecision decision, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task RespondToQuestionAsync(string questionId, QuestionResponse response, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task SendFollowUpAsync(string message, CancellationToken ct = default) => throw new NotSupportedException();
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>
     /// A plan edited directly from one chat has to reach the plan's other sessions, or the agent that
     /// created the plan keeps reasoning from the version it last read (plan 00400, issue #2455).
     /// </summary>
@@ -1422,7 +1488,7 @@ public class ChatExecutionServiceJobTrackingTests
                 "state: Draft");
             Database.UpsertPlan(Plan);
 
-            var agentRunner = TestAgentRunner.Create();
+            var agentRunner = new InstantAgentRunner(TestAgentRunner.Create());
             JobService = new FakeChatJobService();
             ExecService = new ChatExecutionService(
                 configService,
