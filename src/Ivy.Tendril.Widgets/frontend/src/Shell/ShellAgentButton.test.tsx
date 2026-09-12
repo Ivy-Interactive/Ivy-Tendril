@@ -262,11 +262,18 @@ describe("ShellAgentButton", () => {
       vi.useRealTimers();
     });
 
-    it("keeps the plain row while the list is empty", () => {
-      const { container } = renderOnRail({ items: [] });
+    it("shows the flyout with empty state and new chat button while the list is empty", () => {
+      const { row, container, eventHandler } = renderOnRail({ items: [] });
       expect(container.querySelector(".tsh-agent-count")).toBeNull();
-      expect(container.querySelector(".tsh-agent-pin")).toBeNull();
-      expect(screen.getByRole("button", { name: "Chat" })).toHaveAttribute("data-has-list", "false");
+      expect(container.querySelector(".tsh-agent-pin")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Chat" })).toHaveAttribute("data-has-list", "true");
+
+      fireEvent.click(row);
+      expect(screen.getByText("No chats yet")).toBeInTheDocument();
+      const newChatBtn = screen.getByRole("button", { name: "New chat" });
+      expect(newChatBtn).toBeInTheDocument();
+      fireEvent.click(newChatBtn);
+      expect(eventHandler).toHaveBeenCalledWith("OnNewChat", "agent", []);
     });
 
     it("keeps the plain row when the sidebar is expanded", () => {

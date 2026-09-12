@@ -87,7 +87,7 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   }, [fireNewChat, shortcutKey]);
 
   const hintKeys = modAltKeys(shortcutKey);
-  const hasList = collapsed && !!items?.length;
+  const hasList = collapsed && items != null;
   // The pill is the host's badge when it sends one, else the floated list's length. Reading it from
   // the badge is what keeps the count on screen once the chats list is no longer published (#2556).
   const rawCount = badge ?? String(items?.length ?? 0);
