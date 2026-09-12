@@ -52,7 +52,8 @@ export interface IJobRunner {
   subscribeJobEvents(
     jobId: string,
     onEvent: (event: JobStreamEvent) => void,
-    cancellationToken?: vscode.CancellationToken
+    cancellationToken?: vscode.CancellationToken,
+    kinds?: string[]
   ): Promise<JobStatusResult>;
   listJobs(): Promise<JobListItem[]>;
   listProjects(): Promise<string[]>;
@@ -236,7 +237,8 @@ export class JobRunner implements IJobRunner {
   public async subscribeJobEvents(
     jobId: string,
     onEvent: (event: JobStreamEvent) => void,
-    cancellationToken?: vscode.CancellationToken
+    cancellationToken?: vscode.CancellationToken,
+    kinds?: string[]
   ): Promise<JobStatusResult> {
     let baseUrl: string | undefined;
     let apiKey: string | undefined;
@@ -272,7 +274,19 @@ export class JobRunner implements IJobRunner {
       }
     }
 
-    const url = `${baseUrl.replace(/\/+$/, '')}/api/jobs/${encodeURIComponent(jobId)}/events`;
+    let url = `${baseUrl.replace(/\/+$/, '')}/api/jobs/${encodeURIComponent(jobId)}/events`;
+    if (kinds && kinds.length > 0) {
+      const params = new URLSearchParams();
+      for (const k of kinds) {
+        if (k && k.trim().length > 0) {
+          params.append('kind', k.trim());
+        }
+      }
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+    }
     const headers: Record<string, string> = {
       Accept: 'text/event-stream'
     };

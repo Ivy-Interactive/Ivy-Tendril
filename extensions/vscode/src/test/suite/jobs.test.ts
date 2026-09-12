@@ -156,5 +156,41 @@ describe('JobRunner Suite', () => {
       assert.strictEqual(result.id, '00418');
       assert.strictEqual(result.status, 'Running');
     });
+
+    it('should append kind query parameters when kinds are provided', async () => {
+      const mockServerManager: any = {
+        tendrilHome: '/mock/tendril',
+        getHealthInfo: async () => ({
+          isAlive: true,
+          baseUrl: 'http://localhost:5000',
+          port: 5000,
+          pid: 1234
+        })
+      };
+
+      let requestedUrl = '';
+
+      global.fetch = (async (url: string) => {
+        requestedUrl = url;
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('event: end\ndata: {"status":"Completed"}\n\n'));
+            controller.close();
+          }
+        });
+        return new Response(stream, {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' }
+        });
+      }) as any;
+
+      const runner = new JobRunner(mockServerManager);
+      await runner.subscribeJobEvents('00438', () => {}, undefined, ['tool_call', 'tool_result']);
+
+      assert.strictEqual(
+        requestedUrl,
+        'http://localhost:5000/api/jobs/00438/events?kind=tool_call&kind=tool_result'
+      );
+    });
   });
 });
