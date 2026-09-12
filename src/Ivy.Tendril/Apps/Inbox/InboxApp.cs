@@ -295,9 +295,11 @@ public class InboxApp : ViewBase
     }
 
     public static string? ResolveIssueUrl(GitHubIssue issue) =>
-        issue.Url ?? (issue.Repository != null
-            ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
-            : null);
+        !string.IsNullOrWhiteSpace(issue.Url)
+            ? issue.Url
+            : (!string.IsNullOrWhiteSpace(issue.Repository)
+                ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
+                : null);
 
     public static string TruncateBody(string? body, int maxLength = 500)
     {

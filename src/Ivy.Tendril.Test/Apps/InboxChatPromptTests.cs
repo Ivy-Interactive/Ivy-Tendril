@@ -134,4 +134,29 @@ public class InboxChatPromptTests
 
         Assert.Null(InboxApp.ResolveIssueUrl(Issue(repository: null, url: null)));
     }
+
+    [Fact]
+    public void ResolveIssueUrl_TreatsBlankUrlAndRepositoryAsAbsent()
+    {
+        Assert.Equal(
+            "https://github.com/acme/widgets/issues/12",
+            InboxApp.ResolveIssueUrl(Issue(number: 12, repository: "acme/widgets", url: "")));
+
+        Assert.Equal(
+            "https://github.com/acme/widgets/issues/12",
+            InboxApp.ResolveIssueUrl(Issue(number: 12, repository: "acme/widgets", url: "   ")));
+
+        Assert.Null(InboxApp.ResolveIssueUrl(Issue(repository: "", url: "")));
+        Assert.Null(InboxApp.ResolveIssueUrl(Issue(repository: "   ", url: "")));
+        Assert.Null(InboxApp.ResolveIssueUrl(Issue(repository: null, url: "")));
+    }
+
+    [Fact]
+    public void Build_BlankUrl_DerivesUrlLineInsteadOfEmittingABareLabel()
+    {
+        var prompt = InboxChatPrompt.Build([Issue(url: "")]);
+
+        Assert.Contains("URL: https://github.com/owner/repo/issues/4766", prompt);
+        Assert.DoesNotContain("URL: \n", prompt);
+    }
 }
