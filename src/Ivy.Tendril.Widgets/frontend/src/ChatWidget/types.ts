@@ -11,6 +11,7 @@ export interface ChatMessageDto {
   modelId?: string;
   rawStream?: string;
   effort?: string;
+  completedAt?: string; // ISO 8601, only set once the turn has finished
 }
 
 export interface ChatJobDto {

@@ -863,7 +863,7 @@ export function ChatWidget({
                     <QuestionsDraftContext.Provider value={draftStoreFor(msg.id)}>
                       <QuestionsSubmitContext.Provider value={submitHandlerFor(msg.id)}>
                         {msg.rawStream ? (
-                          <AssistantTurn stream={msg.rawStream} />
+                          <AssistantTurn stream={msg.rawStream} completedAt={msg.completedAt} />
                         ) : msg.content ? (
                           <div className="chat-markdown-body">
                             <BlockMarkdown content={msg.content} />

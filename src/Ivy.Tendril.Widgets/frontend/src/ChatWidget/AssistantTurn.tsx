@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ChevronRight, Coins, LoaderCircle, Timer } from "lucide-react";
+import { ChevronRight, Clock, Coins, LoaderCircle, Timer } from "lucide-react";
 import { parseEventWires, presentEventWires } from "../AgentViewer/parse-events";
 import { deriveStatus } from "../AgentViewer/status";
 import { useHeldStatus } from "../AgentViewer/useHeldStatus";
@@ -89,15 +89,21 @@ export function summarizeTurn(events: PresentationEvent[]): TurnSummary {
 
 export const formatDuration = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
 
+export const formatClockTime = (iso: string): string => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: true });
+};
+
 const formatTokens = (count: number): string => count.toLocaleString("en-US");
 
 const formatCost = (cost: number): string => `$${cost.toFixed(cost < 1 ? 3 : 2)}`;
 
-const TurnMeta: React.FC<{ wire: ResultWire }> = ({ wire }) => {
-  const usage = wire.usage;
+const TurnMeta: React.FC<{ wire?: ResultWire; completedAt?: string }> = ({ wire, completedAt }) => {
+  const usage = wire?.usage;
   const items: React.ReactNode[] = [];
 
-  if (wire.duration_ms != null && wire.duration_ms > 0) {
+  if (wire && wire.duration_ms != null && wire.duration_ms > 0) {
     items.push(
       <Tooltip key="duration" content="Duration">
         <span className="chat-turn-meta-item">
@@ -107,7 +113,7 @@ const TurnMeta: React.FC<{ wire: ResultWire }> = ({ wire }) => {
       </Tooltip>,
     );
   }
-  if (usage != null && (usage.input_tokens > 0 || usage.output_tokens > 0)) {
+  if (wire && usage != null && (usage.input_tokens > 0 || usage.output_tokens > 0)) {
     items.push(
       <Tooltip key="tokens" content="Tokens in / out">
         <span className="chat-turn-meta-item">
@@ -117,12 +123,25 @@ const TurnMeta: React.FC<{ wire: ResultWire }> = ({ wire }) => {
       </Tooltip>,
     );
   }
-  if (usage?.cost_usd != null && usage.cost_usd > 0) {
+  if (wire && usage?.cost_usd != null && usage.cost_usd > 0) {
     items.push(
       <Tooltip key="cost" content="Cost">
         <span className="chat-turn-meta-item">{formatCost(usage.cost_usd)}</span>
       </Tooltip>,
     );
+  }
+  if (completedAt) {
+    const formattedTime = formatClockTime(completedAt);
+    if (formattedTime) {
+      items.push(
+        <Tooltip key="completed" content="Completed">
+          <span className="chat-turn-meta-item">
+            <Clock size={14} />
+            {formattedTime}
+          </span>
+        </Tooltip>,
+      );
+    }
   }
 
   if (items.length === 0) return null;
@@ -182,6 +201,8 @@ export interface AssistantTurnProps {
   stream: string;
   /** Still arriving: shows the animated status instead of the finished turn's metrics. */
   live?: boolean;
+  /** ISO 8601 timestamp of when the turn completed. */
+  completedAt?: string;
 }
 
 /**
@@ -189,7 +210,7 @@ export interface AssistantTurnProps {
  * happened, and either the animated status (while streaming) or the duration and token figures
  * of the finished run.
  */
-export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = false }) => {
+export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = false, completedAt }) => {
   /* One parse per stream update; the turn, its status and its metrics all derive from it. */
   const wires = useMemo(() => (stream ? parseEventWires(stream) : []), [stream]);
   const events = useMemo(() => presentEventWires(wires), [wires]);
@@ -223,7 +244,7 @@ export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = fal
           />
         </div>
       )}
-      {!live && turn.result && <TurnMeta wire={turn.result} />}
+      {!live && (turn.result || completedAt) && <TurnMeta wire={turn.result} completedAt={completedAt} />}
     </div>
   );
 };
