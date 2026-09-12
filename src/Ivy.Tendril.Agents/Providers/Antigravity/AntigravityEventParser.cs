@@ -186,7 +186,7 @@ public sealed class AntigravityEventParser : IEventParser
                 var resultEvent = new ToolResultEvent
                 {
                     Kind = AgentEventKind.ToolResult,
-                    ToolUseId = toolUseId,
+                    ToolUseId = toolUseId!,
                     ToolName = toolName,
                     Output = output,
                     IsError = isError,
@@ -200,7 +200,7 @@ public sealed class AntigravityEventParser : IEventParser
                         new ToolCallEvent
                         {
                             Kind = AgentEventKind.ToolCall,
-                            ToolUseId = toolUseId,
+                            ToolUseId = toolUseId!,
                             ToolName = toolName,
                             InputJson = paramsJson,
                             Description = description,

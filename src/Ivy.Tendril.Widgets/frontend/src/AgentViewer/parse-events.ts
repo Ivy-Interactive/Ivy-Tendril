@@ -84,6 +84,7 @@ export function presentEventWires(events: EventWire[]): PresentationEvent[] {
           const orphanTool: ToolUsePresentation = {
             toolUseId: evt.tool_use_id,
             name: evt.tool_name ?? "(unknown tool)",
+            input: {},
             result: evt.output ?? "",
             isError: evt.is_error,
           };
