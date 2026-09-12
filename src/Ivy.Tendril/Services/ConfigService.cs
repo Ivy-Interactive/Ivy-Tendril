@@ -251,6 +251,10 @@ public class InboxConfig
 public class SecuritySettings
 {
     public List<string>? AllowedHosts { get; set; }
+
+    /// <summary>Extra directories GET /ivy/local-file may serve from, on top of the Tendril home,
+    /// the plans folder and configured project repos.</summary>
+    public List<string>? LocalFileRoots { get; set; }
 }
 
 public static class ChatModes
