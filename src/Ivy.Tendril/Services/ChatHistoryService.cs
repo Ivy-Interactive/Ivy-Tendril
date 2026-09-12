@@ -797,6 +797,10 @@ public class ChatHistoryService : IChatHistoryService
 
     private void PersistSessionToDisk(ChatSessionModel session)
     {
+        // A session becomes durable from its first message. Zero-message sessions are deliberately
+        // memory-only, and are pruned or deleted at load time (LoadSessionsFromDisk, PruneEmptySessions).
+        // This applies uniformly: plan-linked sessions are no exception and also persist only after
+        // receiving at least one message.
         if (session == null || session.Messages == null || session.Messages.Count == 0) return;
         try
         {
