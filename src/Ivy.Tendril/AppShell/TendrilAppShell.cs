@@ -775,6 +775,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             if (!CheckTabExists(closedIndex)) return;
 
+            var closedTab = tabs.Value[closedIndex];
             var wasSelected = selectedIndex.Value == closedIndex;
             var newTabs = tabs.Value.RemoveAt(closedIndex);
             int? newIndex = null;
@@ -798,6 +799,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
 
             tabs.Set(newTabs);
+
+            // PruneEmptySessions leaves terminal sessions alone, so a pane closed without anything
+            // typed into it is retired here instead. The tab is already gone from tabs, so the
+            // SessionsChanged this raises finds nothing left for CloseTabsOfDeletedSessions to close.
+            // The non-null session check keeps this a no-op when that handler is the caller.
+            if (IsAgentTab(closedTab) && chatService.GetSession(closedTab.Id) is { } closedSession
+                && (closedSession.Messages == null || closedSession.Messages.Count == 0))
+            {
+                chatService.DeleteSession(closedTab.Id);
+            }
 
             if (!wasSelected) return;
 

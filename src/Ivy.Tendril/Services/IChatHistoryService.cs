@@ -73,5 +73,11 @@ public interface IChatHistoryService
     void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds);
     IReadOnlyList<string> GetSpawnedJobs(string sessionId);
     bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers);
+    /// <summary>
+    ///     Drops chat sessions that hold no messages, so a chat the user never typed into is not kept
+    ///     in the history. The session named by <paramref name="activeSessionId" />, any session that
+    ///     is generating, and every terminal session are left alone: a terminal session belongs to its
+    ///     pane, which may legitimately be open with nothing typed into it yet.
+    /// </summary>
     void PruneEmptySessions(string? activeSessionId = null);
 }
