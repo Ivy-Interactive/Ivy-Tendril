@@ -116,6 +116,9 @@ public record ProjectConfig
     [YamlIgnore]
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
 
+    [YamlIgnore]
+    public bool IsAdHoc => Meta.TryGetValue("adhoc", out var v) && (v is true || string.Equals(v?.ToString(), "true", StringComparison.OrdinalIgnoreCase));
+
     public string? GetMeta(string key)
     {
         return Meta.TryGetValue(key, out var v) ? v?.ToString() : null;
