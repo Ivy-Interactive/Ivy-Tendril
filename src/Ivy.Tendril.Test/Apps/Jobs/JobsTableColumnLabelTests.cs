@@ -14,6 +14,7 @@ public class JobsTableColumnLabelTests
         { nameof(JobItemRow.Type), "Type" },
         { nameof(JobItemRow.Project), "Project" },
         { nameof(JobItemRow.Timer), "Timer" },
+        { nameof(JobItemRow.Timestamp), "Timestamp" },
         { nameof(JobItemRow.AgentOutput), "Agent Output" },
         { nameof(JobItemRow.LastOutputTimestamp), "Last Output Timestamp" },
         { nameof(JobItemRow.Cost), "Cost" },

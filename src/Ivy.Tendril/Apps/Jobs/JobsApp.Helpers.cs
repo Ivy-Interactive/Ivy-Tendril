@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Models;
 
@@ -90,6 +91,25 @@ public partial class JobsApp
 
         return "-";
     }
+
+    /// <summary>
+    ///     The Timestamp cell: when the job finished, as a clock rather than the duration
+    ///     <see cref="FormatTimer" /> reports. <see cref="JobItem.CompletedAt" /> is stamped only on a
+    ///     terminal transition and is UTC, so it is converted to the viewer's local time; a job that has
+    ///     not finished has nothing to show and gets "-", the same placeholder the Timer column uses.
+    /// </summary>
+    internal static string FormatTimestamp(JobItem job)
+    {
+        if (job.CompletedAt is not { } completedAt) return "-";
+
+        return completedAt.ToLocalTime().ToString(TimestampFormat, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    ///     One shape for every row, and it sorts correctly as a string within a calendar year, which
+    ///     outlives the 100 job window restored from SQLite on startup.
+    /// </summary>
+    internal const string TimestampFormat = "MM-dd HH:mm";
 
     private static string FormatTimeSpan(TimeSpan span)
     {

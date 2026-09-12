@@ -1,3 +1,4 @@
+using System.Globalization;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -8,14 +9,15 @@ namespace Ivy.Tendril.Test.Apps.Jobs;
 
 public class JobsTableFilterTests
 {
-    private static JobItem MakeJob(string id, JobStatus status, DateTime? completedAt = null) => new()
+    private static JobItem MakeJob(string id, JobStatus status, DateTime? completedAt = null, DateTime? startedAt = null) => new()
     {
         Id = id,
         Type = "ExecutePlan",
         PlanFile = $"{id}-Plan",
         Project = "Test",
         Status = status,
-        CompletedAt = completedAt
+        CompletedAt = completedAt,
+        StartedAt = startedAt
     };
 
     [Fact]
@@ -91,6 +93,60 @@ public class JobsTableFilterTests
         var singleCompleted = Assert.Single(completedRows);
         Assert.Equal("Completed", singleCompleted.Status);
         Assert.Equal("job-4", singleCompleted.Id);
+    }
+
+    [Fact]
+    public void JobItemRow_Timestamp_RendersCompletionInstantInLocalTime()
+    {
+        var planService = new FakePlanReaderService();
+        var completedAt = new DateTime(2026, 9, 12, 12, 5, 0, DateTimeKind.Utc);
+        var jobs = new List<JobItem> { MakeJob("job-1", JobStatus.Completed, completedAt: completedAt) };
+
+        var rows = JobsApp.BuildJobRows(jobs, planService);
+
+        // Derived, never hardcoded: a literal "09-12 14:05" only holds in one time zone.
+        var expected = completedAt.ToLocalTime().ToString(JobsApp.TimestampFormat, CultureInfo.InvariantCulture);
+        Assert.Equal(expected, Assert.Single(rows).Timestamp);
+    }
+
+    [Fact]
+    public void JobItemRow_Timestamp_IsPlaceholderForRunningJob_EvenWhenStarted()
+    {
+        var planService = new FakePlanReaderService();
+        var jobs = new List<JobItem>
+        {
+            MakeJob("job-1", JobStatus.Running, startedAt: new DateTime(2026, 9, 12, 12, 5, 0, DateTimeKind.Utc))
+        };
+
+        var rows = JobsApp.BuildJobRows(jobs, planService);
+
+        // The column is a completion time only: StartedAt is deliberately not consulted.
+        Assert.Equal("-", Assert.Single(rows).Timestamp);
+    }
+
+    [Fact]
+    public void JobItemRow_Timestamp_IsPlaceholderWhenJobHasNeitherStamp()
+    {
+        var planService = new FakePlanReaderService();
+        var jobs = new List<JobItem> { MakeJob("job-1", JobStatus.Pending) };
+
+        var rows = JobsApp.BuildJobRows(jobs, planService);
+
+        Assert.Equal("-", Assert.Single(rows).Timestamp);
+    }
+
+    [Fact]
+    public void BuildDataTableUpdates_DoesNotStreamTheTimestampCell()
+    {
+        var jobService = new FilterTestFakeJobService();
+        jobService.Jobs.Add(MakeJob("job-running", JobStatus.Running));
+
+        var updates = JobsApp.BuildDataTableUpdates(jobService, new Dictionary<string, string>()).ToList();
+
+        // The value only changes on a terminal transition, which already forces a full rebuild through
+        // BuildJobRows. A seventh cell here would be dead weight.
+        Assert.NotEmpty(updates);
+        Assert.DoesNotContain(updates, u => u.ColumnName == nameof(JobItemRow.Timestamp));
     }
 
     private class FilterTestFakeJobService : IJobService
