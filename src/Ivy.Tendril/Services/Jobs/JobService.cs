@@ -1657,7 +1657,7 @@ public class JobService : IJobService
     internal static PlanYaml? ReadPlanYaml(string planFolder)
         => PlanYamlHelper.ReadPlanYaml(planFolder);
 
-    internal static void UpdatePlanYamlFields(string planFolder, params (string field, string value)[] updates)
+    internal static bool UpdatePlanYamlFields(string planFolder, params (string field, string value)[] updates)
         => PlanYamlHelper.UpdatePlanYamlFields(planFolder, updates);
 
     internal static void SetPlanStateByFolder(string planFolder, string state)
