@@ -728,6 +728,14 @@ button.chat-jobs-dropdown-item:hover .chat-job-nav-icon {
   color: var(--tch-muted);
 }
 
+.chat-system-event-row[data-job-state="completed"] .chat-system-event-icon {
+  color: var(--tch-success);
+}
+
+.chat-system-event-row[data-job-state="failed"] .chat-system-event-icon {
+  color: var(--tch-danger);
+}
+
 .chat-system-event-text {
   min-width: 0;
   line-height: 1.3;

@@ -27,7 +27,7 @@ import { BlockMarkdown } from "../BlockMarkdown";
 import { AgentPicker } from "./AgentPicker";
 import { AssistantTurn } from "./AssistantTurn";
 import { ChatHeader, JobsMenu } from "./ChatHeader";
-import { Badge, CountBadge } from "../ui/Badge";
+import { Badge, CountBadge, StatusDot } from "../ui/Badge";
 import { IconButton } from "../ui/IconButton";
 import {
   ComposerAttachmentCard,
@@ -36,10 +36,11 @@ import {
   parseUserMessageContent,
 } from "./attachments";
 import { formatSystemEvent } from "./systemEvents";
+import { resolveJobState } from "./jobStatus";
 import { useAttachments } from "./useAttachments";
 import { DEFAULT_TRANSCRIPTION_URL, useSpeechInput } from "./useSpeechInput";
 import { useThreadScroll } from "./useThreadScroll";
-import type { ChatMessageDto, ChatQueuedMessageDto, ChatWidgetProps } from "./types";
+import type { ChatJobDto, ChatMessageDto, ChatQueuedMessageDto, ChatWidgetProps } from "./types";
 import "./chat-widget.css";
 
 export type {
@@ -91,24 +92,42 @@ const newOptimisticMessage = (content: string, agentId: string, modelId: string)
   modelId,
 });
 
-const SystemEventRow: React.FC<{ message: ChatMessageDto; onOpenPlan?: (planId: string) => void }> = ({
-  message,
-  onOpenPlan,
-}) => {
+const SystemEventRow: React.FC<{
+  message: ChatMessageDto;
+  onOpenPlan?: (planId: string) => void;
+  jobs?: ChatJobDto[];
+  messages?: ChatMessageDto[];
+}> = ({ message, onOpenPlan, jobs = [], messages = [] }) => {
   const view = formatSystemEvent(message.content);
-  const Icon =
-    view.kind === "completed"
-      ? CheckCheck
-      : view.kind === "failed"
-        ? XCircle
-        : view.kind === "started"
-          ? LoaderCircle
-          : Sparkles;
+  const jobState = resolveJobState(view.jobId, jobs, messages);
+
+  // For "started" events, resolve the icon from the job state
+  // For other events (completed, failed, info), use the message's own kind
+  let icon: React.ReactNode;
+
+  if (view.kind === "started") {
+    if (jobState === "completed") {
+      icon = <CheckCheck size={16} className="chat-system-event-icon" />;
+    } else if (jobState === "failed") {
+      icon = <XCircle size={16} className="chat-system-event-icon" />;
+    } else if (jobState === "running") {
+      icon = <LoaderCircle size={16} className="chat-system-event-icon spin" />;
+    } else {
+      icon = <StatusDot />;
+    }
+  } else if (view.kind === "completed") {
+    icon = <CheckCheck size={16} className="chat-system-event-icon" />;
+  } else if (view.kind === "failed") {
+    icon = <XCircle size={16} className="chat-system-event-icon" />;
+  } else {
+    icon = <Sparkles size={16} className="chat-system-event-icon" />;
+  }
+
   const plan = view.plan;
 
   return (
-    <div className="chat-system-event-row" data-kind={view.kind} title={message.timestamp}>
-      <Icon size={16} className="chat-system-event-icon" />
+    <div className="chat-system-event-row" data-kind={view.kind} data-job-state={jobState} title={message.timestamp}>
+      {icon}
       <span className="chat-system-event-text">
         {view.text}
         {plan && (
@@ -728,7 +747,15 @@ export function ChatWidget({
             <>
               {displayMessages.map((msg) => {
                 if (msg.role === "system") {
-                  return <SystemEventRow key={msg.id} message={msg} onOpenPlan={openPlan} />;
+                  return (
+                    <SystemEventRow
+                      key={msg.id}
+                      message={msg}
+                      onOpenPlan={openPlan}
+                      jobs={sessionSpawnedJobs}
+                      messages={displayMessages}
+                    />
+                  );
                 }
 
                 if (msg.role === "user") {

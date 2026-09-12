@@ -21,10 +21,7 @@ import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
 import { NEW_CHAT_SHORTCUT_KEY, modAltKeys } from "../ui/shortcuts";
 import type { ChatJobDto } from "./types";
-
-const isRunningJob = (job: ChatJobDto) => job.status === "Running" || job.status === "Pending";
-const isCompletedJob = (job: ChatJobDto) => job.status === "Completed";
-const isFailedJob = (job: ChatJobDto) => job.status === "Failed" || job.status === "Timeout";
+import { isRunningJob, isCompletedJob, isFailedJob } from "./jobStatus";
 
 const jobsLabel = (count: number) => `${count} job${count === 1 ? "" : "s"}`;
 
