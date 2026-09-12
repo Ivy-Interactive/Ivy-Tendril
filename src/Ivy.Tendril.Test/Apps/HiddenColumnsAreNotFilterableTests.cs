@@ -101,11 +101,6 @@ public class HiddenColumnsAreNotFilterableTests
             ["Ivy.Tendril.Agents.Test"] = "Test project",
             ["Ivy.Tendril.Test.End2End"] = "E2E test project",
             ["Ivy.Tendril.Agents.Test.End2End"] = "E2E test project",
-            // Non-C# directories
-            [".releases"] = "Release artifacts, not code",
-            ["news"] = "Documentation, not code",
-            ["resend"] = "Scripts, not code",
-            ["scripts"] = "Scripts, not code",
         };
 
         // Find all immediate children of src/ with at least one .cs file
