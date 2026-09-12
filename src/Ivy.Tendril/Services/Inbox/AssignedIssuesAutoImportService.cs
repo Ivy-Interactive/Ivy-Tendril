@@ -124,9 +124,7 @@ public class AssignedIssuesAutoImportService : IStartable, IDisposable
                 }
 
                 // 3. Check if an existing plan already references this issue URL or issue
-                var issueUrl = issue.Url ?? (issue.Repository != null
-                    ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
-                    : null);
+                var issueUrl = InboxApp.ResolveIssueUrl(issue);
 
                 var hasExistingPlan = existingPlans.Any(p =>
                 {
@@ -161,9 +159,7 @@ public class AssignedIssuesAutoImportService : IStartable, IDisposable
                 var fileName = $"{issue.Number}-{safeName}.md";
                 var filePath = Path.Combine(inboxPath, fileName);
 
-                var resolvedUrl = issue.Url ?? (issue.Repository != null
-                    ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
-                    : "");
+                var resolvedUrl = InboxApp.ResolveIssueUrl(issue) ?? "";
 
                 var content = $"""
                                ---

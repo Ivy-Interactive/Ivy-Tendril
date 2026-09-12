@@ -172,9 +172,7 @@ public class InboxApp : ViewBase
                         ? selectedProject.Value
                         : (issue.Repository != null ? githubService.FindProjectForGithubRepo(issue.Repository)?.Name : null) ?? "Auto";
 
-                    var issueUrl = issue.Url ?? (issue.Repository != null
-                        ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
-                        : "");
+                    var issueUrl = ResolveIssueUrl(issue) ?? "";
 
                     var content = $"""
                                    ---
