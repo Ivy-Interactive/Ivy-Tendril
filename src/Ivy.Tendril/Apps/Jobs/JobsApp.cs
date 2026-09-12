@@ -89,7 +89,9 @@ public partial class JobsApp : ViewBase
 
         var renderedSignature = UseRef("");
 
-        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
+        // Gated on the same signature the interval below compares, so a burst of job exits that leaves
+        // the table looking identical costs no rebuild at all.
+        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken, () => renderedSignature.Value));
         UseInterval(() =>
         {
             if (JobsApp.ComputeStructuralSignature(jobService.GetJobs()) == renderedSignature.Value) return;
