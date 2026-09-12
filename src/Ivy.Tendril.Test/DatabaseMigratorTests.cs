@@ -866,6 +866,95 @@ public class DatabaseMigratorTests : IDisposable
         Assert.Equal(23, GetUserVersion());
     }
 
+    [Fact]
+    public void Migration_025_CostsAgent_AddsColumnAndBackfillsFromJobs()
+    {
+        ApplyMigrationsThrough024();
+        Assert.Equal(24, GetUserVersion());
+
+        // Insert test plans
+        using (var planCmd = _connection.CreateCommand())
+        {
+            planCmd.CommandText = """
+                INSERT INTO Plans (Id, FolderName, FolderPath, Title, State, Level, Project, Created)
+                VALUES (42, '00042-TestPlan', '/plans/00042-TestPlan', 'Test Plan', 'Completed', 'Feature', 'test-project', '2026-09-01T10:00:00Z');
+                """;
+            planCmd.ExecuteNonQuery();
+        }
+
+        // Insert jobs with Provider values
+        using (var jobCmd = _connection.CreateCommand())
+        {
+            jobCmd.CommandText = """
+                INSERT INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, CompletedAt)
+                VALUES
+                    ('job-1', 'ExecutePlan', '00042-TestPlan', 'test-project', 'Completed', 'claude', '2026-09-01T11:00:00Z'),
+                    ('job-2', 'ExpandPlan', '00042-TestPlan', 'test-project', 'Completed', 'codex', '2026-09-01T12:00:00Z');
+                """;
+            jobCmd.ExecuteNonQuery();
+        }
+
+        // Insert costs without Agent column (pre-v4)
+        using (var costCmd = _connection.CreateCommand())
+        {
+            costCmd.CommandText = """
+                INSERT INTO Costs (PlanId, Promptware, Tokens, Cost)
+                VALUES
+                    (42, 'ExecutePlan', 50000, 1.25),
+                    (42, 'ExpandPlan', 25000, 0.50);
+                """;
+            costCmd.ExecuteNonQuery();
+        }
+
+        // Apply Migration_025
+        new Migration_025_CostsAgent().Apply(_connection);
+
+        Assert.Equal(25, GetUserVersion());
+
+        // Verify Agent column exists
+        var columns = new List<string>();
+        using (var pragmaCmd = _connection.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA table_info(Costs);";
+            using var reader = pragmaCmd.ExecuteReader();
+            while (reader.Read())
+                columns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        Assert.Contains("Agent", columns);
+
+        // Verify backfill from Jobs.Provider
+        using (var selectCmd = _connection.CreateCommand())
+        {
+            selectCmd.CommandText = "SELECT Agent FROM Costs WHERE Promptware = 'ExecutePlan';";
+            Assert.Equal("claude", selectCmd.ExecuteScalar()?.ToString());
+        }
+
+        using (var selectCmd = _connection.CreateCommand())
+        {
+            selectCmd.CommandText = "SELECT Agent FROM Costs WHERE Promptware = 'ExpandPlan';";
+            Assert.Equal("codex", selectCmd.ExecuteScalar()?.ToString());
+        }
+    }
+
+    [Fact]
+    public void Migration_025_CostsAgent_IsIdempotent()
+    {
+        ApplyMigrationsThrough024();
+
+        // Simulate database that already had Agent column added
+        using (var alterCmd = _connection.CreateCommand())
+        {
+            alterCmd.CommandText = "ALTER TABLE Costs ADD COLUMN Agent TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+
+        // Should not fail when run again
+        new Migration_025_CostsAgent().Apply(_connection);
+
+        Assert.Equal(25, GetUserVersion());
+    }
+
     private void ApplyMigrationsThrough021()
     {
         new Migration_001_InitialSchema().Apply(_connection);
@@ -889,6 +978,14 @@ public class DatabaseMigratorTests : IDisposable
         new Migration_019_JobsTokenBreakdown().Apply(_connection);
         new Migration_020_JobsExecutionProfile().Apply(_connection);
         new Migration_021_JobsEffort().Apply(_connection);
+    }
+
+    private void ApplyMigrationsThrough024()
+    {
+        ApplyMigrationsThrough021();
+        new Migration_022_CostsNullableCostAndModel().Apply(_connection);
+        new Migration_023_PlanChatSessionId().Apply(_connection);
+        new Migration_024_CostsCostSource().Apply(_connection);
     }
 
     private class FakeMigration : IMigration

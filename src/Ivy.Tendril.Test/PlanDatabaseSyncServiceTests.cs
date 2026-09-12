@@ -121,15 +121,15 @@ public class PlanDatabaseSyncServiceTests : IDisposable
     ///     Reads the synced Costs rows straight out of SQLite. Null and 0 are the whole point here and
     ///     no aggregate on the service can tell them apart, so the rows are inspected directly.
     /// </summary>
-    private List<(string Promptware, int Tokens, decimal? Cost, string? Model, string? CostSource)> ReadCostRows(int planId)
+    private List<(string Promptware, int Tokens, decimal? Cost, string? Model, string? CostSource, string? Agent)> ReadCostRows(int planId)
     {
         using var connection = new SqliteConnection($"Data Source={_dbPath}");
         connection.Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Promptware, Tokens, Cost, Model, CostSource FROM Costs WHERE PlanId = @p ORDER BY Id";
+        cmd.CommandText = "SELECT Promptware, Tokens, Cost, Model, CostSource, Agent FROM Costs WHERE PlanId = @p ORDER BY Id";
         cmd.Parameters.AddWithValue("@p", planId);
 
-        var rows = new List<(string, int, decimal?, string?, string?)>();
+        var rows = new List<(string, int, decimal?, string?, string?, string?)>();
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
             rows.Add((
@@ -137,7 +137,8 @@ public class PlanDatabaseSyncServiceTests : IDisposable
                 reader.GetInt32(1),
                 reader.IsDBNull(2) ? null : reader.GetDecimal(2),
                 reader.IsDBNull(3) ? null : reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetString(4)));
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5)));
         return rows;
     }
 
@@ -307,5 +308,68 @@ public class PlanDatabaseSyncServiceTests : IDisposable
 
         var syncTime = _database.GetLastSyncTime();
         Assert.True(syncTime > DateTime.MinValue);
+    }
+
+    [Fact]
+    public void PerformInitialSync_FiveColumnFile_ResolvesAgentFromJobsAndUpgradesFile()
+    {
+        CreateCostPlan("01600-CostPlan",
+            "Promptware,Tokens,Cost,Model,CostSource\nExecutePlan,50000,1.5000,gemini-3.8-flash,agent\n");
+
+        var job = new JobItem
+        {
+            Id = "job-1600",
+            Type = "ExecutePlan",
+            PlanFile = "01600-CostPlan",
+            ReportedPlanId = "1600",
+            Project = "Tendril",
+            Status = JobStatus.Completed,
+            Provider = "gemini",
+            CostSource = JobCostSources.Agent,
+            CompletedAt = DateTime.UtcNow
+        };
+        _database.UpsertJob(job);
+
+        _syncService.PerformInitialSync();
+
+        var rows = ReadCostRows(1600);
+        Assert.Single(rows);
+        Assert.Equal("gemini", rows[0].Agent);
+
+        var csvPath = Path.Combine(_planReader.PlansDirectory, "01600-CostPlan", "costs.csv");
+        var lines = File.ReadAllLines(csvPath);
+        Assert.Equal("Promptware,Tokens,Cost,Model,CostSource,Agent", lines[0]);
+        Assert.Equal("ExecutePlan,50000,1.5000,gemini-3.8-flash,agent,gemini", lines[1]);
+    }
+
+    [Fact]
+    public void PerformInitialSync_SixColumnFile_PreservesAgent()
+    {
+        CreateCostPlan("01700-CostPlan",
+            "Promptware,Tokens,Cost,Model,CostSource,Agent\nExecutePlan,50000,1.5000,claude-opus-5,agent,claude\n");
+
+        _syncService.PerformInitialSync();
+
+        var rows = ReadCostRows(1700);
+        Assert.Single(rows);
+        Assert.Equal("claude", rows[0].Agent);
+
+        var csvPath = Path.Combine(_planReader.PlansDirectory, "01700-CostPlan", "costs.csv");
+        var lines = File.ReadAllLines(csvPath);
+        Assert.Equal("Promptware,Tokens,Cost,Model,CostSource,Agent", lines[0]);
+        Assert.Equal("ExecutePlan,50000,1.5000,claude-opus-5,agent,claude", lines[1]);
+    }
+
+    [Fact]
+    public void PerformInitialSync_FiveColumnFile_NoMatchingJob_LeavesAgentNull()
+    {
+        CreateCostPlan("01800-CostPlan",
+            "Promptware,Tokens,Cost,Model,CostSource\nExecutePlan,50000,1.5000,gemini-3.8-flash,agent\n");
+
+        _syncService.PerformInitialSync();
+
+        var rows = ReadCostRows(1800);
+        Assert.Single(rows);
+        Assert.Null(rows[0].Agent);
     }
 }

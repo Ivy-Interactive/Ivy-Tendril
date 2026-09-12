@@ -1698,4 +1698,134 @@ public class PlanDatabaseServiceTests : IDisposable
         Assert.NotNull(retrievedByFolder);
         Assert.Equal("session-from-jobs-table", retrievedByFolder.ChatSessionId);
     }
+
+    [Fact]
+    public void GetAgentCostBreakdown_GroupsByAgent()
+    {
+        var plan1 = CreateTestPlan(100, "Plan 1", PlanStatus.Completed);
+        var plan2 = CreateTestPlan(101, "Plan 2", PlanStatus.Completed);
+        var plan3 = CreateTestPlan(102, "Plan 3", PlanStatus.Completed);
+        _db.UpsertPlan(plan1);
+        _db.UpsertPlan(plan2);
+        _db.UpsertPlan(plan3);
+
+        _db.UpsertCosts(100, [
+            new CostEntry("ExecutePlan", 50000, 1.25m, DateTime.UtcNow, "claude-opus-5", "agent", "claude")
+        ]);
+        _db.UpsertCosts(101, [
+            new CostEntry("ExecutePlan", 25000, 0.50m, DateTime.UtcNow, "gpt-4o", "agent", "codex"),
+            new CostEntry("ExpandPlan", 15000, 0.30m, DateTime.UtcNow, "gpt-4o", "agent", "codex")
+        ]);
+        _db.UpsertCosts(102, [
+            new CostEntry("ExecutePlan", 10000, null, DateTime.UtcNow, "gemini-3.8-flash", "subscription", "gemini")
+        ]);
+
+        var results = _db.GetAgentCostBreakdown(7);
+
+        Assert.Equal(3, results.Count);
+
+        var claudeRow = results.First(r => r.Agent == "claude");
+        Assert.Equal(1.25m, claudeRow.Cost);
+        Assert.Equal(50000, claudeRow.Tokens);
+        Assert.Equal(1, claudeRow.PlanCount);
+
+        var codexRow = results.First(r => r.Agent == "codex");
+        Assert.Equal(0.80m, codexRow.Cost);
+        Assert.Equal(40000, codexRow.Tokens);
+        Assert.Equal(1, codexRow.PlanCount);
+
+        var geminiRow = results.First(r => r.Agent == "gemini");
+        Assert.Equal(0m, geminiRow.Cost); // Null cost treated as 0
+        Assert.Equal(10000, geminiRow.Tokens);
+        Assert.Equal(1, geminiRow.PlanCount);
+    }
+
+    [Fact]
+    public void GetAgentCostBreakdown_FoldsNullAndEmptyToUnknown()
+    {
+        var plan1 = CreateTestPlan(200, "Plan 1", PlanStatus.Completed);
+        var plan2 = CreateTestPlan(201, "Plan 2", PlanStatus.Completed);
+        var plan3 = CreateTestPlan(202, "Plan 3", PlanStatus.Completed);
+        _db.UpsertPlan(plan1);
+        _db.UpsertPlan(plan2);
+        _db.UpsertPlan(plan3);
+
+        _db.UpsertCosts(200, [
+            new CostEntry("ExecutePlan", 10000, 0.25m, DateTime.UtcNow, "claude-opus-5", "agent", null)
+        ]);
+        _db.UpsertCosts(201, [
+            new CostEntry("ExecutePlan", 5000, 0.10m, DateTime.UtcNow, "gpt-4o", "agent", "")
+        ]);
+        _db.UpsertCosts(202, [
+            new CostEntry("ExecutePlan", 3000, 0.05m, DateTime.UtcNow, "claude-opus-5", "agent", "claude")
+        ]);
+
+        var results = _db.GetAgentCostBreakdown(7);
+
+        Assert.Equal(2, results.Count);
+
+        var unknownRow = results.First(r => r.Agent == "Unknown");
+        Assert.Equal(0.35m, unknownRow.Cost);
+        Assert.Equal(15000, unknownRow.Tokens);
+        Assert.Equal(2, unknownRow.PlanCount);
+
+        var claudeRow = results.First(r => r.Agent == "claude");
+        Assert.Equal(0.05m, claudeRow.Cost);
+        Assert.Equal(3000, claudeRow.Tokens);
+        Assert.Equal(1, claudeRow.PlanCount);
+    }
+
+    [Fact]
+    public void GetAgentCostBreakdown_RespectsTimeWindow()
+    {
+        var oldPlan = CreateTestPlan(300, "Old Plan", PlanStatus.Completed);
+        oldPlan = oldPlan with
+        {
+            Created = DateTime.UtcNow.AddDays(-10),
+            Updated = DateTime.UtcNow.AddDays(-10)
+        };
+        var recentPlan = CreateTestPlan(301, "Recent Plan", PlanStatus.Completed);
+        _db.UpsertPlan(oldPlan);
+        _db.UpsertPlan(recentPlan);
+
+        _db.UpsertCosts(300, [
+            new CostEntry("ExecutePlan", 50000, 1.00m, DateTime.UtcNow.AddDays(-10), "claude-opus-5", "agent", "claude")
+        ]);
+        _db.UpsertCosts(301, [
+            new CostEntry("ExecutePlan", 25000, 0.50m, DateTime.UtcNow, "gpt-4o", "agent", "codex")
+        ]);
+
+        var results = _db.GetAgentCostBreakdown(7);
+
+        Assert.Single(results);
+        Assert.Equal("codex", results[0].Agent);
+    }
+
+    [Fact]
+    public void GetAgentCostBreakdown_OrdersByCostDescending()
+    {
+        var plan1 = CreateTestPlan(400, "Plan 1", PlanStatus.Completed);
+        var plan2 = CreateTestPlan(401, "Plan 2", PlanStatus.Completed);
+        var plan3 = CreateTestPlan(402, "Plan 3", PlanStatus.Completed);
+        _db.UpsertPlan(plan1);
+        _db.UpsertPlan(plan2);
+        _db.UpsertPlan(plan3);
+
+        _db.UpsertCosts(400, [
+            new CostEntry("ExecutePlan", 10000, 0.25m, DateTime.UtcNow, "claude-opus-5", "agent", "claude")
+        ]);
+        _db.UpsertCosts(401, [
+            new CostEntry("ExecutePlan", 50000, 1.00m, DateTime.UtcNow, "gpt-4o", "agent", "codex")
+        ]);
+        _db.UpsertCosts(402, [
+            new CostEntry("ExecutePlan", 25000, 0.50m, DateTime.UtcNow, "gemini-3.8-flash", "agent", "gemini")
+        ]);
+
+        var results = _db.GetAgentCostBreakdown(7);
+
+        Assert.Equal(3, results.Count);
+        Assert.Equal("codex", results[0].Agent);
+        Assert.Equal("gemini", results[1].Agent);
+        Assert.Equal("claude", results[2].Agent);
+    }
 }

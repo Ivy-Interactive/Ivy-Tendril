@@ -96,6 +96,22 @@ public class FormatHelperTests
         Assert.Equal(expected, FormatHelper.FormatExecutionProfile(profile));
     }
 
+    [Theory]
+    [InlineData("claude", "Claude Code")]
+    [InlineData("openaiproxy", "OpenAI Proxy")]
+    [InlineData("opencode", "OpenCode")]
+    [InlineData("ivy", "Ivy Agent")]
+    [InlineData("unknown", "Unknown")]
+    [InlineData("Unknown", "Unknown")]
+    [InlineData("gemini", "Gemini")]
+    [InlineData("", "Unknown")]
+    [InlineData("   ", "Unknown")]
+    [InlineData(null, "Unknown")]
+    public void FormatAgent(string? agentId, string expected)
+    {
+        Assert.Equal(expected, FormatHelper.FormatAgent(agentId));
+    }
+
     [Fact]
     public void SourceFiles_DoNotContainUtf8Bom()
     {
