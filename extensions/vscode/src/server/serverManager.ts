@@ -9,6 +9,16 @@ import {
 } from './masterDiscovery';
 import { DiscoveryResult, ServerHealthInfo, TendrilPlanSummary } from './types';
 
+export function buildServerArgs(port = 0): string[] {
+  const args = ['--web'];
+  if (typeof port === 'number' && port > 0) {
+    args.push(`--port=${port}`);
+  } else {
+    args.push('--find-available-port');
+  }
+  return args;
+}
+
 export class ServerManager implements vscode.Disposable {
   private readonly outputChannel: vscode.OutputChannel;
   private spawnedChild: cp.ChildProcess | null = null;
@@ -115,10 +125,7 @@ export class ServerManager implements vscode.Disposable {
       const port = config.get<number>(CONFIG_KEYS.serverPort, 0);
       const pollTimeoutMs = config.get<number>(CONFIG_KEYS.serverPollTimeout, 15000);
 
-      const args = ['--web'];
-      if (port > 0) {
-        args.push(`--port=${port}`);
-      }
+      const args = buildServerArgs(port);
 
       this.outputChannel.show(true);
       this.outputChannel.appendLine(`Starting Tendril server: ${executable} ${args.join(' ')}`);
