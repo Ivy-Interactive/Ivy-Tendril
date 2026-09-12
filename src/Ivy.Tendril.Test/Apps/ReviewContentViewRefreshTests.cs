@@ -1,4 +1,6 @@
-using ReviewContentView = Ivy.Tendril.Apps.Review.ContentView;
+// ShouldRefreshFor now lives in the shared Ivy.Tendril.Hooks.PlanRefreshGate, which Review calls. What
+// these tests assert is the gate's behaviour, so the alias keeps every assertion below verbatim.
+using ReviewContentView = Ivy.Tendril.Hooks.PlanRefreshGate;
 
 namespace Ivy.Tendril.Test.Apps;
 
