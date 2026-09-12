@@ -98,7 +98,7 @@ public class JobsAppRefreshGatingTests
     {
         var jobService = new FakeJobService();
         jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
-        var cache = new Dictionary<string, string>();
+        var cache = new Dictionary<(string, string), string>();
 
         var updates = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
 
@@ -110,7 +110,7 @@ public class JobsAppRefreshGatingTests
     {
         var jobService = new FakeJobService();
         jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
-        var cache = new Dictionary<string, string>();
+        var cache = new Dictionary<(string, string), string>();
 
         JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
         var second = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
@@ -124,7 +124,7 @@ public class JobsAppRefreshGatingTests
         var jobService = new FakeJobService();
         var job = MakeJob("job-1", JobStatus.Running);
         jobService.Jobs.Add(job);
-        var cache = new Dictionary<string, string>();
+        var cache = new Dictionary<(string, string), string>();
         JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
 
         job.Cost = 4.56m;
@@ -141,7 +141,7 @@ public class JobsAppRefreshGatingTests
         var job = MakeJob("job-1", JobStatus.Blocked);
         job.StatusMessage = "Waiting for Dep A";
         jobService.Jobs.Add(job);
-        var cache = new Dictionary<string, string>();
+        var cache = new Dictionary<(string, string), string>();
 
         JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
 
@@ -158,7 +158,7 @@ public class JobsAppRefreshGatingTests
     {
         var jobService = new FakeJobService();
         jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
-        var cache = new Dictionary<string, string>();
+        var cache = new Dictionary<(string, string), string>();
         JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
         Assert.NotEmpty(cache);
 
@@ -166,6 +166,28 @@ public class JobsAppRefreshGatingTests
         JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
 
         Assert.Empty(cache);
+    }
+
+    /// <summary>
+    ///     What the (RowId, ColumnName) key buys over a "{rowId} {columnName}" string: the pruning
+    ///     predicate compares the job id itself, not the text before the first space. Under the joined key
+    ///     a *live* job whose id contains a space had its "job 1 x Timer" key split back to "job", which
+    ///     matches no live job id, so every one of its entries was pruned on every tick - silently
+    ///     defeating the cache and re-sending all six cells each second. Pruning a job that really is gone
+    ///     is unaffected either way and is covered by the test above.
+    /// </summary>
+    [Fact]
+    public void BuildDataTableUpdates_KeepsCacheForLiveJobWhoseIdContainsASpace()
+    {
+        var jobService = new FakeJobService();
+        jobService.Jobs.Add(MakeJob("job 1 x", JobStatus.Running));
+        var cache = new Dictionary<(string, string), string>();
+
+        JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+        var second = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        Assert.Empty(second);
+        Assert.Equal(StreamedColumns.Length, cache.Count);
     }
 
     [Fact]

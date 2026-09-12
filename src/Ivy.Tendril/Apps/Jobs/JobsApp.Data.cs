@@ -87,16 +87,17 @@ public partial class JobsApp
 
     /// <summary>
     /// Builds the candidate cell set exactly as before, then keeps only cells whose value actually
-    /// changed since the previous tick, per <paramref name="lastSent"/> (keyed by "{jobId} {columnName}",
-    /// owned by the caller so it survives across ticks). Keys for jobs no longer returned by the
-    /// service are pruned so the cache cannot grow without bound as jobs are evicted.
+    /// changed since the previous tick, per <paramref name="lastSent"/> (keyed by the
+    /// (jobId, columnName) pair, owned by the caller so it survives across ticks). Keys for jobs no
+    /// longer returned by the service are pruned so the cache cannot grow without bound as jobs are
+    /// evicted.
     /// </summary>
     internal static IEnumerable<DataTableCellUpdate> BuildDataTableUpdates(
-        IJobService jobService, Dictionary<string, string> lastSent)
+        IJobService jobService, Dictionary<(string RowId, string ColumnName), string> lastSent)
     {
         var currentJobs = jobService.GetJobs();
         var currentJobIds = currentJobs.Select(j => j.Id).ToHashSet(StringComparer.Ordinal);
-        foreach (var staleKey in lastSent.Keys.Where(k => !currentJobIds.Contains(k.Split(' ')[0])).ToList())
+        foreach (var staleKey in lastSent.Keys.Where(k => !currentJobIds.Contains(k.RowId)).ToList())
             lastSent.Remove(staleKey);
 
         var candidates = currentJobs
@@ -116,7 +117,9 @@ public partial class JobsApp
 
         foreach (var update in candidates)
         {
-            var key = $"{update.RowId} {update.ColumnName}";
+            // A hard cast, not a ToString(): every candidate above is built from j.Id, a string, so a
+            // failure here means that invariant broke and should say so loudly.
+            var key = ((string)update.RowId, update.ColumnName);
             var value = update.Value as string ?? update.Value?.ToString() ?? "";
             if (lastSent.TryGetValue(key, out var previous) && previous == value) continue;
             lastSent[key] = value;
