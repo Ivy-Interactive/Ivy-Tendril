@@ -654,6 +654,10 @@ internal class JobCompletionHandler
         @"^https?://github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+)/pull/(?<number>\d+)(?=/?(?:#\S*)?$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    internal static readonly Regex DuplicateMarkerPattern = new(
+        @"identified as duplicate:\s*(?<target>[^\s]+)",
+        RegexOptions.Compiled);
+
     /// <summary>
     ///     Safety net for CreatePr. The agent is supposed to record each PR URL via
     ///     `tendril plan add-pr` and set the plan to Completed (Program.md step 6), but a rushed or
@@ -838,7 +842,7 @@ internal class JobCompletionHandler
                 }
             }
 
-            if (IsDuplicatePlan(job)) return;
+            if (IsDuplicatePlan(job, plansDir)) return;
 
             if (!string.IsNullOrEmpty(job.AllocatedPlanId))
             {
@@ -989,7 +993,7 @@ internal class JobCompletionHandler
             }
         }
 
-        return IsDuplicatePlan(job);
+        return IsDuplicatePlan(job, plansDir);
     }
 
     internal static int GetPlanRevisionCount(string planFolder)
@@ -1096,15 +1100,50 @@ internal class JobCompletionHandler
         return true;
     }
 
-    // CreatePlan signals a deliberate duplicate rejection by ending its final message with
-    // "identified as duplicate: <folder>". The negative lookahead skips the documented template
-    // form, whose placeholder is angle-bracketed, so an agent that reads or quotes Program.md
-    // mid-run cannot echo the marker and suppress a genuine "no plan produced" failure.
-    // OutputLines holds re-serialized JSON, so the '<' arrives escaped as < — match both.
-    private static bool IsDuplicatePlan(JobItem job)
+    // A duplicate rejection is a claim the agent makes about its own run, so only the agent's own
+    // text counts: OutputLines also carries every tool result, and a CreatePlan run that reads a
+    // file quoting the marker (AGENTS.md documents it) must not be able to suppress a real failure.
+    // The named folder has to resolve to a plan on disk as well, so prose that happens to contain the
+    // marker cannot pass either.
+    private static bool IsDuplicatePlan(JobItem job, string? plansDir)
     {
-        var outputText = string.Join("\n", job.OutputLines);
-        return Regex.IsMatch(outputText, @"identified as duplicate:\s*(?!<|\\u003[Cc])\S");
+        if (string.IsNullOrEmpty(plansDir) || !Directory.Exists(plansDir)) return false;
+
+        var serializer = new JsonEventSerializer();
+        foreach (var entry in job.OutputLines)
+        {
+            var text = serializer.Deserialize(entry) switch
+            {
+                TextEvent t => t.Text,
+                ResultEvent { Response: { } response } => response,
+                _ => null
+            };
+            if (string.IsNullOrEmpty(text)) continue;
+
+            foreach (var m in DuplicateMarkerPattern.Matches(text).Cast<Match>())
+                if (ResolvesToPlanFolder(m.Groups["target"].Value, plansDir)) return true;
+        }
+        return false;
+    }
+
+    // FindPlanFolderById globs "{planId}-*", so passing it a full folder name never matches - that's
+    // why the first resolution step below checks the full form directly rather than delegating to it.
+    private static bool ResolvesToPlanFolder(string token, string plansDir)
+    {
+        token = token.Trim('`', '"', '\'', '.', ',', ';', ')', ']');
+        if (string.IsNullOrEmpty(token)) return false;
+
+        if (Directory.Exists(Path.Combine(plansDir, token))) return true;
+
+        var idMatch = Regex.Match(token, @"^(\d{5})");
+        if (idMatch.Success && PlanYamlHelper.FindPlanFolderById(plansDir, idMatch.Groups[1].Value) != null)
+            return true;
+
+        if (Regex.IsMatch(token, @"^\d+$") &&
+            PlanYamlHelper.FindPlanFolderById(plansDir, token.PadLeft(5, '0')) != null)
+            return true;
+
+        return false;
     }
 
     private static bool TryVerifyByFilesystem(JobItem job, string plansDir)

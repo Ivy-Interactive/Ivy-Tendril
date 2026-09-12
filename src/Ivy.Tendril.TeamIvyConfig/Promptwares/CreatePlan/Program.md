@@ -127,7 +127,10 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
   ```
 
   The marker is how the server tells a deliberate duplicate rejection apart from a CreatePlan run
-  that simply produced nothing. Omit it and the job is recorded as **Failed**.
+  that simply produced nothing. Omit it and the job is recorded as **Failed**. `<existing plan
+  folder name>` must be a real plan folder (or its plan id) that resolves on disk; a marker whose
+  target does not resolve is ignored and the job is recorded **Failed** the same as if it were
+  omitted.
 
   Include the reasoning above the marker — the original request, the existing plan's state, and why
   it is a duplicate — so the job log carries the full record.
