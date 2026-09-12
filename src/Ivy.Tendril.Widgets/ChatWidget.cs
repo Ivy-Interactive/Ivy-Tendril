@@ -13,7 +13,8 @@ public record ChatMessageDto(
     string? AgentId = null,
     string? ModelId = null,
     string? RawStream = null,
-    string? Effort = null
+    string? Effort = null,
+    string? CompletedAt = null
 );
 
 public record ChatJobDto(

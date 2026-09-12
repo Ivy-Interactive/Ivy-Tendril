@@ -492,7 +492,8 @@ public class ChatApp : ViewBase
                     m.AgentId,
                     m.ModelId,
                     m.RawStream,
-                    m.Effort
+                    m.Effort,
+                    CompletedAt: m.CompletedAt?.ToString("o")
                 )).ToList()
                 : [],
             status,

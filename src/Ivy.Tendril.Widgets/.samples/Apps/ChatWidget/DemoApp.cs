@@ -82,7 +82,7 @@ class DemoApp : ViewBase
             "2026-09-08T09:12:00Z",
             [
                 new ChatMessageDto("m1", "user", $"Add a dark mode toggle to the vault theme settings page\n\n[Attached Files]:\n- {mockupPath}\n- /tmp/design-notes.md", "9:00 AM", "claude", "fable-5-1"),
-                new ChatMessageDto("m2", "assistant", "Plan 00059 started.", "9:02 AM", "claude", "fable-5-1", FinishedTurn),
+                new ChatMessageDto("m2", "assistant", "Plan 00059 started.", "9:02 AM", "claude", "fable-5-1", FinishedTurn, CompletedAt: "2026-09-08T09:02:41Z"),
                 new ChatMessageDto("m3", "system", "[System Event] Job 00148 (ExecutePlan) for '00059: Add dark mode toggle to vault theme settings' has finished with status: Completed (Completed successfully). Please inspect the outcome, determine whether any action is needed or if any issues occurred, and proactively guide the user on the results and next steps.", "9:11 AM"),
                 new ChatMessageDto("m4", "assistant", CompletedMessage, "9:12 AM", "claude", "fable-5-1"),
                 new ChatMessageDto("m5", "system", "[System Event] Manual approval granted and execution started for plan 'Add keyboard shortcuts to composer' (Job 00151).", "9:13 AM"),

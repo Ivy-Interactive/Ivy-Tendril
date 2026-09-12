@@ -19,7 +19,8 @@ public record ChatMessageModel(
     string? AgentId = null,
     string? ModelId = null,
     string? RawStream = null,
-    string? Effort = null
+    string? Effort = null,
+    DateTimeOffset? CompletedAt = null
 );
 
 public record ChatSessionModel(
@@ -56,7 +57,7 @@ public interface IChatHistoryService
     void DeleteSession(string id);
     void RenameSession(string id, string newTitle);
     ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null);
-    ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true);
+    ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true, bool markCompleted = false);
     void FlushSession(string sessionId);
     void SetSessionGenerating(string sessionId, bool isGenerating);
     void ClearAllGeneratingSessions();
