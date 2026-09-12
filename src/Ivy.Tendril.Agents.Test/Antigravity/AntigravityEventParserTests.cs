@@ -197,4 +197,98 @@ public class AntigravityEventParserTests
         Assert.Equal(2, failedResult.ExitCode);
         Assert.False(failedResult.IsSuccess);
     }
+
+    [Fact]
+    public void ParseLine_ToolActiveFollowedByDone_YieldsCallThenResult()
+    {
+        var parser = new AntigravityEventParser();
+        var activeJson = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"ACTIVE\",\"step_index\":1,\"tool_name\":\"read_file\",\"tool_info\":{\"parameters\":{\"path\":\"test.txt\"}}}}";
+        var doneJson = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"DONE\",\"step_index\":1,\"tool_name\":\"read_file\",\"tool_info\":{\"output\":\"file contents\"}}}";
+
+        var activeEvents = parser.ParseLine(activeJson);
+        Assert.Single(activeEvents);
+        var toolCall = Assert.IsType<ToolCallEvent>(activeEvents[0]);
+        Assert.Equal("read_file", toolCall.ToolName);
+        var toolUseId = toolCall.ToolUseId;
+        Assert.NotNull(toolUseId);
+
+        var doneEvents = parser.ParseLine(doneJson);
+        Assert.Single(doneEvents);
+        var toolResult = Assert.IsType<ToolResultEvent>(doneEvents[0]);
+        Assert.Equal(toolUseId, toolResult.ToolUseId);
+        Assert.Equal("read_file", toolResult.ToolName);
+        Assert.Equal("file contents", toolResult.Output);
+        Assert.False(toolResult.IsError);
+    }
+
+    [Fact]
+    public void ParseLine_TwoActiveStepsWithMissingStepIndex_GetDistinctIds()
+    {
+        var parser = new AntigravityEventParser();
+        var active1 = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"ACTIVE\",\"tool_name\":\"bash\"}}";
+        var active2 = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"ACTIVE\",\"tool_name\":\"grep\"}}";
+
+        var events1 = parser.ParseLine(active1);
+        Assert.Single(events1);
+        var call1 = Assert.IsType<ToolCallEvent>(events1[0]);
+        var id1 = call1.ToolUseId;
+
+        var events2 = parser.ParseLine(active2);
+        Assert.Single(events2);
+        var call2 = Assert.IsType<ToolCallEvent>(events2[0]);
+        var id2 = call2.ToolUseId;
+
+        Assert.NotEqual(id1, id2);
+    }
+
+    [Fact]
+    public void ParseLine_TerminalStateNotDone_YieldsResultWithIsErrorTrue()
+    {
+        var parser = new AntigravityEventParser();
+        var activeJson = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"ACTIVE\",\"step_index\":5,\"tool_name\":\"write_file\"}}";
+        var cancelledJson = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"CANCELLED\",\"step_index\":5,\"tool_name\":\"write_file\"}}";
+
+        parser.ParseLine(activeJson);
+        var events = parser.ParseLine(cancelledJson);
+
+        Assert.Single(events);
+        var result = Assert.IsType<ToolResultEvent>(events[0]);
+        Assert.True(result.IsError);
+        Assert.Contains("CANCELLED", result.Output);
+    }
+
+    [Fact]
+    public void ParseLine_DoneWithNoPrecedingActive_YieldsBothCallAndResult()
+    {
+        var parser = new AntigravityEventParser();
+        var doneJson = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"DONE\",\"step_index\":3,\"tool_name\":\"find_by_name\",\"tool_info\":{\"output\":\"found 5 files\"}}}";
+
+        var events = parser.ParseLine(doneJson);
+
+        Assert.Equal(2, events.Count);
+
+        var toolCall = Assert.IsType<ToolCallEvent>(events[0]);
+        Assert.Equal("find_by_name", toolCall.ToolName);
+        var toolUseId = toolCall.ToolUseId;
+
+        var toolResult = Assert.IsType<ToolResultEvent>(events[1]);
+        Assert.Equal(toolUseId, toolResult.ToolUseId);
+        Assert.Equal("find_by_name", toolResult.ToolName);
+        Assert.Equal("found 5 files", toolResult.Output);
+        Assert.False(toolResult.IsError);
+    }
+
+    [Fact]
+    public void ParseLine_StepIndexAsJsonString_ParsesWithoutThrowing()
+    {
+        var parser = new AntigravityEventParser();
+        var json = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"ACTIVE\",\"step_index\":\"42\",\"tool_name\":\"test_tool\"}}";
+
+        var events = parser.ParseLine(json);
+
+        Assert.Single(events);
+        var toolCall = Assert.IsType<ToolCallEvent>(events[0]);
+        Assert.Equal("test_tool", toolCall.ToolName);
+        Assert.NotNull(toolCall.ToolUseId);
+    }
 }
