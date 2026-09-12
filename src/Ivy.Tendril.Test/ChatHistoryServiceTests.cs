@@ -385,6 +385,90 @@ public class ChatHistoryServiceTests
     }
 
     [Fact]
+    public void UpdateMessage_WithMarkCompleted_StampsCompletedAtAndPersists()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet");
+            var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
+            Assert.NotNull(initialMsg);
+            Assert.Null(initialMsg.CompletedAt);
+
+            var beforeUpdate = DateTimeOffset.UtcNow;
+            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, "final response", rawStream: "{\"kind\":\"result\"}", markCompleted: true);
+            var afterUpdate = DateTimeOffset.UtcNow;
+
+            Assert.NotNull(updatedMsg);
+            Assert.NotNull(updatedMsg.CompletedAt);
+            Assert.InRange(updatedMsg.CompletedAt.Value, beforeUpdate, afterUpdate);
+
+            // Verify persistence by reloading from disk
+            var configService = new ConfigService(new TendrilSettings(), tempDir);
+            var reloadedService = new ChatHistoryService(configService);
+            var reloadedSession = reloadedService.GetSession(session.Id);
+            Assert.NotNull(reloadedSession);
+            Assert.Single(reloadedSession.Messages);
+            Assert.NotNull(reloadedSession.Messages[0].CompletedAt);
+            Assert.Equal(updatedMsg.CompletedAt, reloadedSession.Messages[0].CompletedAt);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void UpdateMessage_WithoutMarkCompleted_LeavesCompletedAtNull()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet");
+            var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
+            Assert.NotNull(initialMsg);
+            Assert.Null(initialMsg.CompletedAt);
+
+            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, "streaming update", rawStream: "{\"kind\":\"text\",\"delta\":true}", flushImmediately: false, touchUpdatedAt: false);
+            Assert.NotNull(updatedMsg);
+            Assert.Null(updatedMsg.CompletedAt);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void UpdateMessage_StreamingUpdate_DoesNotClearExistingCompletedAt()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet");
+            var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
+            Assert.NotNull(initialMsg);
+
+            var completedMsg = service.UpdateMessage(session.Id, initialMsg.Id, "completed response", rawStream: "{\"kind\":\"result\"}", markCompleted: true);
+            Assert.NotNull(completedMsg);
+            Assert.NotNull(completedMsg.CompletedAt);
+            var originalCompletedAt = completedMsg.CompletedAt;
+
+            var laterMsg = service.UpdateMessage(session.Id, initialMsg.Id, "edit after completion", flushImmediately: false, touchUpdatedAt: false);
+            Assert.NotNull(laterMsg);
+            Assert.NotNull(laterMsg.CompletedAt);
+            Assert.Equal(originalCompletedAt, laterMsg.CompletedAt);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void AddSpawnedJob_And_GetSpawnedJobs_TracksAndPersistsJobIds()
     {
         var (service, tempDir) = CreateTestService();

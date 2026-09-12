@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import { AssistantTurn, formatDuration, summarizeTurn } from "./AssistantTurn";
+import { AssistantTurn, formatDuration, formatClockTime, summarizeTurn } from "./AssistantTurn";
 import { parseEventWireStream } from "../AgentViewer/parse-events";
 
 const wire = (events: object[]) => events.map((e) => JSON.stringify(e)).join("\n");
@@ -127,5 +127,47 @@ describe("AssistantTurn", () => {
     render(<AssistantTurn stream={stream} live />);
     expect(screen.getByText("1m 22s")).toBeInTheDocument();
     expect(screen.getByText("~1k tokens")).toBeInTheDocument();
+  });
+});
+
+describe("formatClockTime", () => {
+  it("formats valid ISO strings according to viewer locale", () => {
+    const iso = new Date(2026, 8, 12, 9, 5).toISOString();
+    const formatted = formatClockTime(iso);
+    expect(formatted).toBeTruthy();
+    expect(formatted).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("returns empty string for unparseable input", () => {
+    expect(formatClockTime("not-a-date")).toBe("");
+    expect(formatClockTime("")).toBe("");
+  });
+});
+
+describe("AssistantTurn with completedAt", () => {
+  it("shows the formatted completion time in the meta row when completedAt is provided", () => {
+    const stream = wire([
+      { kind: "result", timestamp: "t1", response: "Done.", is_success: true, duration_ms: 2400, usage: { input_tokens: 500, output_tokens: 50, cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 0, cost_usd: 0.012 } },
+    ]);
+    const completedAt = new Date(2026, 8, 12, 14, 30).toISOString();
+    render(<AssistantTurn stream={stream} completedAt={completedAt} />);
+
+    expect(screen.getByText("2.4s")).toBeInTheDocument();
+    expect(screen.getByText("500 / 50")).toBeInTheDocument();
+    const clockTime = formatClockTime(completedAt);
+    expect(screen.getByText(clockTime)).toBeInTheDocument();
+  });
+
+  it("renders meta row without clock item when completedAt is absent", () => {
+    const stream = wire([
+      { kind: "result", timestamp: "t1", response: "Done.", is_success: true, duration_ms: 2400, usage: { input_tokens: 500, output_tokens: 50, cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 0, cost_usd: 0.012 } },
+    ]);
+    render(<AssistantTurn stream={stream} />);
+
+    expect(screen.getByText("2.4s")).toBeInTheDocument();
+    expect(screen.getByText("500 / 50")).toBeInTheDocument();
+    const { container } = render(<AssistantTurn stream={stream} />);
+    const metaItems = container.querySelectorAll(".chat-turn-meta-item");
+    expect(metaItems.length).toBe(3);
   });
 });
