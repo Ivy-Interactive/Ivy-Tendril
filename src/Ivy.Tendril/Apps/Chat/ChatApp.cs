@@ -351,6 +351,13 @@ public class ChatApp : ViewBase
             },
             id => deletingSessionId.Set(id)));
 
+        var runningChatJobs = jobService?.GetJobs()
+            .Where(j => j.Status is JobStatus.Running or JobStatus.Pending or JobStatus.Queued)
+            .ToList() ?? new List<JobItem>();
+        var samplePrompts = SamplePrompts.ForChat(
+            planService?.GetPlans() ?? new List<PlanFile>(),
+            runningChatJobs);
+
         var content = new ContentView(
             activeSession,
             activeSessionId,
@@ -373,7 +380,8 @@ public class ChatApp : ViewBase
             SendMessage,
             SelectSession,
             StartNewChat,
-            sharedDeletingSessionId: deletingSessionId
+            sharedDeletingSessionId: deletingSessionId,
+            samplePrompts: samplePrompts
         );
 
         return new Fragment(content, searchDialog);

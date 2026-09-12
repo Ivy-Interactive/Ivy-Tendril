@@ -38,7 +38,8 @@ public class ContentView(
     Action<string> selectSession,
     Action startNewChat,
     bool embedded = false,
-    IState<string?>? sharedDeletingSessionId = null) : ViewBase
+    IState<string?>? sharedDeletingSessionId = null,
+    List<ChatSamplePromptDto>? samplePrompts = null) : ViewBase
 {
     internal IState<string> SelectedAgentState => selectedAgent;
     internal IState<string> SelectedModelState => selectedModel;
@@ -122,6 +123,7 @@ public class ContentView(
             RunningJobs = runningJobs,
             Greeting = greeting,
             Headline = headline,
+            SamplePrompts = samplePrompts ?? new(),
             Embedded = embedded,
 
             OnSelectSession = e =>

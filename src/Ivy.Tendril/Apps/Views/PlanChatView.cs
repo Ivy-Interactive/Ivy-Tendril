@@ -130,6 +130,8 @@ public class PlanChatView(PlanFile plan) : ViewBase
             streamVersion.Set(v => v + 1);
         }
 
+        var samplePrompts = SamplePrompts.ForPlan(plan);
+
         return new Chat.ContentView(
             session,
             activeSessionId,
@@ -152,7 +154,8 @@ public class PlanChatView(PlanFile plan) : ViewBase
             SendMessage,
             id => activeSessionId.Set(id),
             startNewChat: () => { },
-            embedded: true);
+            embedded: true,
+            samplePrompts: samplePrompts);
 
         string DefaultAgent(ChatSessionModel? sess) =>
             sess?.AgentId ?? configService.Settings.CodingAgent ?? "claude";
