@@ -52,6 +52,70 @@ describe('Tendril IDE Bridge Suite', () => {
       }
     });
 
+    it('should validate valid executeCommand message', () => {
+      const msg = validateBridgeMessage({
+        type: 'executeCommand',
+        command: 'tendril.createPlan',
+        args: ['test-arg']
+      });
+
+      assert.strictEqual(msg.type, 'executeCommand');
+      if (msg.type === 'executeCommand') {
+        assert.strictEqual(msg.command, 'tendril.createPlan');
+        assert.deepStrictEqual(msg.args, ['test-arg']);
+      }
+    });
+
+    it('should validate valid startJob message for all supported types', () => {
+      const createMsg = validateBridgeMessage({
+        type: 'startJob',
+        jobType: 'CreatePlan',
+        description: 'New feature plan',
+        project: 'ivy-tendril'
+      });
+      assert.strictEqual(createMsg.type, 'startJob');
+      if (createMsg.type === 'startJob') {
+        assert.strictEqual(createMsg.jobType, 'CreatePlan');
+        assert.strictEqual(createMsg.description, 'New feature plan');
+        assert.strictEqual(createMsg.project, 'ivy-tendril');
+      }
+
+      const execMsg = validateBridgeMessage({
+        type: 'startJob',
+        jobType: 'ExecutePlan',
+        planId: '00399'
+      });
+      assert.strictEqual(execMsg.type, 'startJob');
+      if (execMsg.type === 'startJob') {
+        assert.strictEqual(execMsg.jobType, 'ExecutePlan');
+        assert.strictEqual(execMsg.planId, '00399');
+      }
+
+      const retryMsg = validateBridgeMessage({
+        type: 'startJob',
+        jobType: 'RetryPlan',
+        planId: '00399',
+        changeRequest: 'Fix unit tests'
+      });
+      assert.strictEqual(retryMsg.type, 'startJob');
+      if (retryMsg.type === 'startJob') {
+        assert.strictEqual(retryMsg.jobType, 'RetryPlan');
+        assert.strictEqual(retryMsg.planId, '00399');
+        assert.strictEqual(retryMsg.changeRequest, 'Fix unit tests');
+      }
+
+      const updateMsg = validateBridgeMessage({
+        type: 'startJob',
+        jobType: 'UpdatePlan',
+        planId: '00399'
+      });
+      assert.strictEqual(updateMsg.type, 'startJob');
+      if (updateMsg.type === 'startJob') {
+        assert.strictEqual(updateMsg.jobType, 'UpdatePlan');
+        assert.strictEqual(updateMsg.planId, '00399');
+      }
+    });
+
     it('should throw for unknown or malformed messages', () => {
       assert.throws(() => validateBridgeMessage(null));
       assert.throws(() => validateBridgeMessage(123));
@@ -61,6 +125,14 @@ describe('Tendril IDE Bridge Suite', () => {
       assert.throws(() => validateBridgeMessage({ type: 'openFile', path: '   ' }));
       assert.throws(() => validateBridgeMessage({ type: 'openWorktree' }));
       assert.throws(() => validateBridgeMessage({ type: 'openDiff', leftPath: '/a' }));
+      assert.throws(() => validateBridgeMessage({ type: 'executeCommand' }));
+      assert.throws(() => validateBridgeMessage({ type: 'executeCommand', command: '' }));
+      assert.throws(() => validateBridgeMessage({ type: 'executeCommand', command: 'cmd', args: 'invalid' }));
+      assert.throws(() => validateBridgeMessage({ type: 'startJob', jobType: 'InvalidType' }));
+      assert.throws(() => validateBridgeMessage({ type: 'startJob', jobType: 'CreatePlan' }));
+      assert.throws(() => validateBridgeMessage({ type: 'startJob', jobType: 'ExecutePlan' }));
+      assert.throws(() => validateBridgeMessage({ type: 'startJob', jobType: 'RetryPlan', planId: '001' }));
+      assert.throws(() => validateBridgeMessage({ type: 'startJob', jobType: 'UpdatePlan' }));
     });
   });
 
@@ -179,6 +251,154 @@ describe('Tendril IDE Bridge Suite', () => {
       assert.strictEqual(executedArgs[0].fsPath, path.resolve('/old/file.txt'));
       assert.strictEqual(executedArgs[1].fsPath, path.resolve('/new/file.txt'));
       assert.strictEqual(executedArgs[2], 'Revision Comparison');
+    });
+
+    it('should route executeCommand to host.executeCommand', async () => {
+      let executedCmd = '';
+      let executedArgs: any[] = [];
+
+      const mockHost: BridgeHost = {
+        openTextDocument: async () => ({} as any),
+        showTextDocument: async () => ({} as any),
+        getWorkspaceFolders: () => [],
+        updateWorkspaceFolders: () => true,
+        executeCommand: async (cmd: string, ...args: any[]) => {
+          executedCmd = cmd;
+          executedArgs = args;
+          return 'command-result' as any;
+        }
+      };
+
+      const handler = new BridgeHandler(mockHost);
+      const result = await handler.handleRawMessage({
+        type: 'executeCommand',
+        command: 'tendril.createPlan',
+        args: ['arg1', 42]
+      });
+
+      assert.strictEqual(executedCmd, 'tendril.createPlan');
+      assert.deepStrictEqual(executedArgs, ['arg1', 42]);
+      assert.strictEqual(result, 'command-result');
+    });
+
+    it('should route startJob to host.startJob if host supports it', async () => {
+      let startedJobMessage: any = null;
+
+      const mockHost: BridgeHost = {
+        openTextDocument: async () => ({} as any),
+        showTextDocument: async () => ({} as any),
+        getWorkspaceFolders: () => [],
+        updateWorkspaceFolders: () => true,
+        executeCommand: async () => ({} as any),
+        startJob: async (msg: any) => {
+          startedJobMessage = msg;
+          return { jobId: '09999', status: 'Started' };
+        }
+      };
+
+      const handler = new BridgeHandler(mockHost);
+      const res = (await handler.handleRawMessage({
+        type: 'startJob',
+        jobType: 'CreatePlan',
+        description: 'Test create plan',
+        project: 'ivy-tendril'
+      })) as any;
+
+      assert.ok(startedJobMessage);
+      assert.strictEqual(startedJobMessage.jobType, 'CreatePlan');
+      assert.strictEqual(startedJobMessage.description, 'Test create plan');
+      assert.strictEqual(startedJobMessage.project, 'ivy-tendril');
+      assert.strictEqual(res.jobId, '09999');
+    });
+
+    it('should route startJob to jobRunner if jobRunner is provided', async () => {
+      let createPlanCalledWith: any = null;
+      let executePlanCalledWith: any = null;
+      let retryPlanCalledWith: any = null;
+      let updatePlanCalledWith: any = null;
+
+      const mockJobRunner: any = {
+        startCreatePlan: async (desc: string, proj?: string) => {
+          createPlanCalledWith = { desc, proj };
+          return { jobId: '01001', status: 'Started', message: 'OK' };
+        },
+        startExecutePlan: async (planId: string) => {
+          executePlanCalledWith = { planId };
+          return { jobId: '01002', status: 'Started', message: 'OK' };
+        },
+        startRetryPlan: async (planId: string, req: string) => {
+          retryPlanCalledWith = { planId, req };
+          return { jobId: '01003', status: 'Started', message: 'OK' };
+        },
+        startUpdatePlan: async (planId: string, inst: string) => {
+          updatePlanCalledWith = { planId, inst };
+          return { jobId: '01004', status: 'Started', message: 'OK' };
+        }
+      };
+
+      const mockHost: BridgeHost = {
+        openTextDocument: async () => ({} as any),
+        showTextDocument: async () => ({} as any),
+        getWorkspaceFolders: () => [],
+        updateWorkspaceFolders: () => true,
+        executeCommand: async () => ({} as any)
+      };
+
+      const handler = new BridgeHandler(mockHost, mockJobRunner);
+
+      const res1 = (await handler.handleRawMessage({
+        type: 'startJob',
+        jobType: 'CreatePlan',
+        description: 'New task',
+        project: 'test-project'
+      })) as any;
+      assert.deepStrictEqual(createPlanCalledWith, { desc: 'New task', proj: 'test-project' });
+      assert.strictEqual(res1.jobId, '01001');
+
+      const res2 = (await handler.handleRawMessage({
+        type: 'startJob',
+        jobType: 'ExecutePlan',
+        planId: '00123'
+      })) as any;
+      assert.deepStrictEqual(executePlanCalledWith, { planId: '00123' });
+      assert.strictEqual(res2.jobId, '01002');
+
+      const res3 = (await handler.handleRawMessage({
+        type: 'startJob',
+        jobType: 'RetryPlan',
+        planId: '00123',
+        changeRequest: 'Fix review feedback'
+      })) as any;
+      assert.deepStrictEqual(retryPlanCalledWith, { planId: '00123', req: 'Fix review feedback' });
+      assert.strictEqual(res3.jobId, '01003');
+
+      const res4 = (await handler.handleRawMessage({
+        type: 'startJob',
+        jobType: 'UpdatePlan',
+        planId: '00123',
+        description: 'Updated instructions'
+      })) as any;
+      assert.deepStrictEqual(updatePlanCalledWith, { planId: '00123', inst: 'Updated instructions' });
+      assert.strictEqual(res4.jobId, '01004');
+    });
+
+    it('should throw if startJob is invoked without host or jobRunner support', async () => {
+      const mockHost: BridgeHost = {
+        openTextDocument: async () => ({} as any),
+        showTextDocument: async () => ({} as any),
+        getWorkspaceFolders: () => [],
+        updateWorkspaceFolders: () => true,
+        executeCommand: async () => ({} as any)
+      };
+
+      const handler = new BridgeHandler(mockHost);
+      await assert.rejects(async () => {
+        await handler.handleRawMessage({
+          type: 'startJob',
+          jobType: 'ExecutePlan',
+          planId: '00123'
+        });
+      }, /Host does not support startJob/);
     });
   });
 });
