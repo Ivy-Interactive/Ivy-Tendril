@@ -912,42 +912,9 @@ public sealed class ChatExecutionService : IChatExecutionService
         string? targetSessionId = job.ChatSessionId;
         if (string.IsNullOrEmpty(targetSessionId) && !string.IsNullOrEmpty(job.PlanFile))
         {
-            var folderName = Path.GetFileName(job.PlanFile);
-            var planReader = ResolvedPlanReaderService;
-            var plan = planReader?.GetPlanByFolder(job.PlanFile) ?? (folderName != job.PlanFile ? planReader?.GetPlanByFolder(folderName) : null);
-            targetSessionId = plan?.ChatSessionId;
-
-            if (string.IsNullOrEmpty(targetSessionId))
-            {
-                var db = ResolvedDatabase;
-                var dbPlan = db?.GetPlanByFolder(job.PlanFile) ?? (folderName != job.PlanFile ? db?.GetPlanByFolder(folderName) : null);
-                targetSessionId = dbPlan?.ChatSessionId;
-
-                if (string.IsNullOrEmpty(targetSessionId) && db != null)
-                {
-                    try
-                    {
-                        var jobs = db.GetJobsForPlan(folderName);
-                        if (jobs.Count == 0 && folderName != job.PlanFile)
-                            jobs = db.GetJobsForPlan(job.PlanFile);
-
-                        targetSessionId = jobs
-                            .Where(j => !string.IsNullOrEmpty(j.ChatSessionId))
-                            .OrderByDescending(j => j.StartedAt)
-                            .ThenByDescending(j => j.Id)
-                            .FirstOrDefault()?.ChatSessionId;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogDebug(ex, "Failed to resolve historical jobs for plan {PlanFile}", job.PlanFile);
-                    }
-                }
-            }
-
+            targetSessionId = ResolveLivePlanChatSession(job.PlanFile);
             if (!string.IsNullOrEmpty(targetSessionId))
-            {
                 job.ChatSessionId = targetSessionId;
-            }
         }
 
         if (string.IsNullOrEmpty(targetSessionId))
@@ -980,6 +947,43 @@ public sealed class ChatExecutionService : IChatExecutionService
             _notifiedPlanEdits.TryAdd($"{targetSessionId}:{planFolder}:{edit.EditKey}", 0);
 
         AnnounceDeferredPlanEdits(job, edits, excludeSessionId: targetSessionId);
+    }
+
+    private string? ResolveLivePlanChatSession(string planFile)
+    {
+        var folderName = Path.GetFileName(planFile);
+        var planReader = ResolvedPlanReaderService;
+        var plan = planReader?.GetPlanByFolder(planFile)
+            ?? (folderName != planFile ? planReader?.GetPlanByFolder(folderName) : null);
+        var db = ResolvedDatabase;
+        var dbPlan = db?.GetPlanByFolder(planFile)
+            ?? (folderName != planFile ? db?.GetPlanByFolder(folderName) : null);
+
+        var candidates = new List<string?> { plan?.ChatSessionId, dbPlan?.ChatSessionId };
+
+        // The plan's own panel sessions, newest first: GetSessions is ordered by UpdatedAt.
+        candidates.AddRange(_chatService.GetSessions()
+            .Where(s => string.Equals(s.PlanFolderName, folderName, StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.Id));
+
+        if (db != null)
+        {
+            try
+            {
+                var jobs = db.GetJobsForPlan(folderName);
+                if (jobs.Count == 0 && folderName != planFile) jobs = db.GetJobsForPlan(planFile);
+                candidates.AddRange(jobs
+                    .Where(j => !string.IsNullOrEmpty(j.ChatSessionId))
+                    .OrderByDescending(j => j.StartedAt).ThenByDescending(j => j.Id)
+                    .Select(j => j.ChatSessionId));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to resolve historical jobs for plan {PlanFile}", planFile);
+            }
+        }
+
+        return candidates.FirstOrDefault(id => !string.IsNullOrEmpty(id) && _chatService.GetSession(id!) != null);
     }
 
     public async Task NotifyPlanEditAsync(

@@ -58,16 +58,45 @@ public class PlanChatTests
         {
             var session = service.CreateSession("claude", "opus", "#59 Revamp", planFolderName: "00059-revamp");
             Assert.Equal("00059-revamp", session.PlanFolderName);
-            service.AddMessage(session.Id, "user", "Hello");
 
-            // CreateSession only writes a session that has messages, so the reload below needs one.
-            // An empty plan session surviving a restart is a separate question (see the plan 00400
-            // recommendations); what this asserts is that the plan link is part of what gets persisted.
+            // A session becomes durable from its first message, plan-linked or not (see
+            // ChatHistoryServiceTests.AddMessage_PersistsSessionToDisk). The reload below needs one
+            // message so the session is persisted. What this asserts is that the plan link is part of
+            // what gets persisted.
             service.AddMessage(session.Id, "user", "Let's talk");
 
             var reloaded = new ChatHistoryService(new ConfigService(new TendrilSettings(), tempDir)).GetSession(session.Id);
             Assert.NotNull(reloaded);
             Assert.Equal("00059-revamp", reloaded.PlanFolderName);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void CreateSession_DoesNotPersistAPlanSessionUntilItHasAMessage()
+    {
+        var (service, tempDir) = CreateChatService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus", "#59 Revamp", planFolderName: "00059-revamp");
+            Assert.Equal("00059-revamp", session.PlanFolderName);
+
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            var sessionFile = Path.Combine(chatsDir, $"{session.Id}.json");
+            Assert.False(File.Exists(sessionFile));
+
+            var reloaded = new ChatHistoryService(new ConfigService(new TendrilSettings(), tempDir));
+            Assert.Null(reloaded.GetSession(session.Id));
+
+            service.AddMessage(session.Id, "user", "First message");
+
+            Assert.True(File.Exists(sessionFile));
+            var reloadedAfterMessage = new ChatHistoryService(new ConfigService(new TendrilSettings(), tempDir));
+            Assert.NotNull(reloadedAfterMessage.GetSession(session.Id));
+            Assert.Equal("00059-revamp", reloadedAfterMessage.GetSession(session.Id)?.PlanFolderName);
         }
         finally
         {

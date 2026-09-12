@@ -650,14 +650,11 @@ public class ContentView(
     internal void EmitManualExecutionEvent(string jobId)
     {
         if (selectedPlan is null) return;
-        var chatSessionId = selectedPlan.ChatSessionId;
-        if (string.IsNullOrEmpty(chatSessionId))
-        {
-            chatSessionId = jobService.GetJob(jobId)?.ChatSessionId;
-        }
-        if (string.IsNullOrEmpty(chatSessionId)) return;
-
         var chatService = _chatHistoryService;
+        var chatSessionId = selectedPlan.ChatSessionId;
+        if (chatService?.GetSession(chatSessionId ?? "") == null)
+            chatSessionId = jobService.GetJob(jobId)?.ChatSessionId;
+        if (string.IsNullOrEmpty(chatSessionId)) return;
 
         if (chatService != null)
         {

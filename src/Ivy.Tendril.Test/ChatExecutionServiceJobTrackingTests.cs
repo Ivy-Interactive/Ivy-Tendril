@@ -923,6 +923,153 @@ public class ChatExecutionServiceJobTrackingTests
     }
 
     [Fact]
+    public async Task JobFinished_WhenThePlansRecordedSessionIsGone_ReportsIntoThePlansOwnSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilJobFinishedDeadSessionTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var liveSession = chatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: "00042-TestPlan");
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(42, "Tendril", "NiceToHave", "Test Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: "deadsession"),
+                "# Test",
+                Path.Combine(tempDir, "00042-TestPlan"),
+                "state: Draft"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            var job = new JobItem
+            {
+                Id = "00200",
+                Type = "ExecutePlan",
+                PlanFile = plan.FolderName,
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                StatusMessage = "Plan execution finished"
+            };
+
+            fakeJobService.FireJobFinished(job);
+
+            Assert.Equal(liveSession.Id, job.ChatSessionId);
+
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            ChatSessionModel? updatedSession = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                updatedSession = chatService.GetSession(liveSession.Id);
+                if (updatedSession?.Messages.Any(m => m.Role == "system" && m.Content.Contains("Job 00200")) == true)
+                    break;
+                await Task.Delay(20);
+            }
+
+            Assert.NotNull(updatedSession);
+            var systemMsg = updatedSession.Messages.FirstOrDefault(m => m.Role == "system" && m.Content.Contains("Job 00200"));
+            Assert.NotNull(systemMsg);
+            Assert.Contains("ExecutePlan", systemMsg.Content);
+            Assert.Contains("Completed", systemMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task JobFinished_WhenThePlanHasNoLiveSessionAtAll_DispatchesNothing()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilJobFinishedNoSessionTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(42, "Tendril", "NiceToHave", "Test Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: "deadsession"),
+                "# Test",
+                Path.Combine(tempDir, "00042-TestPlan"),
+                "state: Draft"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            var job = new JobItem
+            {
+                Id = "00200",
+                Type = "ExecutePlan",
+                PlanFile = plan.FolderName,
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                StatusMessage = "Plan execution finished"
+            };
+
+            var sessionsBefore = chatService.GetSessions();
+
+            fakeJobService.FireJobFinished(job);
+
+            await Task.Delay(100);
+
+            var sessionsAfter = chatService.GetSessions();
+            Assert.Equal(sessionsBefore.Count, sessionsAfter.Count);
+            Assert.False(sessionsAfter.Any(s => s.Messages.Any(m => m.Role == "system" && m.Content.Contains("Job 00200"))));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
     public void StartJob_InheritsPlanLinkedChatSessionId_AndTracksInChatSession()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "TendrilInheritChatJobTest_" + Guid.NewGuid().ToString("N"));
