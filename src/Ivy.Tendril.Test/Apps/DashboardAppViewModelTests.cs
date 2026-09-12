@@ -212,10 +212,11 @@ public class DashboardAppViewModelTests
     }
 
     [Fact]
-    public void BuildKpis_UsesThirtyDayPrWindows()
+    public void BuildKpis_UsesThirtyDayFeatureWindows()
     {
         var today = new DateTime(2026, 8, 31);
-        var prDays = new List<(DateOnly Date, int Count)>
+        var prDays = new List<(DateOnly Date, int Count)>();
+        var featureDays = new List<(DateOnly Date, int Count)>
         {
             (DateOnly.FromDateTime(today.AddDays(-5)), 30),
             (DateOnly.FromDateTime(today.AddDays(-40)), 15)
@@ -223,13 +224,13 @@ public class DashboardAppViewModelTests
         var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
         var activity = new DashboardActivityStats([], 0);
 
-        var kpis = DashboardApp.BuildKpis(stats, activity, prDays, today);
+        var kpis = DashboardApp.BuildKpis(stats, activity, prDays, featureDays, today, null);
 
         Assert.Equal(4, kpis.Count);
-        Assert.Equal("Avg Daily PR count", kpis[0].Label);
-        Assert.Equal("1", kpis[0].Value);
+        Assert.Equal("Features shipped", kpis[0].Label);
+        Assert.Equal("30", kpis[0].Value);
         Assert.Equal("+100%", kpis[0].Delta);
-        Assert.Equal("Avg Cost/Month", kpis[1].Label);
+        Assert.Equal("Avg cost per Feature", kpis[1].Label);
         // The projection sits next to the retrospective average it is read against.
         Assert.Equal("Forecast This Month", kpis[2].Label);
         Assert.Equal("Avg Cost/Plan", kpis[3].Label);
@@ -250,7 +251,7 @@ public class DashboardAppViewModelTests
         var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
         var activity = new DashboardActivityStats([], 0, dailyCosts);
 
-        var forecast = DashboardApp.BuildKpis(stats, activity, [], today)
+        var forecast = DashboardApp.BuildKpis(stats, activity, [], [], today, null)
             .Single(k => k.Label == "Forecast This Month");
 
         // 60 over 10 days times 31 = $186 API projection and total projection
@@ -272,7 +273,7 @@ public class DashboardAppViewModelTests
         var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
         var activity = new DashboardActivityStats([], 0, dailyCosts);
 
-        var forecast = DashboardApp.BuildKpis(stats, activity, [], today)
+        var forecast = DashboardApp.BuildKpis(stats, activity, [], [], today, null)
             .Single(k => k.Label == "Forecast This Month");
 
         Assert.Equal("$0", forecast.Value);
@@ -294,7 +295,7 @@ public class DashboardAppViewModelTests
         var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
         var activity = new DashboardActivityStats([], 0, dailyCosts);
 
-        var forecast = DashboardApp.BuildKpis(stats, activity, [], today)
+        var forecast = DashboardApp.BuildKpis(stats, activity, [], [], today, null)
             .Single(k => k.Label == "Forecast This Month");
 
         // Total: 100 over 10 days * 31 = $310 total
@@ -313,7 +314,7 @@ public class DashboardAppViewModelTests
         var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
         var activity = new DashboardActivityStats([], 0);
 
-        var forecast = DashboardApp.BuildKpis(stats, activity, [], new DateTime(2026, 8, 31))
+        var forecast = DashboardApp.BuildKpis(stats, activity, [], [], new DateTime(2026, 8, 31), null)
             .Single(k => k.Label == "Forecast This Month");
 
         Assert.Equal("-", forecast.Value);
@@ -399,53 +400,54 @@ public class DashboardAppViewModelTests
         var today = new DateTime(2026, 8, 31);
         var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 15.5m, [], []);
         var activity = new DashboardActivityStats([], 10m);
+        var featureDays = new List<(DateOnly Date, int Count)>
+        {
+            (DateOnly.FromDateTime(today.AddDays(-5)), 10)
+        };
 
-        var kpis = DashboardApp.BuildKpis(stats, activity, [], today);
+        var kpis = DashboardApp.BuildKpis(stats, activity, [], featureDays, today, null);
 
         Assert.Equal(4, kpis.Count);
-        Assert.Equal("dailyPrs", kpis[0].Id);
-        Assert.Equal("avgCostMonth", kpis[1].Id);
+        Assert.Equal("featuresShipped", kpis[0].Id);
+        Assert.Equal("costPerFeature", kpis[1].Id);
         Assert.Equal("forecastMonth", kpis[2].Id);
         Assert.Equal("avgCostPlan", kpis[3].Id);
     }
 
     [Fact]
-    public void BuildKpis_ComputesCorrectMonthlyAndRollingPlanCalculations()
+    public void BuildKpis_ComputesFeaturesShippedAndCostPerFeature()
     {
         var today = new DateTime(2026, 8, 31);
-        var prDays = new List<(DateOnly Date, int Count)>
+        var prDays = new List<(DateOnly Date, int Count)>();
+        var featureDays = new List<(DateOnly Date, int Count)>
         {
-            // 45 PRs in last 30 days => 45 / 30 = 1.5 daily PRs
-            (new DateOnly(2026, 8, 15), 45),
-            // 30 PRs in prior 30 days => 30 / 30 = 1.0 daily PRs (+50%)
-            (new DateOnly(2026, 7, 15), 30)
+            // 315 features in last 30 days
+            (new DateOnly(2026, 8, 15), 315),
+            // 210 features in prior 30 days (+50%)
+            (new DateOnly(2026, 7, 15), 210)
         };
 
-        var months = new List<DashboardMonthStats>
+        // Daily costs: $1142 over last 30 days, $800 over prior 30 days
+        var dailyCosts = new List<DashboardDailyCost>
         {
-            new(2026, 2, 2, 0, 100m, 1000),
-            new(2026, 3, 3, 0, 200m, 2000),
-            new(2026, 4, 4, 0, 300m, 3000),
-            new(2026, 5, 5, 0, 400m, 4000),
-            new(2026, 6, 6, 0, 500m, 5000),
-            new(2026, 7, 7, 0, 600m, 6000), // last completed month (July): $600
-            new(2026, 8, 8, 0, 999m, 9000)  // in-flight month (August): must be excluded
+            new(new DateOnly(2026, 8, 15), 1142m, 0),
+            new(new DateOnly(2026, 7, 15), 800m, 0)
         };
-        // Mean of completed months: (100+200+300+400+500+600)/6 = 350. Last completed=600, prev=500 (+20%)
+
         var stats = new DashboardModels(10, 0, 0, 0, 8, 2, 25.0m, [], []);
-        var activity = new DashboardActivityStats(months, 20.0m);
+        var activity = new DashboardActivityStats([], 20.0m, dailyCosts);
 
-        var kpis = DashboardApp.BuildKpis(stats, activity, prDays, today);
+        var kpis = DashboardApp.BuildKpis(stats, activity, prDays, featureDays, today, null);
 
-        // 1. dailyPrs
-        Assert.Equal("dailyPrs", kpis[0].Id);
-        Assert.Equal("1.5", kpis[0].Value);
+        // 1. featuresShipped: 315 vs 210 (+50%)
+        Assert.Equal("featuresShipped", kpis[0].Id);
+        Assert.Equal("315", kpis[0].Value);
         Assert.Equal("+50%", kpis[0].Delta);
 
-        // 2. avgCostMonth
-        Assert.Equal("avgCostMonth", kpis[1].Id);
-        Assert.Equal("$350", kpis[1].Value);
-        Assert.Equal("+20%", kpis[1].Delta);
+        // 2. costPerFeature: $1142/315 = $3.63 vs $800/210 = $3.81 (-4.72%)
+        Assert.Equal("costPerFeature", kpis[1].Id);
+        Assert.Equal("$3.63", kpis[1].Value);
+        Assert.Contains("-", kpis[1].Delta);
 
         // 3. forecastMonth
         Assert.Equal("forecastMonth", kpis[2].Id);
@@ -457,9 +459,10 @@ public class DashboardAppViewModelTests
     }
 
     [Theory]
-    [InlineData("dailyPrs", "Avg Daily PR Count")]
-    [InlineData("avgCostMonth", "Avg Cost/Month")]
+    [InlineData("featuresShipped", "Features Shipped")]
+    [InlineData("costPerFeature", "Avg Cost Per Feature")]
     [InlineData("forecastMonth", "Forecast This Month")]
+    [InlineData("usageWindow", "Agent Usage Window")]
     [InlineData("avgCostPlan", "Avg Cost/Plan")]
     [InlineData("other", "KPI Breakdown")]
     public void GetKpiSheetTitle_ReturnsExpectedTitle(string key, string expected)
