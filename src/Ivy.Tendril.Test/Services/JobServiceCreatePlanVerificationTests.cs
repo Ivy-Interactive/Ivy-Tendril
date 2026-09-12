@@ -59,4 +59,35 @@ public class JobServiceCreatePlanVerificationTests : IDisposable
         Assert.Equal(JobStatus.Failed, job.Status);
         Assert.False(Directory.Exists(planFolder));
     }
+
+    [Fact]
+    public void VerifyCreatePlanResult_FailsWhenDuplicateMarkerIsOnlyInToolOutput()
+    {
+        // The marker's target resolves, but only inside a tool result - it must not count.
+        Directory.CreateDirectory(Path.Combine(_plansDir, "01234-ExistingPlan"));
+
+        var planReader = new FakePlanReaderService { PlansDirectory = _plansDir };
+        var handler = new JobCompletionHandler(
+            configService: null,
+            logger: NullLogger.Instance,
+            modelPricingService: null,
+            planReaderService: planReader,
+            telemetryService: null,
+            planWatcherService: null,
+            promptsRoot: _promptsRoot
+        );
+
+        var job = new JobItem
+        {
+            Id = "00002",
+            Type = "CreatePlan",
+            Status = JobStatus.Completed
+        };
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_result","tool_use_id":"t1","output":"identified as duplicate: 01234-ExistingPlan"}""");
+
+        handler.VerifyCreatePlanResult(job);
+
+        Assert.Equal(JobStatus.Failed, job.Status);
+    }
 }

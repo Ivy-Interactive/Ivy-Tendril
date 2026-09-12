@@ -58,4 +58,28 @@ public class OpenCodeModelCatalogTests
             "gpt-4.1",
         ], ids);
     }
+
+    [Fact]
+    public void GetStaticModels_DeclaresOutputLimits()
+    {
+        var models = _catalog.GetStaticModels();
+
+        foreach (var model in models.Where(m => m.Id != "default"))
+        {
+            Assert.True(model.MaxOutputTokens.HasValue, $"{model.Id} is missing MaxOutputTokens");
+            Assert.True(model.ContextWindow.HasValue, $"{model.Id} is missing ContextWindow");
+        }
+
+        Assert.Equal(128_000, models.Single(m => m.Id == "claude-opus-5").MaxOutputTokens);
+    }
+
+    [Fact]
+    public async Task ParseModelsListAsync_PopulatesMaxOutputTokens()
+    {
+        var models = await OpenCodeModelCatalog.ParseModelsListAsync("claude-opus-5");
+
+        Assert.NotNull(models);
+        var model = Assert.Single(models);
+        Assert.Equal(128_000, model.MaxOutputTokens);
+    }
 }

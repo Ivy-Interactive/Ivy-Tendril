@@ -16,7 +16,12 @@ test.describe("DraftMarkdown Collapsible Sections", () => {
     await expect(widgetPane.locator("summary").first()).toContainText(
       "What database does the plan target?",
     );
-    await expect(widgetPane).not.toContainText("<summary>");
+    const rawTagInProse = await widgetPane.evaluate((el) => {
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll("code").forEach((c) => c.remove());
+      return (clone.textContent ?? "").includes("<summary>");
+    });
+    expect(rawTagInProse).toBe(false);
     await stepScreenshot("details-rendered");
   });
 
@@ -37,7 +42,8 @@ test.describe("DraftMarkdown Collapsible Sections", () => {
   test("a section marked open starts expanded", async ({ page }) => {
     const openSection = page.locator(".pmv-markdown details[open]").first();
     await expect(openSection.locator("summary")).toContainText("Still relevant?");
-    await expect(openSection.getByText("The `open` attribute", { exact: false })).toBeVisible();
+    await expect(openSection.locator("code", { hasText: "open" }).first()).toBeVisible();
+    await expect(openSection).toContainText("survives sanitisation");
   });
 
   test("rich content renders inside a section body", async ({ page, stepScreenshot }) => {

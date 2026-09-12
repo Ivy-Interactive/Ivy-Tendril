@@ -84,46 +84,4 @@ public partial class JobsApp
 
         return new StackedProgress(statusSegments).ShowLabels();
     }
-
-    /// <summary>
-    /// Builds the candidate cell set exactly as before, then keeps only cells whose value actually
-    /// changed since the previous tick, per <paramref name="lastSent"/> (keyed by the
-    /// (jobId, columnName) pair, owned by the caller so it survives across ticks). Keys for jobs no
-    /// longer returned by the service are pruned so the cache cannot grow without bound as jobs are
-    /// evicted.
-    /// </summary>
-    internal static IEnumerable<DataTableCellUpdate> BuildDataTableUpdates(
-        IJobService jobService, Dictionary<(string RowId, string ColumnName), string> lastSent)
-    {
-        var currentJobs = jobService.GetJobs();
-        var currentJobIds = currentJobs.Select(j => j.Id).ToHashSet(StringComparer.Ordinal);
-        foreach (var staleKey in lastSent.Keys.Where(k => !currentJobIds.Contains(k.RowId)).ToList())
-            lastSent.Remove(staleKey);
-
-        var candidates = currentJobs
-            .Where(j => j.Status is JobStatus.Running or JobStatus.Blocked ||
-                        ((j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed)
-                         && j.CompletedAt.HasValue
-                         && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
-            .SelectMany(j => new[]
-            {
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), FormatTimer(j)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), FormatJobCost(j)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Tokens), j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), FormatAgentOutput(j)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), j.Status.ToString()),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), GetStatusMessage(j))
-            });
-
-        foreach (var update in candidates)
-        {
-            // A hard cast, not a ToString(): every candidate above is built from j.Id, a string, so a
-            // failure here means that invariant broke and should say so loudly.
-            var key = ((string)update.RowId, update.ColumnName);
-            var value = update.Value as string ?? update.Value?.ToString() ?? "";
-            if (lastSent.TryGetValue(key, out var previous) && previous == value) continue;
-            lastSent[key] = value;
-            yield return update;
-        }
-    }
 }

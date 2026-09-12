@@ -1,3 +1,5 @@
+using Ivy.Tendril.Agents.Providers.OpenCode;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Services.Jobs;
 
 namespace Ivy.Tendril.Test.Services;
@@ -145,5 +147,22 @@ public class JobFailureAnalyzerTests
         Assert.Contains("b28ur1i7n", result);
         Assert.Contains("b1hduuleo", result);
         Assert.StartsWith("Background task(s) still running when the turn ended", result);
+    }
+
+    // Regression for #2638: a step_finish with reason=length must surface as an actual failure
+    // reason, not be silently discarded like an intermediate tool-calls step.
+    [Fact]
+    public void TruncatedRun_IsReportedAsAFailureReason()
+    {
+        var parser = new OpenCodeEventParser();
+        var events = parser.ParseLine("""{"type":"step_finish","part":{"reason":"length","cost":0,"tokens":{"input":2,"output":4096}}}""");
+
+        var serializer = new JsonEventSerializer();
+        var lines = events.Select(serializer.Serialize).ToList();
+
+        var reason = JobFailureAnalyzer.ExtractFailureReason(lines, "CreatePlan");
+
+        Assert.Contains("truncated", reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("4096", reason);
     }
 }

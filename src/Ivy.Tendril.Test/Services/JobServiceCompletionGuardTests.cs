@@ -342,6 +342,8 @@ public class JobServiceCompletionGuardTests : IDisposable
     {
         var service = CreateServiceWithPlanReader(_tempDir.Path);
         var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        // The marker's target has to resolve to a real plan folder now.
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "01234-ExistingPlan"));
 
         var job = service.GetJob(id);
         Assert.NotNull(job);
@@ -366,7 +368,8 @@ public class JobServiceCompletionGuardTests : IDisposable
         var job = service.GetJob(id);
         Assert.NotNull(job);
         // The agent read Program.md mid-run, so the marker's template form appears in its output.
-        // That must not pass for a real duplicate rejection.
+        // It fails because `<existing plan folder name>` resolves to no plan on disk, not because
+        // of a lookahead on the character after the colon.
         job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"identified as duplicate: <existing plan folder name>\"}]}}");
 
         service.CompleteJob(id, 0);
@@ -374,6 +377,64 @@ public class JobServiceCompletionGuardTests : IDisposable
         job = service.GetJob(id);
         Assert.NotNull(job);
         Assert.Equal(JobStatus.Failed, job.Status);
+    }
+
+    [Fact]
+    public void CompleteJob_CreatePlan_FailsWhenDuplicateMarkerIsOnlyInToolOutput()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        // A real plan folder on disk, so folder resolution cannot be what fails this test - the
+        // fix under test is that tool output never counts, regardless of whether its target resolves.
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "01234-ExistingPlan"));
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        // The agent read AGENTS.md mid-run, which quotes the marker inside backticks - a `read`
+        // tool result, not the agent's own text.
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_result","tool_use_id":"t1","output":"3. Agent output doesn't carry the `identified as duplicate:` marker either (`IsDuplicatePlan`)"}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Failed, job.Status);
+    }
+
+    [Fact]
+    public void CompleteJob_CreatePlan_FailsWhenDuplicateTargetDoesNotResolve()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"identified as duplicate: 09999-NoSuchPlan\"}]}}");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Failed, job.Status);
+    }
+
+    [Fact]
+    public void CompleteJob_CreatePlan_AcceptsDuplicateMarkerNamingPlanIdOnly()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "01234-ExistingPlan"));
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"identified as duplicate: 01234\"}]}}");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Completed, job.Status);
     }
 
     private class StubPlanReaderService(string plansDirectory) : IPlanReaderService

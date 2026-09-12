@@ -141,6 +141,55 @@ public class OpenCodeFailureAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_TruncationErrorEvent_ReturnsOutputTruncated()
+    {
+        var errorEvent = new ErrorEvent
+        {
+            Kind = AgentEventKind.Error,
+            Message = "Model output truncated at the max output token limit (4096 output tokens in the final step); any pending tool call was aborted.",
+            Code = OpenCodeEventParser.OutputTruncatedCode,
+            IsRetryable = true,
+        };
+
+        var ctx = new FailureContext
+        {
+            Events = [errorEvent],
+            AgentId = AgentId.OpenCode,
+            ExitCode = 0,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.OutputTruncated, result.Kind);
+        Assert.True(result.IsRetryable);
+        Assert.Contains("output token limit", result.Suggestion!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Analyze_UnhandledStopReasonErrorEvent_ReturnsUnhandledStopReason()
+    {
+        var errorEvent = new ErrorEvent
+        {
+            Kind = AgentEventKind.Error,
+            Message = "Agent stopped with an unhandled reason 'content-filter'; treating as a failure.",
+            Code = OpenCodeEventParser.UnhandledStopReasonCode,
+            IsRetryable = true,
+        };
+
+        var ctx = new FailureContext
+        {
+            Events = [errorEvent],
+            AgentId = AgentId.OpenCode,
+            ExitCode = 0,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.UnhandledStopReason, result.Kind);
+        Assert.True(result.IsRetryable);
+    }
+
+    [Fact]
     public void Analyze_ErrorEvent_NotRetryable_NotAuth_ReturnsUnknown()
     {
         var errorEvent = new ErrorEvent

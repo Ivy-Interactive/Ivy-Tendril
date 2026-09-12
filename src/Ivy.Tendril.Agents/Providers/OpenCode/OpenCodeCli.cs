@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Text.Json.Nodes;
 using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Agents.Providers.OpenCode;
@@ -64,10 +65,12 @@ public sealed class OpenCodeCli : IAgentCli
             "--format", "json"
         };
 
+        string? formattedModel = null;
         if (!string.IsNullOrEmpty(config.Model))
         {
+            formattedModel = Helpers.OpenCodeModelHelper.FormatModel(config.Model);
             args.Add("--model");
-            args.Add(Helpers.OpenCodeModelHelper.FormatModel(config.Model));
+            args.Add(formattedModel);
         }
 
         if (config.Effort is not null)
@@ -101,6 +104,38 @@ public sealed class OpenCodeCli : IAgentCli
             args.Add(arg);
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
+
+        if (formattedModel is not null)
+        {
+            var slash = formattedModel.IndexOf('/');
+            if (slash > 0 && OpenCodeModelCatalog.TryGetLimits(formattedModel) is { } limits)
+            {
+                var provider = formattedModel[..slash];
+                var modelKey = formattedModel[(slash + 1)..];
+                var configContent = new JsonObject
+                {
+                    ["provider"] = new JsonObject
+                    {
+                        [provider] = new JsonObject
+                        {
+                            ["models"] = new JsonObject
+                            {
+                                [modelKey] = new JsonObject
+                                {
+                                    ["limit"] = new JsonObject
+                                    {
+                                        ["context"] = limits.Context,
+                                        ["output"] = limits.Output,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                };
+                env["OPENCODE_CONFIG_CONTENT"] = configContent.ToJsonString();
+            }
+        }
+
         if (config.EnvironmentVariables is not null)
         {
             foreach (var (key, value) in config.EnvironmentVariables)
