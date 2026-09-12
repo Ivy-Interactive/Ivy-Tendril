@@ -6,9 +6,7 @@ import { TooltipScope } from "./Tooltip";
  * instead of each waiting out the open delay again. Applied to the widgets that host rows of
  * them; a widget mounted inside another's scope reuses that one.
  */
-export function withTooltipScope<P extends object>(
-  Widget: React.ComponentType<P>,
-): React.FC<P> {
+export function withTooltipScope<P extends object>(Widget: React.ComponentType<P>): React.FC<P> {
   const Scoped: React.FC<P> = (props) => (
     <TooltipScope>
       <Widget {...props} />

@@ -60,4 +60,5 @@ export interface PlanWorkspaceProps {
 }
 
 export const hasNodes = (nodes?: React.ReactNode[]): boolean =>
-  Array.isArray(nodes) && nodes.some((node) => node !== null && node !== undefined && node !== false);
+  Array.isArray(nodes) &&
+  nodes.some((node) => node !== null && node !== undefined && node !== false);

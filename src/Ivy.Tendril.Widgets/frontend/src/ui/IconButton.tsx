@@ -5,8 +5,10 @@ import "./ui.css";
 export type IconButtonSize = "sm" | "md" | "lg";
 export type IconButtonVariant = "ghost" | "danger" | "solid";
 
-export interface IconButtonProps
-  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "title" | "children"> {
+export interface IconButtonProps extends Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  "title" | "children"
+> {
   /** Accessible name, and the tooltip text unless `tooltip` overrides it. */
   label: string;
   /** The icon. */
@@ -15,6 +17,8 @@ export interface IconButtonProps
   tooltip?: React.ReactNode | false;
   shortcut?: string | string[];
   tooltipSide?: TooltipSide;
+  tooltipOpen?: boolean;
+  onTooltipOpenChange?: (open: boolean) => void;
   size?: IconButtonSize;
   variant?: IconButtonVariant;
   /** Held-open look for a button whose panel is showing. */
@@ -33,6 +37,8 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(f
     tooltip,
     shortcut,
     tooltipSide = "top",
+    tooltipOpen,
+    onTooltipOpenChange,
     size = "lg",
     variant = "ghost",
     active,
@@ -64,6 +70,8 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(f
       content={tooltip ?? label}
       shortcut={shortcut}
       side={tooltipSide}
+      open={tooltipOpen}
+      onOpenChange={onTooltipOpenChange}
       wrapTrigger={"disabled" in rest}
       triggerDisabled={Boolean(rest.disabled)}
     >
