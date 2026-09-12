@@ -44,6 +44,11 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: Ivy-Tendril/src/Ivy.Tendril.Widgets/frontend/pnpm-lock.yaml
 
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          run-install: false
+
       - name: Setup Java (for ANTLR4)
         uses: actions/setup-java@v4
         with:
