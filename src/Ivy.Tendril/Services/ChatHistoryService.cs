@@ -677,7 +677,7 @@ public class ChatHistoryService : IChatHistoryService
         return false;
     }
 
-    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true)
+    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true, bool markCompleted = false)
     {
         if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(messageId)) return null;
 
@@ -696,7 +696,8 @@ public class ChatHistoryService : IChatHistoryService
             updatedMsg = existingMsg with
             {
                 Content = content,
-                RawStream = rawStream ?? existingMsg.RawStream
+                RawStream = rawStream ?? existingMsg.RawStream,
+                CompletedAt = markCompleted ? DateTimeOffset.UtcNow : existingMsg.CompletedAt
             };
 
             var newMessages = new List<ChatMessageModel>(session.Messages);
