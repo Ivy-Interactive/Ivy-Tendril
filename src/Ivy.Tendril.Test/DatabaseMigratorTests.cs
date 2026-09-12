@@ -876,8 +876,8 @@ public class DatabaseMigratorTests : IDisposable
         using (var planCmd = _connection.CreateCommand())
         {
             planCmd.CommandText = """
-                INSERT INTO Plans (Id, FolderName, FolderPath, Title, State, Level, Project, Created)
-                VALUES (42, '00042-TestPlan', '/plans/00042-TestPlan', 'Test Plan', 'Completed', 'Feature', 'test-project', '2026-09-01T10:00:00Z');
+                INSERT INTO Plans (Id, FolderName, FolderPath, Title, State, Level, Project, Created, YamlRaw)
+                VALUES (42, '00042-TestPlan', '/plans/00042-TestPlan', 'Test Plan', 'Completed', 'Feature', 'test-project', '2026-09-01T10:00:00Z', 'state: Completed\ntitle: Test Plan');
                 """;
             planCmd.ExecuteNonQuery();
         }

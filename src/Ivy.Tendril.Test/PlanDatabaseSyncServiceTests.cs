@@ -170,8 +170,8 @@ public class PlanDatabaseSyncServiceTests : IDisposable
 
         var csvPath = Path.Combine(_planReader.PlansDirectory, "01500-CostPlan", "costs.csv");
         var lines = File.ReadAllLines(csvPath);
-        Assert.Equal("Promptware,Tokens,Cost,Model,CostSource", lines[0]);
-        Assert.Equal("ExecutePlan,50000,1.5000,gemini-3.8-flash,estimated", lines[1]);
+        Assert.Equal("Promptware,Tokens,Cost,Model,CostSource,Agent", lines[0]);
+        Assert.Equal("ExecutePlan,50000,1.5000,gemini-3.8-flash,estimated,antigravity", lines[1]);
     }
 
     [Fact]
