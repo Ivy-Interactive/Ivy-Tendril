@@ -23,17 +23,37 @@ public static class PlanProjectResolver
             if (Directory.Exists(projectName))
             {
                 var fullPath = Path.GetFullPath(projectName);
-                var folderName = Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                var gitRoot = GitHelper.ResolveGitRoot(fullPath);
+                var targetRepoPath = gitRoot ?? fullPath;
+
+                if (gitRoot != null)
+                {
+                    var normalizedGitRoot = NormalizeLocalPath(gitRoot);
+                    var matchingProject = available.FirstOrDefault(p =>
+                        p.Repos.Any(r => !string.IsNullOrWhiteSpace(r.Path) &&
+                                         string.Equals(NormalizeLocalPath(r.Path), normalizedGitRoot, StringComparison.OrdinalIgnoreCase)));
+
+                    if (matchingProject != null)
+                    {
+                        return matchingProject;
+                    }
+                }
+
+                var folderName = Path.GetFileName(targetRepoPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
                 if (string.IsNullOrEmpty(folderName))
                 {
-                    folderName = fullPath;
+                    folderName = targetRepoPath;
                 }
 
                 return new ProjectConfig
                 {
                     Name = folderName,
-                    Repos = [new RepoRef { Path = fullPath }],
-                    Meta = new Dictionary<string, object> { ["adhoc"] = true }
+                    Repos = [new RepoRef { Path = targetRepoPath }],
+                    Meta = new Dictionary<string, object>
+                    {
+                        ["adhoc"] = true,
+                        ["targetPath"] = fullPath
+                    }
                 };
             }
 
@@ -44,5 +64,18 @@ public static class PlanProjectResolver
             throw new ArgumentException($"Project '{project.Name}' has no repos configured.");
 
         return project;
+    }
+
+    private static string NormalizeLocalPath(string path)
+    {
+        try
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(path);
+            return Path.GetFullPath(expanded).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch
+        {
+            return path.TrimEnd('/', '\\');
+        }
     }
 }
