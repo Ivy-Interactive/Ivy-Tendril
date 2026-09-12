@@ -270,6 +270,38 @@ public class JobServiceFailureReasonTests : IDisposable
     }
 
     [Fact]
+    public void CompleteJob_ZeroExit_WithReportedFailureReason_MarksFailed()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        job.ReportedFailureReason = "Task already resolved/redundant";
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Task already resolved/redundant", job.StatusMessage);
+    }
+
+    [Fact]
+    public void CompleteJob_ZeroExit_ReportedReasonWinsOverErrorEvent()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        job.ReportedFailureReason = "Task already resolved/redundant";
+        job.OutputLines.Enqueue(
+            """{"kind":"error","timestamp":"2026-05-26T12:18:29Z","message":"Access to Meta Llama models is not allowed from unsupported regions","is_retryable":false,"is_auth_error":false}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Task already resolved/redundant", job.StatusMessage);
+    }
+
+    [Fact]
     public void CompleteJob_NonZeroExit_NoReportedReason_FallsBackToScraper()
     {
         var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));

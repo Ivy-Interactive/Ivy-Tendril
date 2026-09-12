@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Test.Helpers;
@@ -147,6 +148,89 @@ public class PlanYamlHelperParseTests
             Assert.Contains("state: Executing", updatedContent);
             Assert.Contains("chatSessionId: sess-999", updatedContent);
             Assert.DoesNotContain("state: Draft", updatedContent);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void UpdatePlanYamlFields_WithBlankFieldFollowedByKey_DoesNotEatNextLine()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "PlanYamlBlankFieldTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var initialYaml = "title: Feature Plan\nstate: Draft\nsourceUrl: \nchatSessionId: \nrecommendations:\n- title: R\n  description: d\n  state: Pending\n";
+            File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), initialYaml);
+
+            var result = PlanYamlHelper.UpdatePlanYamlFields(tempDir, ("chatSessionId", "sess-1"));
+
+            Assert.True(result);
+            var updatedContent = File.ReadAllText(Path.Combine(tempDir, "plan.yaml"));
+            Assert.Contains("chatSessionId: sess-1", updatedContent);
+            Assert.Contains("recommendations:", updatedContent);
+            Assert.Contains("state: Pending", updatedContent);
+
+            var plan = PlanYamlHelper.ReadPlanYaml(tempDir);
+            Assert.NotNull(plan);
+            Assert.NotNull(plan.Recommendations);
+            Assert.Single(plan.Recommendations);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void UpdatePlanYamlFields_WhenResultWouldNotParse_LeavesFileUnchanged()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "PlanYamlUnparseableTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var initialYaml = "title: Feature Plan\nstate: Draft\n";
+            var planYamlPath = Path.Combine(tempDir, "plan.yaml");
+            File.WriteAllText(planYamlPath, initialYaml);
+
+            var result = PlanYamlHelper.UpdatePlanYamlFields(tempDir, ("title", "\"unbalanced"));
+
+            Assert.False(result);
+            var contentAfter = File.ReadAllText(planYamlPath);
+            Assert.Equal(initialYaml, contentAfter);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void UpdatePlanYamlFields_LeavesNoTempFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "PlanYamlNoTempFilesTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var initialYaml = "title: Feature Plan\nstate: Draft\n";
+            File.WriteAllText(Path.Combine(tempDir, "plan.yaml"), initialYaml);
+
+            var result = PlanYamlHelper.UpdatePlanYamlFields(tempDir, ("state", "Executing"));
+
+            Assert.True(result);
+            var remaining = Directory.GetFiles(tempDir).Select(Path.GetFileName).ToList();
+            Assert.All(remaining, name => Assert.True(name == "plan.yaml" || name == "plan.yaml.lock"));
         }
         finally
         {

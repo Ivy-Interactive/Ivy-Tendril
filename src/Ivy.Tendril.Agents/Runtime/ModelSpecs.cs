@@ -106,10 +106,10 @@ public static class ModelSpecs
         // ── Open-weight models ───────────────────────────────────────────────────────────────────
         // Rates stay 0 because no catalog has ever declared any for these and inventing one would
         // start attributing per-token costs to runs that were previously reported as free.
-        ("Kimi-K3",                    new(256_000, 32_000, 0m, 0m)),
-        ("kimi-k2",                    new(128_000, 32_000, 0m, 0m)),
-        ("deepseek-v3",                new(64_000, 8_000, 0m, 0m)),
-        ("deepseek-r1",                new(64_000, 8_000, 0m, 0m)),
+        // Kimi-K3's limits are Berget's published figures (https://models.dev/api.json, provider
+        // "berget"); kimi-k2/deepseek-v3/deepseek-r1 were removed from OpenCodeModelCatalog (plan
+        // 00481) as unserved by any reachable provider, so their rows are gone too.
+        ("Kimi-K3",                    new(327_680, 32_768, 0m, 0m)),
         ("Qwen2.5-Coder-32B-Instruct", new(128_000, 32_000, 0m, 0m)),
     ];
 

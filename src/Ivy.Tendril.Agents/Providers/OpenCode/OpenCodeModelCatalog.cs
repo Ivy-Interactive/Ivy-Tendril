@@ -11,27 +11,15 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
 
     public override string AgentId => Abstractions.AgentId.OpenCode;
 
+    // moonshotai/Kimi-K3's limits are Berget's published figures (https://models.dev/api.json,
+    // provider "berget"; cross-checked against https://api.berget.ai/v1/models), since every
+    // selection path for this id targets Berget, not Moonshot direct. Checked 2026-09-12.
     public override IReadOnlyList<ModelInfo> GetStaticModels() =>
     [
         new ModelInfo
         {
             Id = "moonshotai/Kimi-K3", DisplayName = "Kimi k3",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "moonshot", IsDefault = true,
-        }.WithSpec(),
-        new ModelInfo
-        {
-            Id = "kimi-k2", DisplayName = "Kimi k2",
-            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "moonshot",
-        }.WithSpec(),
-        new ModelInfo
-        {
-            Id = "deepseek-v3", DisplayName = "DeepSeek V3",
-            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "deepseek",
-        }.WithSpec(),
-        new ModelInfo
-        {
-            Id = "deepseek-r1", DisplayName = "DeepSeek R1",
-            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "deepseek",
         }.WithSpec(),
         new ModelInfo
         {

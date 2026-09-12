@@ -29,6 +29,7 @@ public class ContentView(
     bool supportsEffort,
     bool isStreaming,
     string streamingText,
+    string? streamingMessageId,
     string greeting,
     string headline,
     IChatHistoryService chatService,
@@ -133,6 +134,7 @@ public class ContentView(
             SupportsEffort = supportsEffort,
             IsStreaming = isStreaming,
             StreamingText = streamingText,
+            StreamingMessageId = streamingMessageId,
             QueuedMessages = queuedMessageDtos,
             RunningJobs = runningJobs,
             Greeting = greeting,
@@ -264,6 +266,10 @@ public class ContentView(
                 if (e.Value != null)
                 {
                     chatService.ApplyQuestionAnswers(e.Value.SessionId, e.Value.MessageId, e.Value.Answers);
+                    if (executionService.IsGenerating(e.Value.SessionId))
+                    {
+                        executionService.ApplyQuestionAnswers(e.Value.SessionId, e.Value.Answers);
+                    }
                     sessionVersion.Set(v => v + 1);
                     if (!string.IsNullOrWhiteSpace(e.Value.ResponseText))
                     {

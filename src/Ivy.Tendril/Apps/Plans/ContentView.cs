@@ -121,6 +121,7 @@ public class ContentView(
 
         var planWatcher = UseService<Ivy.Tendril.Services.Plans.IPlanWatcherService>();
         var localRefresh = UseRefreshToken();
+        var hasLoadedContent = UseRef(false);
 
         var planContentQuery = UseQuery<PlanContentData, string>(
             selectedPlan?.FolderPath ?? "",
@@ -190,6 +191,7 @@ public class ContentView(
         if (lastPlanId.Value != (selectedPlan?.Id ?? -1))
         {
             lastPlanId.Set(selectedPlan?.Id ?? -1);
+            hasLoadedContent.Value = false;
             selectedTab.Set(PlanTab);
             isEditing.Set(false);
             var loaded = selectedPlan != null
@@ -307,13 +309,14 @@ public class ContentView(
         var tabs = new List<PlanTabDto> { new(PlanTab, "Plan"), new(DetailsTab, "Details") };
         object tabContent;
 
-        if (planContentQuery.Loading)
+        if (ShouldShowLoadingPlaceholder(planContentQuery.Loading, hasLoadedContent.Value))
         {
             tabContent = Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                          | Text.Muted("Loading...");
         }
         else
         {
+            if (!planContentQuery.Loading) hasLoadedContent.Value = true;
             var planData = planContentQuery.Value;
             var gitData = planData.GitData ?? new GitTabDataBuilder.GitTabData([], []);
             var gitItemCount = GitTabDataBuilder.CountGitItems(gitData, selectedPlan);
@@ -462,6 +465,15 @@ public class ContentView(
     ///     <c>UseInboxAutoRefresh</c> use, so a plan mutation that raises several events costs one rebuild.
     /// </summary>
     internal static readonly TimeSpan PlanRefreshWindow = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>
+    ///     Whether the tab body should be the "Loading..." placeholder rather than the content. Only a
+    ///     fetch with nothing yet to show qualifies: a revalidation keeps the last-known-good content,
+    ///     because swapping the document for a placeholder unmounts PlanMarkdown and its scroll box with
+    ///     it, throwing the reader back to the top of the plan (#2650).
+    /// </summary>
+    internal static bool ShouldShowLoadingPlaceholder(bool loading, bool hasLoadedContent) =>
+        loading && !hasLoadedContent;
 
     /// <summary>
     ///     Revalidates the plan content when the plan on screen changes on disk, owning a coalescer on the
@@ -664,7 +676,11 @@ public class ContentView(
 
     private static string? MatchSection(string content, string sectionName)
     {
-        var match = Regex.Match(content, $@"## {Regex.Escape(sectionName)}\s*\n([\s\S]*?)(?=\n## |\z)");
+        // The optional parenthesised suffix lets this match JobLogWriter's flagged headings
+        // ("## Final Output (truncated)" / "(incomplete)") without the other two call sites
+        // (Output / Issues Found in verification reports) starting to match a different heading
+        // that merely shares a prefix.
+        var match = Regex.Match(content, $@"## {Regex.Escape(sectionName)}(?: \([^)\n]*\))?[ \t]*\n([\s\S]*?)(?=\n## |\z)");
         return match.Success ? match.Groups[1].Value.Trim() : null;
     }
 

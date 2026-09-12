@@ -5,7 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>WidgetSamples</RootNamespace>
-    <NoWarn>$(NoWarn);IVYHOOK005;IVYHOOK007</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ivy.Tendril.Widgets.csproj" />

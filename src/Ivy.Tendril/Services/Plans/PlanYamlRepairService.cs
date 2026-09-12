@@ -10,7 +10,8 @@ public static class PlanYamlRepairService
         "state", "project", "level", "title", "sessionId",
         "repos", "created", "updated", "initialPrompt", "sourceUrl",
         "prs", "commits", "verifications", "relatedPlans", "dependsOn",
-        "priority", "executionProfile", "recommendations", "allocatedPorts"
+        "priority", "executionProfile", "recommendations", "allocatedPorts",
+        "chatSessionId", "partialDelivery"
     };
 
     private static readonly HashSet<string> ListKeys = new(StringComparer.Ordinal)

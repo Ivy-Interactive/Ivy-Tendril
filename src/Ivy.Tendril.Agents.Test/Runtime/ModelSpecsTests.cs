@@ -114,8 +114,8 @@ public class ModelSpecsTests
         // Declared with the provider prefix stripped, which is how the catalog spells it.
         var spec = ModelSpecs.Require("moonshotai/Kimi-K3");
 
-        Assert.Equal(256_000, spec.ContextWindow);
-        Assert.Equal(32_000, spec.MaxOutputTokens);
+        Assert.Equal(327_680, spec.ContextWindow);
+        Assert.Equal(32_768, spec.MaxOutputTokens);
     }
 
     [Fact]
