@@ -264,8 +264,11 @@ public class ContentView(
                 var plan = FindPlan(planService, e.Value);
                 if (plan != null)
                 {
-                    var (app, appArgs) = PlanSearchDialog.ResolveTarget(plan);
-                    navigator.Navigate(app, appArgs);
+                    var target = PlanSearchDialog.ResolveTarget(plan);
+                    if (target.HasValue)
+                    {
+                        navigator.Navigate(target.Value.App, target.Value.Args);
+                    }
                 }
                 return ValueTask.CompletedTask;
             }

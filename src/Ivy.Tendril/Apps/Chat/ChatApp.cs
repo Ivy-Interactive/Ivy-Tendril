@@ -45,9 +45,14 @@ public class ChatApp : ViewBase
         var resolvedPlanId = string.IsNullOrEmpty(planId) ? null : planId;
 
         var planTitle = job.ReportedPlanTitle;
-        if (string.IsNullOrWhiteSpace(planTitle) && resolvedPlanId != null && planService != null)
+        PlanFile? resolvedPlan = null;
+        if (resolvedPlanId != null && planService != null)
         {
-            planTitle = ContentView.FindPlan(planService, resolvedPlanId)?.Title;
+            resolvedPlan = ContentView.FindPlan(planService, resolvedPlanId);
+            if (string.IsNullOrWhiteSpace(planTitle))
+            {
+                planTitle = resolvedPlan?.Title;
+            }
         }
         if (string.IsNullOrWhiteSpace(planTitle) && !string.IsNullOrEmpty(job.PlanFile))
         {
@@ -58,6 +63,14 @@ public class ChatApp : ViewBase
             planTitle = PlanYamlHelper.ExtractSafeTitleFromFolder(job.TypedArgs.PlanFolder);
         }
         var resolvedPlanTitle = string.IsNullOrWhiteSpace(planTitle) ? null : planTitle;
+
+        if (resolvedPlanId != null && planService != null)
+        {
+            if (resolvedPlan == null || !Directory.Exists(resolvedPlan.FolderPath) || resolvedPlan.Status is PlanStatus.Completed or PlanStatus.Skipped)
+            {
+                resolvedPlanId = null;
+            }
+        }
 
         return new(
             job.Id,
@@ -439,6 +452,10 @@ public class ChatApp : ViewBase
                         {
                             staleIds.Add(id);
                         }
+                    }
+                    else
+                    {
+                        staleIds.Add(id);
                     }
                 }
 

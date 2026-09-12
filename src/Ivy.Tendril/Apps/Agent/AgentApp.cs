@@ -133,8 +133,11 @@ public class AgentApp : ViewBase
                 if (planService == null) return;
                 var plan = ContentView.FindPlan(planService, planId);
                 if (plan == null) return;
-                var (app, appArgs) = PlanSearchDialog.ResolveTarget(plan);
-                navigator.Navigate(app, appArgs);
+                var target = PlanSearchDialog.ResolveTarget(plan);
+                if (target.HasValue)
+                {
+                    navigator.Navigate(target.Value.App, target.Value.Args);
+                }
             });
 
         var deleteDialog = new DeleteSessionDialog(deletingSessionId, session, chatService, null, sessionVersion);

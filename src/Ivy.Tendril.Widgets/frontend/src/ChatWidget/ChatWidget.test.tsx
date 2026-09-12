@@ -627,6 +627,39 @@ describe("ChatWidget embedded mode", () => {
     expect(handleEvent).not.toHaveBeenCalledWith("OnOpenPlan", expect.anything(), expect.anything());
   });
 
+  it("renders a job item with planTitle but undefined planId as non-clickable without chevron or triggering OnOpenPlan", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [
+        { id: "00148", type: "ExecutePlan", status: "Completed", planTitle: "Add login" },
+      ],
+    };
+    render(
+      <ChatWidget
+        id="chat"
+        activeSessionId="s1"
+        sessions={[session]}
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View running jobs" }));
+    expect(screen.getByText("Add login")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add login/ })).not.toBeInTheDocument();
+    expect(document.querySelector(".chat-job-nav-icon")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Add login"));
+    expect(handleEvent).not.toHaveBeenCalledWith("OnOpenPlan", expect.anything(), expect.anything());
+  });
+
   it("shows the new-chat chord in the header button's tooltip", () => {
     vi.useFakeTimers();
     const session: ChatSessionDto = {
