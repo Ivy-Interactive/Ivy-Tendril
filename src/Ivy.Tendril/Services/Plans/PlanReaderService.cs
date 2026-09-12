@@ -136,6 +136,14 @@ public class PlanReaderService(
         return ParsePlanFolder(folderPath);
     }
 
+    public PlanFile? GetPlanById(int planId)
+    {
+        if (_useDatabaseForReads && _database != null)
+            return _database.GetPlanById(planId);
+
+        return GetPlans().FirstOrDefault(p => p.Id == planId);
+    }
+
     /// <summary>
     ///     Retrieves all plans that are in the <see cref="PlanStatus.Icebox" /> state.
     /// </summary>

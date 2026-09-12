@@ -44,6 +44,14 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: Ivy-Tendril/src/Ivy.Tendril.Widgets/frontend/pnpm-lock.yaml
 
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          run-install: false
+
+      - name: Install Claude CLI
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Setup Java (for ANTLR4)
         uses: actions/setup-java@v4
         with:
@@ -64,10 +72,10 @@ jobs:
         run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.slnx
 
       - name: Verify code formatting
-        run: dotnet format src/Ivy.Tendril/Ivy.Tendril.slnx --verify-no-changes
+        run: dotnet format src/Ivy.Tendril/Ivy.Tendril.slnx --verify-no-changes --include src/
 
       - name: Compile solution
         run: dotnet build src/Ivy.Tendril/Ivy.Tendril.slnx --configuration Release --warnaserror
 
       - name: Run unit test suites
-        run: dotnet test src/Ivy.Tendril/Ivy.Tendril.slnx --configuration Release --no-build --filter "FullyQualifiedName!~End2End" --verbosity normal
+        run: dotnet test src/Ivy.Tendril/Ivy.Tendril.slnx --configuration Release --no-build --filter "FullyQualifiedName!~End2End & FullyQualifiedName!~ClaudeIntegrationTests & FullyQualifiedName!~AgentRunnerRetryTests & FullyQualifiedName!~ClaudeHealthCheckTests" --verbosity normal

@@ -50,14 +50,15 @@ verifications: []
     private void InitializeGitRepos()
     {
         Directory.CreateDirectory(_bareRepoPath);
-        RunGitAt(_bareRepoPath, "init --bare");
+        RunGitAt(_bareRepoPath, "init --bare -b main");
+        RunGitAt(_bareRepoPath, "symbolic-ref HEAD refs/heads/main");
 
         Directory.CreateDirectory(_testRepoPath);
-        RunGitAt(_testRepoPath, "init");
+        RunGitAt(_testRepoPath, "init -b main");
         RunGitAt(_testRepoPath, $"remote add origin \"{_bareRepoPath}\"");
         RunGitAt(_testRepoPath, "config user.email test@example.com");
         RunGitAt(_testRepoPath, "config user.name TestUser");
-        RunGitAt(_testRepoPath, "checkout -b main");
+        RunGitAt(_testRepoPath, "checkout -B main");
 
         File.WriteAllText(Path.Combine(_testRepoPath, "file1.txt"), "Initial content");
         RunGitAt(_testRepoPath, "add file1.txt");
@@ -65,7 +66,7 @@ verifications: []
         RunGitAt(_testRepoPath, "push -u origin main");
 
         // Clone upstream copy to easily push new commits from remote
-        RunGitAt(_tempDir.Path, $"clone \"{_bareRepoPath}\" \"{_upstreamRepoPath}\"");
+        RunGitAt(_tempDir.Path, $"clone -b main \"{_bareRepoPath}\" \"{_upstreamRepoPath}\"");
         RunGitAt(_upstreamRepoPath, "config user.email upstream@example.com");
         RunGitAt(_upstreamRepoPath, "config user.name UpstreamUser");
     }

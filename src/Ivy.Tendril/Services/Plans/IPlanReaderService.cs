@@ -11,6 +11,7 @@ public interface IPlanReaderService
     void RecoverStuckPlans();
     List<PlanFile> GetPlans(PlanStatus? statusFilter = null);
     PlanFile? GetPlanByFolder(string folderPath);
+    PlanFile? GetPlanById(int planId) => GetPlans().FirstOrDefault(p => p.Id == planId);
     List<PlanFile> GetIceboxPlans();
     void TransitionState(string folderName, PlanStatus newState);
 

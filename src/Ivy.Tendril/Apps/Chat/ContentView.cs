@@ -48,11 +48,21 @@ public class ContentView(
     /// <summary>The plan a job event names, by folder, numeric id or zero-padded id.</summary>
     internal static PlanFile? FindPlan(IPlanReaderService planService, string planId)
     {
-        var trimmed = planId.TrimStart('0');
-        return planService.GetPlans().FirstOrDefault(p =>
-            p.FolderName.Equals(planId, StringComparison.OrdinalIgnoreCase) ||
-            (trimmed.Length > 0 && p.Id.ToString() == trimmed) ||
-            p.FolderName.StartsWith(planId + "-", StringComparison.OrdinalIgnoreCase));
+        var rawId = planId;
+        var dashIndex = planId.IndexOf('-');
+        if (dashIndex > 0)
+        {
+            rawId = planId[..dashIndex];
+        }
+
+        var trimmed = rawId.TrimStart('0');
+        if (int.TryParse(trimmed.Length > 0 ? trimmed : rawId, out var id))
+        {
+            var plan = planService.GetPlanById(id);
+            if (plan != null) return plan;
+        }
+
+        return planService.GetPlanByFolder(planId);
     }
 
     public override object Build()
