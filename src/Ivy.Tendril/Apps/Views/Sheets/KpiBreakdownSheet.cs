@@ -15,6 +15,7 @@ public class KpiBreakdownSheet(
     DashboardModels stats,
     DashboardActivityStats activity,
     List<(DateOnly Date, int Count)> prDays,
+    List<(DateOnly Date, int Count)> featureDays,
     DateTime today,
     IPlanReaderService planService) : ViewBase
 {
@@ -22,46 +23,63 @@ public class KpiBreakdownSheet(
     {
         return kpiKey switch
         {
-            "dailyPrs" => BuildDailyPrsBreakdown(),
-            "avgCostMonth" => BuildAvgCostMonthBreakdown(),
+            "featuresShipped" => BuildFeaturesShippedBreakdown(),
+            "costPerFeature" => BuildCostPerFeatureBreakdown(),
             "forecastMonth" => BuildForecastMonthBreakdown(),
+            "usageWindow" => BuildUsageWindowBreakdown(),
             "avgCostPlan" => BuildAvgCostPlanBreakdown(),
             _ => Layout.Vertical().Gap(4)
                  | Callout.Info($"No calculation breakdown available for key '{kpiKey}'.", "Unknown Metric")
         };
     }
 
-    private object BuildDailyPrsBreakdown()
+    private object BuildFeaturesShippedBreakdown()
     {
         var last30Start = DateOnly.FromDateTime(today.AddDays(-29));
         var prev30Start = DateOnly.FromDateTime(today.AddDays(-59));
-        var last30Count = prDays.Where(p => p.Date >= last30Start).Sum(p => p.Count);
-        var prev30Count = prDays.Where(p => p.Date >= prev30Start && p.Date < last30Start).Sum(p => p.Count);
-        var dailyPrs = last30Count / 30m;
-        var prevDailyPrs = prev30Count / 30m;
-        var deltaText = CalculateDelta(dailyPrs, prevDailyPrs);
+        var last30Count = featureDays.Where(p => p.Date >= last30Start).Sum(p => p.Count);
+        var prev30Count = featureDays.Where(p => p.Date >= prev30Start && p.Date < last30Start).Sum(p => p.Count);
+        var deltaText = CalculateDelta(last30Count, prev30Count);
 
         var details = new
         {
-            Metric = "Average Daily Pull Requests",
-            Formula = "Total PRs merged in last 30 calendar days / 30",
-            Last30DaysMergedPrs = last30Count.ToString(CultureInfo.InvariantCulture),
-            Last30DaysDailyAverage = dailyPrs.ToString("0.#", CultureInfo.InvariantCulture),
-            Prior30DaysMergedPrs = prev30Count.ToString(CultureInfo.InvariantCulture),
-            Prior30DaysDailyAverage = prevDailyPrs.ToString("0.#", CultureInfo.InvariantCulture),
+            Metric = "Features Shipped",
+            Formula = "Merged PRs + solved issues, last 30 days",
+            Last30DaysFeaturesShipped = FormatHelper.FormatCount(last30Count),
+            Prior30DaysFeaturesShipped = FormatHelper.FormatCount(prev30Count),
             PeriodComparisonDelta = deltaText
         }
             .ToDetails()
             .Label(x => x.Metric, "Metric")
             .Label(x => x.Formula, "Formula")
-            .Label(x => x.Last30DaysMergedPrs, "Last 30 Days (Merged PRs)")
-            .Label(x => x.Last30DaysDailyAverage, "Last 30 Days (Daily Avg)")
-            .Label(x => x.Prior30DaysMergedPrs, "Prior 30 Days (Merged PRs)")
-            .Label(x => x.Prior30DaysDailyAverage, "Prior 30 Days (Daily Avg)")
+            .Label(x => x.Last30DaysFeaturesShipped, "Last 30 Days")
+            .Label(x => x.Prior30DaysFeaturesShipped, "Prior 30 Days")
             .Label(x => x.PeriodComparisonDelta, "30-Day Period Delta");
 
+        var featureTable = featureDays
+            .Where(d => d.Date >= last30Start)
+            .OrderByDescending(d => d.Date)
+            .Select(d => new
+            {
+                Date = d.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                Count = d.Count.ToString(CultureInfo.InvariantCulture)
+            })
+            .AsQueryable()
+            .ToDataTable(x => x.Date)
+            .Header(x => x.Date, "Date")
+            .Header(x => x.Count, "Features")
+            .Width(Size.Full())
+            .Height(Size.Px(240))
+            .Config(c =>
+            {
+                c.AllowSorting = true;
+                c.SelectionMode = SelectionModes.None;
+                c.ShowIndexColumn = false;
+                c.ShowSearch = false;
+            });
+
         var recentPrs = planService.GetRecentMergedPrs(50);
-        object tableContent = recentPrs.Count == 0
+        object prTableContent = recentPrs.Count == 0
             ? Callout.Info("No merged pull requests recorded yet.", "No Data")
             : recentPrs
                 .Select(p => new PrRow
@@ -90,95 +108,60 @@ public class KpiBreakdownSheet(
                 });
 
         return Layout.Vertical().Gap(4)
-               | Callout.Info("Average Daily PRs measures pull request delivery throughput across a rolling 30-day window. Total merged pull requests from the last 30 calendar days are divided by 30.", "Throughput Metric")
+               | Callout.Info("Features Shipped counts merged PRs and solved issues without a PR over the last 30 days. A plan with three PRs counts three features; an issue-only plan counts one.", "Output Metric")
                | details
                | (Layout.Vertical().Gap(2)
+                  | Text.H4("Features by Day (Last 30 Days)")
+                  | featureTable)
+               | (Layout.Vertical().Gap(2)
                   | Text.H4("Recent Merged Pull Requests")
-                  | tableContent);
+                  | prTableContent);
     }
 
-    private object BuildAvgCostMonthBreakdown()
+    private object BuildCostPerFeatureBreakdown()
     {
-        var completeMonths = activity.Months.Count > 0
-            ? activity.Months.Take(activity.Months.Count - 1).ToList()
-            : [];
+        var last30Start = DateOnly.FromDateTime(today.AddDays(-29));
+        var prev30Start = DateOnly.FromDateTime(today.AddDays(-59));
 
-        var costMonths = completeMonths.TakeLast(6).Where(m => m.Cost > 0).ToList();
-        var avgMonthCost = costMonths.Count > 0
-            ? costMonths.Average(m => m.Cost)
-            : (activity.Months.Count > 0 ? activity.Months[^1].Cost : 0);
-        var (lastCost, prevCost) = LastTwo(completeMonths, m => m.Cost);
-        var deltaText = CalculateDelta(lastCost, prevCost);
+        var dailyCosts = activity.DailyCosts ?? [];
+        var features30 = featureDays.Where(p => p.Date >= last30Start).Sum(p => p.Count);
+        var prevFeatures30 = featureDays.Where(p => p.Date >= prev30Start && p.Date < last30Start).Sum(p => p.Count);
+
+        var cost30 = dailyCosts.Where(c => c.Date >= last30Start).Sum(c => c.Cost);
+        var prevCost30 = dailyCosts.Where(c => c.Date >= prev30Start && c.Date < last30Start).Sum(c => c.Cost);
+
+        var costPerFeature = features30 > 0 ? cost30 / features30 : 0m;
+        var prevCostPerFeature = prevFeatures30 > 0 ? prevCost30 / prevFeatures30 : 0m;
+        var deltaText = CalculateDelta(costPerFeature, prevCostPerFeature);
 
         var details = new
         {
-            Metric = "Average Cost per Month",
-            Methodology = "Arithmetic mean of up to 6 complete historical months with spend > $0",
-            AverageCost = FormatCost(avgMonthCost),
-            IncludedMonthsCount = $"{costMonths.Count} completed month(s)",
-            LastCompletedMonthSpend = FormatCost(lastCost),
-            PriorCompletedMonthSpend = FormatCost(prevCost),
-            MonthOverMonthDelta = deltaText
+            Metric = "Avg Cost per Feature",
+            Formula = "30-day spend / 30-day features shipped",
+            Last30DaysSpend = FormatHelper.FormatCost(cost30),
+            Last30DaysFeatures = FormatHelper.FormatCount(features30),
+            Last30DaysCostPerFeature = features30 > 0 ? FormatHelper.FormatCost(costPerFeature) : "n/a",
+            Prior30DaysSpend = FormatHelper.FormatCost(prevCost30),
+            Prior30DaysFeatures = FormatHelper.FormatCount(prevFeatures30),
+            Prior30DaysCostPerFeature = prevFeatures30 > 0 ? FormatHelper.FormatCost(prevCostPerFeature) : "n/a",
+            PeriodComparisonDelta = deltaText
         }
             .ToDetails()
             .Label(x => x.Metric, "Metric")
-            .Label(x => x.Methodology, "Methodology")
-            .Label(x => x.AverageCost, "6-Month Historical Avg")
-            .Label(x => x.IncludedMonthsCount, "Completed Months in Divisor")
-            .Label(x => x.LastCompletedMonthSpend, "Last Completed Month")
-            .Label(x => x.PriorCompletedMonthSpend, "Prior Completed Month")
-            .Label(x => x.MonthOverMonthDelta, "Month-over-Month Delta");
+            .Label(x => x.Formula, "Formula")
+            .Label(x => x.Last30DaysSpend, "Last 30 Days (Spend)")
+            .Label(x => x.Last30DaysFeatures, "Last 30 Days (Features)")
+            .Label(x => x.Last30DaysCostPerFeature, "Last 30 Days (Cost/Feature)")
+            .Label(x => x.Prior30DaysSpend, "Prior 30 Days (Spend)")
+            .Label(x => x.Prior30DaysFeatures, "Prior 30 Days (Features)")
+            .Label(x => x.Prior30DaysCostPerFeature, "Prior 30 Days (Cost/Feature)")
+            .Label(x => x.PeriodComparisonDelta, "30-Day Period Delta");
 
-        var monthRows = activity.Months
-            .Select((m, idx) =>
-            {
-                var isInFlight = idx == activity.Months.Count - 1;
-                var isIncluded = costMonths.Contains(m);
-                var status = isInFlight
-                    ? "Excluded (In Flight)"
-                    : isIncluded
-                        ? "Included in Divisor"
-                        : "Excluded ($0 spend)";
-
-                return new MonthRow
-                {
-                    Month = $"{m.Year}-{m.Month:D2}",
-                    Spend = FormatCost(m.Cost),
-                    Tokens = FormatHelper.FormatCount(m.Tokens),
-                    PlansCreated = m.PlansCreated.ToString(CultureInfo.InvariantCulture),
-                    PrsMerged = m.PrsMerged.ToString(CultureInfo.InvariantCulture),
-                    Status = status
-                };
-            })
-            .ToList();
-
-        var table = monthRows
-            .AsQueryable()
-            .ToDataTable(x => x.Month)
-            .Header(x => x.Month, "Month")
-            .Header(x => x.Spend, "Spend")
-            .Header(x => x.Tokens, "Tokens")
-            .Header(x => x.PlansCreated, "Plans")
-            .Header(x => x.PrsMerged, "PRs Merged")
-            .Header(x => x.Status, "Divisor Status")
-            .Width(Size.Full())
-            .Height(Size.Px(360))
-            .Config(c =>
-            {
-                c.AllowSorting = true;
-                c.SelectionMode = SelectionModes.None;
-                c.ShowIndexColumn = false;
-                c.ShowSearch = false;
-            });
-
-        var agentSection = BuildAgentBreakdownSection(180);
+        var agentSection = BuildAgentBreakdownSection(30);
 
         return Layout.Vertical().Gap(4)
-               | Callout.Info("Average Cost/Month shows retrospective monthly spend across complete historical calendar months, strictly excluding the currently in-flight month to prevent partial-month bias.", "Retrospective Spend")
+               | Callout.Info("Avg Cost per Feature divides 30-day spend by 30-day features shipped, so the card shows the exact quotient of the two cards beside it.", "Unit Cost")
                | details
-               | (Layout.Vertical().Gap(2)
-                  | Text.H4("Historical Monthly Breakdown")
-                  | table)
                | agentSection;
     }
 
@@ -349,6 +332,12 @@ public class KpiBreakdownSheet(
                   | Text.H4("Plans in Rolling Window (Last 7 Days)")
                   | tableContent)
                | agentSection;
+    }
+
+    private object BuildUsageWindowBreakdown()
+    {
+        return Layout.Vertical().Gap(4)
+               | Callout.Info("Usage window information is not currently available. This typically means the agent provider does not report usage windows, or no usage data has been fetched yet.", "No Usage Data");
     }
 
     private static (decimal Last, decimal Previous) LastTwo(

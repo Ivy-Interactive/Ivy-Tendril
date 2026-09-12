@@ -355,6 +355,47 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
         }
     }
 
+    /// <summary>
+    ///     Features shipped per day, where a feature is a merged pull request or a solved issue.
+    ///     A completed plan with three PRs shipped three features; a completed plan that closed an
+    ///     issue without opening a PR shipped one. The NOT EXISTS clause keeps the two arms disjoint,
+    ///     so a plan with both a PR and an issue source is counted once per PR and not again.
+    /// </summary>
+    public List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60)
+    {
+        using (new ReadLockHandle(lockSlim))
+        {
+            var cutoff = DateTime.UtcNow.Date.AddDays(-(days - 1)).ToString("yyyy-MM-dd");
+            var results = new List<(DateOnly Date, int Count)>();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT d, COUNT(*) AS cnt FROM (
+                    SELECT DISTINCT DATE(p.Updated) AS d, pr.PrUrl AS k
+                    FROM PullRequests pr
+                    JOIN Plans p ON p.Id = pr.PlanId
+                    WHERE p.Updated >= @cutoff AND p.State = 'Completed'
+                    UNION ALL
+                    SELECT DATE(p.Updated) AS d, 'plan:' || p.Id AS k
+                    FROM Plans p
+                    WHERE p.Updated >= @cutoff
+                      AND p.State = 'Completed'
+                      AND p.SourceUrl LIKE '%/issues/%'
+                      AND NOT EXISTS (SELECT 1 FROM PullRequests x WHERE x.PlanId = p.Id)
+                )
+                GROUP BY d
+                ORDER BY d
+                """;
+            cmd.Parameters.AddWithValue("@cutoff", cutoff);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                if (DateOnly.TryParse(r.GetString(0), CultureInfo.InvariantCulture, out var day))
+                    results.Add((day, r.GetInt32(1)));
+            }
+            return results;
+        }
+    }
+
     public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50)
     {
         using (new ReadLockHandle(lockSlim))

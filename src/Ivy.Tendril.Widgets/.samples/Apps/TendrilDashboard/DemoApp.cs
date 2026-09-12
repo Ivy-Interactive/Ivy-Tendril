@@ -100,10 +100,10 @@ class DemoApp : ViewBase
             .FailedCount(2)
             .Kpis(
             [
-                new DashboardKpiDto("Avg Daily PR count", "54", "+123%", "up"),
-                new DashboardKpiDto("Avg Cost/Month", "$9043", "-23%", "down"),
-                new DashboardKpiDto("Avg Tokens/Month", "80,720"),
-                new DashboardKpiDto("Avg Cost/Plan", "$0.98", "-0.01%", "down")
+                new DashboardKpiDto("Features shipped", "315", "+12%", "up", "merged PRs and solved issues, last 30 days"),
+                new DashboardKpiDto("Avg cost per Feature", "$3.62", "-5%", "down", "$1142 over 315 features"),
+                new DashboardKpiDto("Forecast This Month", "$1673"),
+                new DashboardKpiDto("5h window", "87.3% remaining", Hint: "resets in 2h 14m")
             ])
             .Trend(new DashboardTrendDto(
                 trendDates,

@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Review;
@@ -9,7 +11,9 @@ using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Services.Telemetry;
 using Ivy.Tendril.Services.Tunnel;
 using Ivy.Tendril.Widgets;
 using Ivy.Widgets.QRCode;
@@ -32,12 +36,19 @@ public class DashboardApp : ViewBase
         var statusService = UseService<ITendrilProcessStatusService>();
         var client = UseService<IClientProvider>();
         var tunnelService = UseService<ICloudflaredService>();
+        var usage = UseService<AgentUsageService>();
+        var config = UseService<IConfigService>();
         var copyToClipboard = UseClipboard();
         var navigator = UseNavigation();
         var refreshToken = UseRefreshToken();
         var processView = Context.UseTendrilProcess();
         var tunnelStatus = UseState(tunnelService.Status);
         var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
+
+        var usageQuery = UseQuery<AgentUsageSnapshot?, string>(
+            config.Settings.CodingAgent,
+            (agentId, ct) => usage.GetUsageAsync(agentId, ct),
+            options: new QueryOptions { RefreshInterval = TimeSpan.FromSeconds(60) });
 
         // Same agent-output sheet as the Jobs app, opened from the Active Jobs card.
         var (outputSheet, showOutput) = UseTrigger<string>((isOpen, jobId) =>
@@ -60,10 +71,11 @@ public class DashboardApp : ViewBase
             var currentStats = planService.GetDashboardData(null);
             var currentActivity = planService.GetDashboardActivity(TrendMonthsBack);
             var currentPrDays = planService.GetCompletedPrsByDay((currentToday - currentFirstActivityMonth).Days + 1);
+            var currentFeatureDays = planService.GetShippedFeaturesByDay(60);
             var title = GetKpiSheetTitle(kpiKey);
             return new Sheet(
                 () => isOpen.Set(false),
-                new KpiBreakdownSheet(kpiKey, currentStats, currentActivity, currentPrDays, currentToday, planService),
+                new KpiBreakdownSheet(kpiKey, currentStats, currentActivity, currentPrDays, currentFeatureDays, currentToday, planService),
                 title
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -107,6 +119,7 @@ public class DashboardApp : ViewBase
         var today = DateTime.UtcNow.Date;
         var firstActivityMonth = new DateTime(today.Year, today.Month, 1).AddMonths(-(ActivityMonths - 1));
         var prDays = planService.GetCompletedPrsByDay((today - firstActivityMonth).Days + 1);
+        var featureDays = planService.GetShippedFeaturesByDay(60);
 
         var now = DateTime.Now;
 
@@ -132,7 +145,7 @@ public class DashboardApp : ViewBase
             .ReviewCount(processStatus.ReviewCount)
             .CompletedCount(jobs.Count(j => j.Status == JobStatus.Completed))
             .FailedCount(jobs.Count(j => j.Status == JobStatus.Failed))
-            .Kpis(BuildKpis(stats, activity, prDays, today))
+            .Kpis(BuildKpis(stats, activity, prDays, featureDays, today, usageQuery.Value))
             .Trend(BuildTrend(activity, today))
             .TrendWeekly(BuildWeeklyTrend(activity, today))
             .PullRequests(BuildMonthlyPullRequests(activity.Months))
@@ -150,9 +163,10 @@ public class DashboardApp : ViewBase
 
     internal static string GetKpiSheetTitle(string kpiKey) => kpiKey switch
     {
-        "dailyPrs" => "Avg Daily PR Count",
-        "avgCostMonth" => "Avg Cost/Month",
+        "featuresShipped" => "Features Shipped",
+        "costPerFeature" => "Avg Cost Per Feature",
         "forecastMonth" => "Forecast This Month",
+        "usageWindow" => "Agent Usage Window",
         "avgCostPlan" => "Avg Cost/Plan",
         _ => "KPI Breakdown"
     };
@@ -244,37 +258,59 @@ public class DashboardApp : ViewBase
         DashboardModels stats,
         DashboardActivityStats activity,
         List<(DateOnly Date, int Count)> prDays,
-        DateTime today)
+        List<(DateOnly Date, int Count)> featureDays,
+        DateTime today,
+        AgentUsageSnapshot? usageSnapshot)
     {
         var kpis = new List<DashboardKpiDto>();
 
-        // Daily PR average over the last 30 days, compared to the 30 days before that.
+        // Card 1: Features shipped (absolute count, last 30 days vs previous 30 days)
         var last30Start = DateOnly.FromDateTime(today.AddDays(-29));
         var prev30Start = DateOnly.FromDateTime(today.AddDays(-59));
-        var dailyPrs = prDays.Where(p => p.Date >= last30Start).Sum(p => p.Count) / 30m;
-        var prevDailyPrs = prDays.Where(p => p.Date >= prev30Start && p.Date < last30Start).Sum(p => p.Count) / 30m;
-        kpis.Add(Kpi("Avg Daily PR count", dailyPrs.ToString("0.#", CultureInfo.InvariantCulture), dailyPrs, prevDailyPrs, "dailyPrs"));
+        var features30 = featureDays.Where(p => p.Date >= last30Start).Sum(p => p.Count);
+        var prevFeatures30 = featureDays.Where(p => p.Date >= prev30Start && p.Date < last30Start).Sum(p => p.Count);
+        kpis.Add(Kpi("Features shipped", FormatHelper.FormatCount(features30), features30, prevFeatures30, "featuresShipped",
+            hint: "merged PRs and solved issues, last 30 days"));
 
-        // Monthly cost/token averages over recent complete months with data; the delta
-        // compares the two most recent complete months.
-        var completeMonths = activity.Months.Count > 0
-            ? activity.Months.Take(activity.Months.Count - 1).ToList()
-            : [];
+        // Card 2: Avg cost per Feature
+        var dailyCosts = activity.DailyCosts;
+        if (dailyCosts != null && dailyCosts.Count > 0 && features30 > 0)
+        {
+            var cost30 = dailyCosts.Where(c => c.Date >= last30Start).Sum(c => c.Cost);
+            var prevCost30 = dailyCosts.Where(c => c.Date >= prev30Start && c.Date < last30Start).Sum(c => c.Cost);
+            var costPerFeature = cost30 / features30;
+            var prevCostPerFeature = prevFeatures30 > 0 ? prevCost30 / prevFeatures30 : 0;
+            var hint = $"{FormatHelper.FormatCost(cost30)} over {FormatHelper.FormatCount(features30)} features";
+            kpis.Add(Kpi("Avg cost per Feature", FormatHelper.FormatCost(costPerFeature), costPerFeature, prevCostPerFeature, "costPerFeature", hint: hint));
+        }
+        else if (features30 == 0)
+        {
+            kpis.Add(new DashboardKpiDto("Avg cost per Feature", "n/a", Hint: "No features shipped in the last 30 days", Id: "costPerFeature"));
+        }
+        else
+        {
+            kpis.Add(new DashboardKpiDto("Avg cost per Feature", "n/a", Hint: "No cost data available", Id: "costPerFeature"));
+        }
 
-        var costMonths = completeMonths.TakeLast(6).Where(m => m.Cost > 0).ToList();
-        var avgMonthCost = costMonths.Count > 0
-            ? costMonths.Average(m => m.Cost)
-            : activity.Months.Count > 0 ? activity.Months[^1].Cost : 0;
-        var (lastCost, prevCost) = LastTwo(completeMonths, m => m.Cost);
-        kpis.Add(Kpi("Avg Cost/Month", FormatCost(avgMonthCost), lastCost, prevCost, "avgCostMonth"));
-
-        // Next to the retrospective average on purpose: what the month has cost so far and what it is
-        // heading for are read together.
+        // Card 3: Forecast This Month (unchanged)
         kpis.Add(BuildForecastKpi(activity.DailyCosts, today));
 
-
-        kpis.Add(Kpi("Avg Cost/Plan", FormatHelper.FormatCost(stats.AvgCostPerPlan),
-            stats.AvgCostPerPlan, activity.PrevWeekAvgCostPerPlan, "avgCostPlan"));
+        // Card 4: Usage window (with fallback to avgCostPlan)
+        if (usageSnapshot?.Windows is { Count: > 0 } windows)
+        {
+            var tightestWindow = windows.OrderBy(w => w.WindowMinutes).First();
+            var label = $"{UsageWindowCalculator.FormatWindow(tightestWindow.WindowMinutes)} window";
+            var value = $"{tightestWindow.RemainingPercent:0.#}% remaining";
+            var hint = tightestWindow.ResetsAt.HasValue
+                ? $"resets in {UsageWindowCalculator.FormatCountdown(tightestWindow.ResetsAt.Value - DateTimeOffset.UtcNow)}"
+                : null;
+            kpis.Add(new DashboardKpiDto(label, value, Hint: hint, Id: "usageWindow"));
+        }
+        else
+        {
+            kpis.Add(Kpi("Avg Cost/Plan", FormatHelper.FormatCost(stats.AvgCostPerPlan),
+                stats.AvgCostPerPlan, activity.PrevWeekAvgCostPerPlan, "avgCostPlan"));
+        }
 
         return kpis;
     }
@@ -318,17 +354,17 @@ public class DashboardApp : ViewBase
             : (0, 0);
     }
 
-    internal static DashboardKpiDto Kpi(string label, string value, decimal current, decimal previous, string? id = null)
+    internal static DashboardKpiDto Kpi(string label, string value, decimal current, decimal previous, string? id = null, string? hint = null)
     {
         if (previous <= 0 || current <= 0)
-            return new DashboardKpiDto(label, value, Id: id);
+            return new DashboardKpiDto(label, value, Hint: hint, Id: id);
 
         var pct = (current - previous) / previous * 100m;
         var magnitude = Math.Abs(pct) >= 10
             ? Math.Round(Math.Abs(pct)).ToString("0", CultureInfo.InvariantCulture)
             : Math.Abs(pct).ToString("0.##", CultureInfo.InvariantCulture);
         var delta = (pct >= 0 ? "+" : "-") + magnitude + "%";
-        return new DashboardKpiDto(label, value, delta, pct >= 0 ? "up" : "down", Id: id);
+        return new DashboardKpiDto(label, value, delta, pct >= 0 ? "up" : "down", hint, Id: id);
     }
 
     private static string FormatCost(decimal cost) =>
