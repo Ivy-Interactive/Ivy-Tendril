@@ -39,7 +39,7 @@ public sealed class ChatExecutionService : IChatExecutionService
 
     private readonly ConcurrentDictionary<string, byte> _notifiedJobCompletions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _notifiedPlanEdits = new(StringComparer.OrdinalIgnoreCase);
-    private sealed record DeferredPlanEdit(string Clause, string EditKey);
+    internal sealed record DeferredPlanEdit(string Clause, string EditKey);
     private readonly ConcurrentDictionary<string, ConcurrentQueue<DeferredPlanEdit>> _deferredPlanEdits = new(StringComparer.OrdinalIgnoreCase);
     private const int MaxDeferredPlanEdits = 20;
     private bool _jobServiceSubscribed;

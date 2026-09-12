@@ -1578,7 +1578,7 @@ public class ChatExecutionServiceJobTrackingTests
         {
             Id = "job-001",
             Type = "ExecutePlan",
-            PlanFile = harness.Plan.PlanFolder,
+            PlanFile = harness.Plan.FolderName,
             ChatSessionId = side.Id,
             Status = JobStatus.Running
         };
