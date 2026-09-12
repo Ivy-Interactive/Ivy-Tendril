@@ -49,7 +49,7 @@ public class JobsTableFilterTests
         jobService.Jobs.Add(runningJob);
         jobService.Jobs.Add(timeoutJob);
 
-        var cache = new Dictionary<string, string>();
+        var cache = new Dictionary<(string, string), string>();
         var updates = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
 
         var statusUpdates = updates
@@ -141,7 +141,7 @@ public class JobsTableFilterTests
         var jobService = new FilterTestFakeJobService();
         jobService.Jobs.Add(MakeJob("job-running", JobStatus.Running));
 
-        var updates = JobsApp.BuildDataTableUpdates(jobService, new Dictionary<string, string>()).ToList();
+        var updates = JobsApp.BuildDataTableUpdates(jobService, new Dictionary<(string, string), string>()).ToList();
 
         // The value only changes on a terminal transition, which already forces a full rebuild through
         // BuildJobRows. A seventh cell here would be dead weight.
