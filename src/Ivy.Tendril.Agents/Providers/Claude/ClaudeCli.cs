@@ -60,13 +60,19 @@ public sealed class ClaudeCli : IAgentCli
 
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
+        // A caller that supplies no allowlist (the chat app) wants an unrestricted trusted
+        // session, the same thing ClaudePty gives the interactive agent. dontAsk plus a prefix
+        // allow list denies anything the list does not name, including every Bash command that
+        // reaches outside the working directory, and --print has no prompt surface to ask through.
+        var unrestricted = config.PermissionMode == PermissionMode.FullAuto && config.AllowedTools.Count == 0;
+
         var args = new List<string>
         {
             "--print",
             "--verbose",
             "--output-format", "stream-json",
             "--permission-mode",
-            config.PermissionMode switch
+            unrestricted ? "bypassPermissions" : config.PermissionMode switch
             {
                 PermissionMode.FullAuto => "dontAsk",
                 PermissionMode.AcceptEdits => "acceptEdits",
@@ -107,53 +113,6 @@ public sealed class ClaudeCli : IAgentCli
                 args.Add("--tools");
                 args.Add(string.Join(",", activeTools));
             }
-        }
-        else if (config.PermissionMode == PermissionMode.FullAuto)
-        {
-            // Tailor default safe/essential permissions needed to work with Tendril
-            allowedRules.AddRange([
-                "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch",
-                "Bash(tendril *)",
-                "Bash(git *)",
-                "Bash(gh *)",
-                "Bash(dotnet *)",
-                "Bash(pnpm *)",
-                "Bash(npm *)",
-                "Bash(yarn *)",
-                "Bash(bun *)",
-                "Bash(node *)",
-                "Bash(ls *)",
-                "Bash(find *)",
-                "Bash(cat *)",
-                "Bash(head *)",
-                "Bash(tail *)",
-                "Bash(grep *)",
-                "Bash(mkdir *)",
-                "Bash(rmdir *)",
-                "Bash(rm *)",
-                "Bash(cp *)",
-                "Bash(mv *)",
-                "Bash(touch *)",
-                "Bash(chmod *)",
-                "Bash(pwd)",
-                "Bash(echo *)",
-                "Bash(which *)",
-                "Bash(npx *)",
-                "Bash(vite *)",
-                "Bash(tsc *)",
-                "Bash(eslint *)",
-                "Bash(prettier *)",
-                "Bash(python *)",
-                "Bash(python3 *)",
-                "Bash(pip *)",
-                "Bash(pip3 *)",
-                "Bash(uv *)",
-                "Bash(refitter *)",
-                "Bash(svcutil *)",
-                "Bash(ivy-inspector-*)",
-                "Bash(dotnet-*)",
-                "Bash(strawberryshake *)"
-            ]);
         }
 
         if (allowedRules.Count > 0)
