@@ -67,6 +67,10 @@
       {
         "command": "tendril.restartServer",
         "title": "Tendril: Restart Server"
+      },
+      {
+        "command": "tendril.addCurrentProject",
+        "title": "Tendril: Add Current Project"
       }
     ],
     "menus": {

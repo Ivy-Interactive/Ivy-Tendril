@@ -4,7 +4,8 @@ export const COMMANDS = {
   openWorktree: 'tendril.openWorktree',
   startServer: 'tendril.startServer',
   stopServer: 'tendril.stopServer',
-  restartServer: 'tendril.restartServer'
+  restartServer: 'tendril.restartServer',
+  addCurrentProject: 'tendril.addCurrentProject'
 } as const;
 
 export const VIEWS = {

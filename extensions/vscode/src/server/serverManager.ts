@@ -3,11 +3,13 @@ import * as cp from 'child_process';
 import { CONFIG_KEYS } from '../constants';
 import {
   discoverMaster,
+  fetchProjects,
   fetchRecentPlans,
+  isWorkspaceManaged,
   pingServer,
   resolveTendrilHome
 } from './masterDiscovery';
-import { DiscoveryResult, ServerHealthInfo, TendrilPlanSummary } from './types';
+import { DiscoveryResult, ServerHealthInfo, TendrilPlanSummary, TendrilProjectSummary } from './types';
 
 export function buildServerArgs(port = 0): string[] {
   const args = ['--web'];
@@ -78,6 +80,63 @@ export class ServerManager implements vscode.Disposable {
     const discovery = discoverMaster(this.tendrilHome, false);
     const apiKey = discovery.status === 'found' ? discovery.result.apiKey : undefined;
     return fetchRecentPlans(health.baseUrl, limit, apiKey);
+  }
+
+  public async getProjects(): Promise<TendrilProjectSummary[]> {
+    const health = await this.getHealthInfo();
+    if (!health.isAlive || !health.baseUrl) {
+      return [];
+    }
+
+    const discovery = discoverMaster(this.tendrilHome, false);
+    const apiKey = discovery.status === 'found' ? discovery.result.apiKey : undefined;
+    return fetchProjects(health.baseUrl, apiKey);
+  }
+
+  public async checkWorkspaceProjectStatus(): Promise<{
+    isManaged: boolean;
+    projectName?: string;
+    workspacePath?: string;
+  }> {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) {
+      return { isManaged: true };
+    }
+
+    const workspacePath = folders[0].uri.fsPath;
+    const projects = await this.getProjects();
+    const result = isWorkspaceManaged(workspacePath, projects);
+
+    return {
+      isManaged: result.isManaged,
+      projectName: result.projectName,
+      workspacePath
+    };
+  }
+
+  public async executeCli(args: string[]): Promise<string> {
+    const config = vscode.workspace.getConfiguration();
+    const executable = config.get<string>(CONFIG_KEYS.executablePath, 'tendril');
+
+    return new Promise((resolve, reject) => {
+      cp.execFile(
+        executable,
+        args,
+        {
+          env: {
+            ...process.env,
+            TENDRIL_HOME: this.tendrilHome
+          }
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error(stderr || stdout || error.message));
+          } else {
+            resolve(stdout);
+          }
+        }
+      );
+    });
   }
 
   public async ensureServerRunning(): Promise<DiscoveryResult> {
