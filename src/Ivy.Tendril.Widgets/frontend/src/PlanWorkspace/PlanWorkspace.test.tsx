@@ -328,10 +328,10 @@ describe("PlanWorkspace", () => {
     });
     expect(screen.queryByRole("tooltip")).toBeNull();
 
-    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(questionsButton);
+    fireEvent.click(questionsButton);
     expect(screen.queryByText("question rows")).not.toBeInTheDocument();
 
-    fireEvent.pointerEnter(questionsButton, { pointerType: "mouse" });
     fireEvent.pointerMove(questionsButton, { pointerType: "mouse" });
     act(() => {
       vi.advanceTimersByTime(500);
