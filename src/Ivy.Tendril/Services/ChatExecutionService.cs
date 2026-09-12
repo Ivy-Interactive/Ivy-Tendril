@@ -39,6 +39,9 @@ public sealed class ChatExecutionService : IChatExecutionService
 
     private readonly ConcurrentDictionary<string, byte> _notifiedJobCompletions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _notifiedPlanEdits = new(StringComparer.OrdinalIgnoreCase);
+    internal sealed record DeferredPlanEdit(string Clause, string EditKey);
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<DeferredPlanEdit>> _deferredPlanEdits = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxDeferredPlanEdits = 20;
     private bool _jobServiceSubscribed;
     private readonly object _jobSubLock = new();
 
@@ -904,6 +907,7 @@ public sealed class ChatExecutionService : IChatExecutionService
     private void OnJobFinished(JobItem job)
     {
         if (job == null) return;
+        var edits = DrainDeferredPlanEdits(job.PlanFile);
 
         string? targetSessionId = job.ChatSessionId;
         if (string.IsNullOrEmpty(targetSessionId) && !string.IsNullOrEmpty(job.PlanFile))
@@ -946,7 +950,11 @@ public sealed class ChatExecutionService : IChatExecutionService
             }
         }
 
-        if (string.IsNullOrEmpty(targetSessionId)) return;
+        if (string.IsNullOrEmpty(targetSessionId))
+        {
+            AnnounceDeferredPlanEdits(job, edits, excludeSessionId: null);
+            return;
+        }
 
         var sess = _chatService.GetSession(targetSessionId);
         if (sess == null) return;
@@ -962,9 +970,16 @@ public sealed class ChatExecutionService : IChatExecutionService
             : (!string.IsNullOrEmpty(job.PlanFile) ? Path.GetFileNameWithoutExtension(job.PlanFile) : job.Type);
 
         var eventMessage = $"[System Event] Job {job.Id} ({job.Type}) for '{planInfo}' has finished with status: {job.Status} ({outcomeSummary}). " +
+            DescribeEditsDuringRun(edits) +
             "Please inspect the outcome, determine whether any action is needed or if any issues occurred, and proactively guide the user on the results and next steps.";
 
         _ = SendMessageAsync(targetSessionId, eventMessage, role: "system");
+
+        var planFolder = Path.GetFileName(job.PlanFile) ?? "";
+        foreach (var edit in edits)
+            _notifiedPlanEdits.TryAdd($"{targetSessionId}:{planFolder}:{edit.EditKey}", 0);
+
+        AnnounceDeferredPlanEdits(job, edits, excludeSessionId: targetSessionId);
     }
 
     public async Task NotifyPlanEditAsync(
@@ -984,6 +999,8 @@ public sealed class ChatExecutionService : IChatExecutionService
         var editKey = !string.IsNullOrWhiteSpace(revisionFile)
             ? revisionFile.Trim()
             : PlanEditSummary.Fingerprint($"{summary}|{reason}");
+
+        if (TryDeferWhileAJobRuns(planFolderName, summary, reason, editKey)) return;
 
         foreach (var sessionId in ResolvePlanEditRecipients(planFolderName, plan, sourceChatSessionId))
         {
@@ -1071,6 +1088,82 @@ public sealed class ChatExecutionService : IChatExecutionService
         {
             _logger.LogDebug(ex, "Failed to look up plan {FolderName} in the database while reporting a plan edit", folderName);
             return null;
+        }
+    }
+
+    private JobItem? FindRunningJobForPlan(string planFolderName) =>
+        ResolvedJobService?.GetJobs().FirstOrDefault(j =>
+            j.Status == JobStatus.Running &&
+            !string.IsNullOrEmpty(j.PlanFile) &&
+            (string.Equals(j.PlanFile, planFolderName, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(Path.GetFileName(j.PlanFile), planFolderName, StringComparison.OrdinalIgnoreCase)));
+
+    private bool TryDeferWhileAJobRuns(string planFolderName, string summary, string? reason, string editKey)
+    {
+        var job = FindRunningJobForPlan(planFolderName);
+        if (job == null) return false;
+
+        if (!_notifiedPlanEdits.TryAdd($"deferred:{planFolderName}:{editKey}", 0)) return true;
+
+        var clause = summary.Trim().TrimEnd('.');
+        if (!string.IsNullOrWhiteSpace(reason))
+            clause += $" ({reason.Trim().TrimEnd('.')})";
+
+        var queue = _deferredPlanEdits.GetOrAdd(planFolderName, _ => new ConcurrentQueue<DeferredPlanEdit>());
+        if (queue.Count < MaxDeferredPlanEdits)
+        {
+            queue.Enqueue(new DeferredPlanEdit(clause, editKey));
+        }
+
+        return true;
+    }
+
+    private List<DeferredPlanEdit> DrainDeferredPlanEdits(string? planFile)
+    {
+        if (string.IsNullOrEmpty(planFile)) return [];
+
+        var folderName = Path.GetFileName(planFile);
+        if (string.IsNullOrEmpty(folderName)) return [];
+
+        if (!_deferredPlanEdits.TryRemove(folderName, out var queue)) return [];
+
+        var edits = new List<DeferredPlanEdit>();
+        while (queue.TryDequeue(out var edit))
+        {
+            edits.Add(edit);
+        }
+
+        return edits;
+    }
+
+    private static string DescribeEditsDuringRun(IReadOnlyList<DeferredPlanEdit> edits)
+    {
+        if (edits.Count == 0) return string.Empty;
+
+        var clauses = string.Join("; ", edits.Select(e => e.Clause));
+        return $"It edited the plan on the way: {clauses}. ";
+    }
+
+    internal static string BuildPlanEditDigestEvent(PlanFile? plan, string planFolderName, JobItem job, IReadOnlyList<DeferredPlanEdit> edits)
+    {
+        var name = plan != null ? $"'{plan.Title}' (#{plan.Id:D5})" : $"'{planFolderName}'";
+        var clauses = string.Join("; ", edits.Select(e => e.Clause));
+
+        return $"[System Event] Plan {name} was edited by job {job.Id} ({job.Type}) while it ran: {clauses}. " +
+            "Check whether this changes your understanding of the plan, and tell the user if anything needs follow-up.";
+    }
+
+    private void AnnounceDeferredPlanEdits(JobItem job, IReadOnlyList<DeferredPlanEdit> edits, string? excludeSessionId)
+    {
+        if (edits.Count == 0) return;
+        var folderName = Path.GetFileName(job.PlanFile) ?? "";
+        var plan = ResolvePlanByFolderName(folderName);
+        foreach (var sessionId in ResolvePlanEditRecipients(folderName, plan, excludeSessionId))
+        {
+            if (!_notifiedPlanEdits.TryAdd($"{sessionId}:{folderName}:job-{job.Id}", 0)) continue;
+            foreach (var edit in edits)
+                _notifiedPlanEdits.TryAdd($"{sessionId}:{folderName}:{edit.EditKey}", 0);
+            _ = SendMessageAsync(sessionId, BuildPlanEditDigestEvent(plan, folderName, job, edits), role: "system");
         }
     }
 
