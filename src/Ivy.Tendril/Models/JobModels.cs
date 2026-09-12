@@ -359,6 +359,11 @@ public record JobItemRow
     public string Type { get; init; } = "";
     public string Project { get; init; } = "";
     public string Timer { get; init; } = "";
+    /// <summary>
+    /// When the job finished, in the viewer's local time. Empty of meaning for a job that has not
+    /// reached a terminal status, which renders "-"; the Timer column beside it carries the duration.
+    /// </summary>
+    public string Timestamp { get; init; } = "";
     public string AgentOutput { get; init; } = "";
     public DateTime? LastOutputTimestamp { get; init; }
     public string Cost { get; init; } = "";

@@ -72,6 +72,7 @@ public partial class JobsApp
             .Width(t => t.Prompt, Size.Px(250))
             .Width(t => t.Project, Size.Px(150))
             .Width(t => t.Timer, Size.Px(80))
+            .Width(t => t.Timestamp, Size.Px(110))
             .Width(t => t.AgentOutput, Size.Px(100))
             .Width(t => t.Cost, Size.Px(80))
             .Width(t => t.Tokens, Size.Px(80))
