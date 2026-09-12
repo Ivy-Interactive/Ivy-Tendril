@@ -301,6 +301,7 @@ public class ChatApp : ViewBase
         var activeSession = currentSessionId != null ? chatService.GetSession(currentSessionId) : null;
         var isSessionGenerating = currentSessionId != null && executionService.IsGenerating(currentSessionId);
         var streamSnapshot = isSessionGenerating ? executionService.GetStreamSnapshot(currentSessionId!) : string.Empty;
+        var streamingMessageId = isSessionGenerating ? executionService.GetStreamingMessageId(currentSessionId!) : null;
 
         var currentModelOptions = GetModelsForAgent(agentRunner, selectedAgent.Value);
         var effectiveModel = ResolveModel(currentModelOptions, selectedModel.Value);
@@ -418,6 +419,7 @@ public class ChatApp : ViewBase
             supportsEffort,
             isSessionGenerating,
             streamSnapshot,
+            streamingMessageId,
             DashboardApp.BuildGreeting(DateTime.Now),
             "What Are We Producing Today?",
             chatService,

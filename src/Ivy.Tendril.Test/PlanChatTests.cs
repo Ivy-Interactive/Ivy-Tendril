@@ -205,6 +205,7 @@ public class PlanChatTests
 #pragma warning restore CS0067
         public bool IsGenerating(string sessionId) => false;
         public string GetStreamSnapshot(string sessionId) => string.Empty;
+        public string? GetStreamingMessageId(string sessionId) => null;
         public IObservable<string> GetLiveStreamObservable(string sessionId) => System.Reactive.Linq.Observable.Empty<string>();
 
         public Task SendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
@@ -216,6 +217,7 @@ public class PlanChatTests
 
         public Task CancelAsync(string sessionId) => Task.CompletedTask;
         public Task InterruptAsync(string sessionId) => Task.CompletedTask;
+        public void ApplyQuestionAnswers(string sessionId, IReadOnlyDictionary<string, string[]> answers) { }
 
         public Task NotifyPlanEditAsync(string planFolderName, string summary, string? reason = null,
             string? sourceChatSessionId = null, string? revisionFile = null, PlanEditOrigin origin = PlanEditOrigin.Chat)
@@ -371,6 +373,7 @@ public class PlanChatTests
 #pragma warning restore CS0067
         public bool IsGenerating(string sessionId) => false;
         public string GetStreamSnapshot(string sessionId) => string.Empty;
+        public string? GetStreamingMessageId(string sessionId) => null;
         public IObservable<string> GetLiveStreamObservable(string sessionId) => System.Reactive.Linq.Observable.Empty<string>();
 
         public Task SendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
@@ -381,6 +384,8 @@ public class PlanChatTests
 
         public Task CancelAsync(string sessionId) => throw new InvalidOperationException("Simulated failure");
         public Task InterruptAsync(string sessionId) => throw new InvalidOperationException("Simulated failure");
+        public void ApplyQuestionAnswers(string sessionId, IReadOnlyDictionary<string, string[]> answers) =>
+            throw new InvalidOperationException("Simulated failure");
 
         public Task NotifyPlanEditAsync(string planFolderName, string summary, string? reason = null,
             string? sourceChatSessionId = null, string? revisionFile = null, PlanEditOrigin origin = PlanEditOrigin.Chat)

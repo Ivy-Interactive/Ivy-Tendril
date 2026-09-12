@@ -480,3 +480,156 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
     );
   });
 });
+
+describe("ChatWidget Interactive Question — Streaming Live Row", () => {
+  beforeEach(() => {
+    setupChatWidgetTestEnvironment();
+  });
+
+  const deployQuestion = questionsFence(
+    "- id: deploy_target",
+    "  title: Which environment should we deploy to?",
+    "  options:",
+    "    - title: Staging Environment",
+    "      value: staging",
+    "    - title: Production Environment",
+    "      value: prod",
+  );
+
+  const streamingTextFor = (content: string) =>
+    JSON.stringify({ kind: "text", text: content, delta: false });
+
+  const emptySession = (id: string): ChatSessionDto => ({
+    id,
+    title: id,
+    agentId: "claude",
+    modelId: "opus",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    messages: [],
+  });
+
+  it("renders the live streaming row interactively when a streamingMessageId is supplied", () => {
+    const handleEvent = vi.fn();
+    const session = emptySession("sess-live");
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+        isStreaming
+        streamingText={streamingTextFor(deployQuestion)}
+        streamingMessageId="msg-live-1"
+      />,
+    );
+
+    const submitBtn = screen.getByRole("button", { name: /Submit Response/i });
+    expect(submitBtn).toBeDisabled();
+
+    const stagingRadio = screen.getByRole("radio", { name: /Staging Environment/i });
+    fireEvent.click(stagingRadio);
+    expect(stagingRadio).toBeChecked();
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnAnswerQuestion",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: "sess-live",
+          messageId: "msg-live-1",
+          answers: { deploy_target: ["staging"] },
+        }),
+      ]),
+    );
+  });
+
+  it("falls back to read-only rendering on the live row when no streamingMessageId is supplied", () => {
+    const session = emptySession("sess-live-none");
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live-none"
+        sessions={[session]}
+        events={["OnAnswerQuestion"]}
+        isStreaming
+        streamingText={streamingTextFor(deployQuestion)}
+      />,
+    );
+
+    expect(screen.getByText("Which environment should we deploy to?")).toBeInTheDocument();
+    expect(screen.getByText("Not answered (agent decided)")).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Staging Environment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Submit Response/i })).not.toBeInTheDocument();
+  });
+
+  it("carries a draft made on the live row over to the settled row once the turn completes", () => {
+    const session = emptySession("sess-live-settle");
+
+    const { rerender } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live-settle"
+        sessions={[session]}
+        events={["OnAnswerQuestion"]}
+        isStreaming
+        streamingText={streamingTextFor(deployQuestion)}
+        streamingMessageId="msg-live-2"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: /Staging Environment/i }));
+    expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
+
+    const settledSession: ChatSessionDto = {
+      ...session,
+      messages: [
+        {
+          id: "msg-live-2",
+          role: "assistant",
+          content: deployQuestion,
+          timestamp: "12:00 PM",
+        },
+      ],
+    };
+
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live-settle"
+        sessions={[settledSession]}
+        events={["OnAnswerQuestion"]}
+      />,
+    );
+
+    expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
+  });
+
+  it("selects an option on the live row when clicking its card, not just the radio", () => {
+    const session = emptySession("sess-live-card");
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live-card"
+        sessions={[session]}
+        events={["OnAnswerQuestion"]}
+        isStreaming
+        streamingText={streamingTextFor(deployQuestion)}
+        streamingMessageId="msg-live-3"
+      />,
+    );
+
+    const card = container.querySelector<HTMLElement>(".tq-option");
+    expect(card).not.toBeNull();
+    fireEvent.click(card!);
+
+    expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
+  });
+});

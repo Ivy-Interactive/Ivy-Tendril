@@ -113,6 +113,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public bool SupportsEffort { get; init; } = true;
     [Prop] public bool IsStreaming { get; init; } = false;
     [Prop] public string? StreamingText { get; init; }
+    [Prop] public string? StreamingMessageId { get; init; }
     [Prop] public List<ChatQueuedMessageDto> QueuedMessages { get; init; } = new();
     [Prop] public List<ChatJobDto>? RunningJobs { get; init; }
     [Prop] public string? Greeting { get; init; }
