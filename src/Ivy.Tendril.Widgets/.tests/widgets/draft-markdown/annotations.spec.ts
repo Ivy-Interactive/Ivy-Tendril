@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/widget-test.js";
-import { navigateToApp, waitForDraftMarkdown } from "../../utils/ivy.js";
+import { navigateToApp, waitForDraftMarkdown, selectTextByDrag } from "../../utils/ivy.js";
 
 test.describe("DraftMarkdown Annotations", () => {
   test.beforeEach(async ({ page }) => {
@@ -25,14 +25,7 @@ test.describe("DraftMarkdown Annotations", () => {
 
     // Find a text node to select — target the "Overview" heading text
     const heading = page.locator(".pmv-markdown h2").first();
-    const box = await heading.boundingBox();
-    expect(box).not.toBeNull();
-
-    // Click-drag to select text
-    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box!.x + box!.width - 5, box!.y + box!.height / 2);
-    await page.mouse.up();
+    await selectTextByDrag(page, heading);
 
     // Toolbar should appear
     const toolbar = page.locator(".pmv-selection-toolbar");
@@ -42,14 +35,7 @@ test.describe("DraftMarkdown Annotations", () => {
 
   test("add annotation flow", async ({ page, stepScreenshot }) => {
     // Select text in the first paragraph
-    const paragraph = page.locator(".pmv-markdown p").first();
-    const box = await paragraph.boundingBox();
-    expect(box).not.toBeNull();
-
-    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box!.x + 200, box!.y + box!.height / 2);
-    await page.mouse.up();
+    await selectTextByDrag(page, page.locator(".pmv-markdown p").first(), 30);
 
     // Wait for toolbar
     const toolbar = page.locator(".pmv-selection-toolbar");
@@ -83,14 +69,7 @@ test.describe("DraftMarkdown Annotations", () => {
 
   test("annotation state updates after adding", async ({ page, stepScreenshot }) => {
     // Add an annotation
-    const paragraph = page.locator(".pmv-markdown p").first();
-    const box = await paragraph.boundingBox();
-    expect(box).not.toBeNull();
-
-    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box!.x + 150, box!.y + box!.height / 2);
-    await page.mouse.up();
+    await selectTextByDrag(page, page.locator(".pmv-markdown p").first(), 30);
 
     const toolbar = page.locator(".pmv-selection-toolbar");
     await expect(toolbar).toBeVisible({ timeout: 5000 });
@@ -111,14 +90,7 @@ test.describe("DraftMarkdown Annotations", () => {
 
   test("click highlight opens edit popover", async ({ page, stepScreenshot }) => {
     // First add an annotation
-    const paragraph = page.locator(".pmv-markdown p").first();
-    const box = await paragraph.boundingBox();
-    expect(box).not.toBeNull();
-
-    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box!.x + 150, box!.y + box!.height / 2);
-    await page.mouse.up();
+    await selectTextByDrag(page, page.locator(".pmv-markdown p").first(), 30);
 
     const toolbar = page.locator(".pmv-selection-toolbar");
     await expect(toolbar).toBeVisible({ timeout: 5000 });
@@ -149,14 +121,7 @@ test.describe("DraftMarkdown Annotations", () => {
 
   test("edit annotation", async ({ page, stepScreenshot }) => {
     // Add an annotation
-    const paragraph = page.locator(".pmv-markdown p").first();
-    const box = await paragraph.boundingBox();
-    expect(box).not.toBeNull();
-
-    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box!.x + 150, box!.y + box!.height / 2);
-    await page.mouse.up();
+    await selectTextByDrag(page, page.locator(".pmv-markdown p").first(), 30);
 
     const toolbar = page.locator(".pmv-selection-toolbar");
     await expect(toolbar).toBeVisible({ timeout: 5000 });
@@ -190,14 +155,7 @@ test.describe("DraftMarkdown Annotations", () => {
 
   test("remove annotation", async ({ page, stepScreenshot }) => {
     // Add an annotation
-    const paragraph = page.locator(".pmv-markdown p").first();
-    const box = await paragraph.boundingBox();
-    expect(box).not.toBeNull();
-
-    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box!.x + 150, box!.y + box!.height / 2);
-    await page.mouse.up();
+    await selectTextByDrag(page, page.locator(".pmv-markdown p").first(), 30);
 
     const toolbar = page.locator(".pmv-selection-toolbar");
     await expect(toolbar).toBeVisible({ timeout: 5000 });
@@ -218,7 +176,7 @@ test.describe("DraftMarkdown Annotations", () => {
     // Click highlight, then remove
     await highlight.first().click();
     const editPopover = page.locator(".pmv-popover");
-    await editPopover.locator("button", { hasText: "Remove" }).click();
+    await editPopover.locator("button", { hasText: "Delete" }).click();
 
     // Verify highlight gone and state back to empty
     await expect(highlight).toHaveCount(0, { timeout: 15000 });
@@ -228,14 +186,7 @@ test.describe("DraftMarkdown Annotations", () => {
 
   test("multiple annotations coexist", async ({ page, stepScreenshot }) => {
     // Add first annotation on h2
-    const h2 = page.locator(".pmv-markdown h2").first();
-    const h2Box = await h2.boundingBox();
-    expect(h2Box).not.toBeNull();
-
-    await page.mouse.move(h2Box!.x + 5, h2Box!.y + h2Box!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(h2Box!.x + 80, h2Box!.y + h2Box!.height / 2);
-    await page.mouse.up();
+    await selectTextByDrag(page, page.locator(".pmv-markdown h2").first(), 30);
 
     let toolbar = page.locator(".pmv-selection-toolbar");
     await expect(toolbar).toBeVisible({ timeout: 5000 });
@@ -249,14 +200,7 @@ test.describe("DraftMarkdown Annotations", () => {
     await stepScreenshot("first-annotation-added");
 
     // Add second annotation on a paragraph
-    const para = page.locator(".pmv-markdown p").nth(1);
-    const paraBox = await para.boundingBox();
-    expect(paraBox).not.toBeNull();
-
-    await page.mouse.move(paraBox!.x + 5, paraBox!.y + paraBox!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(paraBox!.x + 200, paraBox!.y + paraBox!.height / 2);
-    await page.mouse.up();
+    await selectTextByDrag(page, page.locator(".pmv-markdown p").nth(1), 30);
 
     toolbar = page.locator(".pmv-selection-toolbar");
     await expect(toolbar).toBeVisible({ timeout: 5000 });
@@ -268,8 +212,10 @@ test.describe("DraftMarkdown Annotations", () => {
 
     // Both annotations exist
     await expect(page.getByText("Annotations (2)")).toBeVisible({ timeout: 15000 });
-    const highlights = page.locator("mark[data-annotation-id]");
-    await expect(highlights).toHaveCount(2);
+    const ids = await page.locator("mark[data-annotation-id]").evaluateAll((marks) =>
+      new Set(marks.map((m) => (m as HTMLElement).dataset.annotationId)).size,
+    );
+    expect(ids).toBe(2);
     await stepScreenshot("both-annotations-visible");
   });
 
@@ -281,17 +227,9 @@ test.describe("DraftMarkdown Annotations", () => {
   });
 
   test("selecting text inside a questions callout does not show the selection toolbar", async ({ page, stepScreenshot }) => {
-    const calloutContent = page.locator(".pmv-questions-content");
-    const box = await calloutContent.boundingBox();
-    expect(box).not.toBeNull();
-
-    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box!.x + box!.width - 5, box!.y + box!.height / 2);
-    await page.mouse.up();
-
-    const toolbar = page.locator(".pmv-selection-toolbar");
-    await expect(toolbar).not.toBeVisible();
+    const selected = await selectTextByDrag(page, page.locator(".pmv-questions-content"), 20);
+    expect(selected.trim().length).toBeGreaterThan(0);
+    await expect(page.locator(".pmv-selection-toolbar")).not.toBeVisible();
     await stepScreenshot("no-toolbar-for-questions-selection");
   });
 
@@ -304,18 +242,8 @@ test.describe("DraftMarkdown Annotations", () => {
     const isScrollable = await shell.evaluate((el) => el.scrollHeight > el.clientHeight + 50);
     expect(isScrollable).toBe(true);
 
-    // Select within the (single-line) "Overview" heading rather than a
-    // wrapped paragraph: a drag whose midpoint Y lands between two wrapped
-    // lines can produce a collapsed selection, as the "text selection shows
-    // toolbar" test above avoids by using the same heading.
     const heading = page.locator(".pmv-markdown h2").first();
-    const box = await heading.boundingBox();
-    expect(box).not.toBeNull();
-
-    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box!.x + box!.width - 5, box!.y + box!.height / 2);
-    await page.mouse.up();
+    await selectTextByDrag(page, heading);
 
     const toolbar = page.locator(".pmv-selection-toolbar");
     await expect(toolbar).toBeVisible({ timeout: 5000 });
