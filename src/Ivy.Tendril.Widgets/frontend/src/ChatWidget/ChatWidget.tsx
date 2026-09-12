@@ -70,9 +70,16 @@ const needsMultipleLines = (textarea: HTMLTextAreaElement, row: HTMLElement | nu
   if (!row || row.clientWidth === 0) return false;
   const siblings = Array.from(row.children).filter((child) => child !== textarea) as HTMLElement[];
   const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
-  const inlineWidth = row.clientWidth - siblings.reduce((sum, child) => sum + child.offsetWidth, 0) - gap * siblings.length;
+  const inlineWidth =
+    row.clientWidth -
+    siblings.reduce((sum, child) => sum + child.offsetWidth, 0) -
+    gap * siblings.length;
   if (inlineWidth <= 0) return false;
-  const previous = { flex: textarea.style.flex, width: textarea.style.width, height: textarea.style.height };
+  const previous = {
+    flex: textarea.style.flex,
+    width: textarea.style.width,
+    height: textarea.style.height,
+  };
   textarea.style.flex = "0 0 auto";
   textarea.style.width = `${Math.max(inlineWidth, 0)}px`;
   textarea.style.height = "auto";
@@ -83,7 +90,11 @@ const needsMultipleLines = (textarea: HTMLTextAreaElement, row: HTMLElement | nu
   return wraps;
 };
 
-const newOptimisticMessage = (content: string, agentId: string, modelId: string): ChatMessageDto => ({
+const newOptimisticMessage = (
+  content: string,
+  agentId: string,
+  modelId: string,
+): ChatMessageDto => ({
   id: `opt-${Date.now()}-${Math.random()}`,
   role: "user",
   content,
@@ -126,7 +137,12 @@ const SystemEventRow: React.FC<{
   const plan = view.plan;
 
   return (
-    <div className="chat-system-event-row" data-kind={view.kind} data-job-state={jobState} title={message.timestamp}>
+    <div
+      className="chat-system-event-row"
+      data-kind={view.kind}
+      data-job-state={jobState}
+      title={message.timestamp}
+    >
       {icon}
       <span className="chat-system-event-text">
         {view.text}
@@ -134,7 +150,11 @@ const SystemEventRow: React.FC<{
           <>
             {" "}
             {onOpenPlan ? (
-              <button type="button" className="chat-system-event-plan" onClick={() => onOpenPlan(plan.id)}>
+              <button
+                type="button"
+                className="chat-system-event-plan"
+                onClick={() => onOpenPlan(plan.id)}
+              >
                 {plan.label}
               </button>
             ) : (
@@ -174,14 +194,21 @@ export function ChatWidget({
   eventHandler,
 }: ChatWidgetProps) {
   const [promptText, setPromptText] = useState("");
-  const [queuedMessages, setQueuedMessages] = useState<ChatQueuedMessageDto[]>(queuedMessagesProp || []);
+  const [queuedMessages, setQueuedMessages] = useState<ChatQueuedMessageDto[]>(
+    queuedMessagesProp || [],
+  );
   const [collapsedQueue, setCollapsedQueue] = useState(false);
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
   const [editingQueuedText, setEditingQueuedText] = useState("");
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
-  const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessageDto[]>>({});
+  const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessageDto[]>>(
+    {},
+  );
   const [optimisticStreaming, setOptimisticStreaming] = useState<string | null>(null);
-  const [activeLightboxImage, setActiveLightboxImage] = useState<{ url: string; title: string } | null>(null);
+  const [activeLightboxImage, setActiveLightboxImage] = useState<{
+    url: string;
+    title: string;
+  } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [multiline, setMultiline] = useState(false);
 
@@ -274,16 +301,22 @@ export function ChatWidget({
   }, [activeLightboxImage]);
 
   const sessionSpawnedJobs = activeSession?.spawnedJobs || [];
-  const otherRunningJobs = (runningJobs || []).filter((rj) => !sessionSpawnedJobs.some((sj) => sj.id === rj.id));
+  const otherRunningJobs = (runningJobs || []).filter(
+    (rj) => !sessionSpawnedJobs.some((sj) => sj.id === rj.id),
+  );
   const headerJobs = [...sessionSpawnedJobs, ...otherRunningJobs];
   const currentOptimistic = (activeSessionId && optimisticMessages[activeSessionId]) || [];
   const displayMessages = [...(activeSession?.messages || []), ...currentOptimistic];
   const hasComposerContent = promptText.trim().length > 0 || attachments.length > 0;
   const isSendDisabled =
-    isPayloadOversized || isUploading || isAnyFailed || (!promptText.trim() && !hasValidAttachments);
+    isPayloadOversized ||
+    isUploading ||
+    isAnyFailed ||
+    (!promptText.trim() && !hasValidAttachments);
   const effectiveIsStreaming =
     isStreaming ||
-    (optimisticStreaming !== null && (optimisticStreaming === activeSessionId || optimisticStreaming === "__active__"));
+    (optimisticStreaming !== null &&
+      (optimisticStreaming === activeSessionId || optimisticStreaming === "__active__"));
   const sendTitle = isPayloadOversized
     ? "Attachments exceed the 50 MB limit"
     : isUploading
@@ -299,7 +332,8 @@ export function ChatWidget({
     if (queuedMessagesProp !== undefined) {
       setQueuedMessages((prev) => {
         const optimistic = prev.filter(
-          (item) => item.id.startsWith("q-") && !queuedMessagesProp.some((p) => p.prompt === item.prompt),
+          (item) =>
+            item.id.startsWith("q-") && !queuedMessagesProp.some((p) => p.prompt === item.prompt),
         );
         return [...queuedMessagesProp, ...optimistic];
       });
@@ -405,7 +439,14 @@ export function ChatWidget({
 
   useEffect(() => {
     if (isAtBottomRef.current) scrollToBottom("auto");
-  }, [displayMessages.length, effectiveIsStreaming, streamingText, queuedMessages, scrollToBottom, isAtBottomRef]);
+  }, [
+    displayMessages.length,
+    effectiveIsStreaming,
+    streamingText,
+    queuedMessages,
+    scrollToBottom,
+    isAtBottomRef,
+  ]);
 
   // An optimistic user message is retired once its server-side copy arrives; a pin follows it over.
   useEffect(() => {
@@ -416,7 +457,9 @@ export function ChatWidget({
     if (!serverMessages || serverMessages.length === 0) return;
 
     const remaining = current.filter((opt) => {
-      const match = serverMessages.find((m) => m.role === "user" && m.content.startsWith(opt.content));
+      const match = serverMessages.find(
+        (m) => m.role === "user" && m.content.startsWith(opt.content),
+      );
       if (match) retargetPin(opt.id, match.id);
       return !match;
     });
@@ -425,7 +468,11 @@ export function ChatWidget({
     }
   }, [sessions, activeSessionId, optimisticMessages, retargetPin]);
 
-  const handleQuestionSubmit = (messageId: string, answers: Record<string, string[]>, responseText: string) => {
+  const handleQuestionSubmit = (
+    messageId: string,
+    answers: Record<string, string[]>,
+    responseText: string,
+  ) => {
     if (!activeSession) return;
     emit("OnAnswerQuestion", { sessionId: activeSession.id, messageId, answers, responseText });
   };
@@ -441,7 +488,8 @@ export function ChatWidget({
   const submitHandlerFor = (messageId: string): QuestionSubmitCallback => {
     let handler = submitHandlersRef.current.get(messageId);
     if (!handler) {
-      handler = (answers, summaryText) => handleQuestionSubmitRef.current(messageId, answers, summaryText);
+      handler = (answers, summaryText) =>
+        handleQuestionSubmitRef.current(messageId, answers, summaryText);
       submitHandlersRef.current.set(messageId, handler);
     }
     return handler;
@@ -484,14 +532,23 @@ export function ChatWidget({
         size: att.size,
         localPath: att.localPath,
         fileId: att.fileId,
-        base64Data: uploadUrl && att.uploadStatus === "finished" ? undefined : att.base64Data || undefined,
+        base64Data:
+          uploadUrl && att.uploadStatus === "finished" ? undefined : att.base64Data || undefined,
       }));
 
-    const payload = { prompt: trimmed, attachments: payloadAttachments, sessionId: activeSessionId };
+    const payload = {
+      prompt: trimmed,
+      attachments: payloadAttachments,
+      sessionId: activeSessionId,
+    };
     if (effectiveIsStreaming) {
       setQueuedMessages((prev) => [
         ...prev,
-        { id: `q-${Date.now()}-${Math.random()}`, prompt: trimmed, attachments: payloadAttachments },
+        {
+          id: `q-${Date.now()}-${Math.random()}`,
+          prompt: trimmed,
+          attachments: payloadAttachments,
+        },
       ]);
     } else {
       setOptimisticStreaming(activeSessionId || "__active__");
@@ -565,7 +622,9 @@ export function ChatWidget({
       handleDeleteQueued(queueId);
     } else {
       emit("OnUpdateQueuedMessage", [queueId, trimmed]);
-      setQueuedMessages((prev) => prev.map((q) => (q.id === queueId ? { ...q, prompt: trimmed } : q)));
+      setQueuedMessages((prev) =>
+        prev.map((q) => (q.id === queueId ? { ...q, prompt: trimmed } : q)),
+      );
     }
     setEditingQueuedId(null);
     setEditingQueuedText("");
@@ -673,8 +732,11 @@ export function ChatWidget({
     }
   };
 
-  const openPlan = events.includes("OnOpenPlan") ? (planId: string) => emit("OnOpenPlan", planId) : undefined;
-  const title = (activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat";
+  const openPlan = events.includes("OnOpenPlan")
+    ? (planId: string) => emit("OnOpenPlan", planId)
+    : undefined;
+  const title =
+    (activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat";
 
   return (
     <div
@@ -685,7 +747,13 @@ export function ChatWidget({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <input ref={fileInputRef} type="file" multiple style={{ display: "none" }} onChange={handleFileSelect} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        style={{ display: "none" }}
+        onChange={handleFileSelect}
+      />
 
       {isDragging && (
         <div className="chat-drop-overlay" aria-hidden="true">
@@ -706,7 +774,8 @@ export function ChatWidget({
               onOpenPlan={openPlan}
               onReview={() =>
                 emit("OnSendMessage", {
-                  prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+                  prompt:
+                    "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
                   attachments: [],
                   sessionId: activeSession.id,
                 })
@@ -733,7 +802,8 @@ export function ChatWidget({
           onReviewJobs={() =>
             activeSession &&
             emit("OnSendMessage", {
-              prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+              prompt:
+                "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
               attachments: [],
               sessionId: activeSession.id,
             })
@@ -770,7 +840,9 @@ export function ChatWidget({
                               <MessageAttachmentChip
                                 key={idx}
                                 filePath={filePath}
-                                onOpenImage={(url, name) => setActiveLightboxImage({ url, title: name })}
+                                onOpenImage={(url, name) =>
+                                  setActiveLightboxImage({ url, title: name })
+                                }
                               />
                             ))}
                           </div>
@@ -829,7 +901,10 @@ export function ChatWidget({
                     label={collapsedQueue ? "Expand queued messages" : "Collapse queued messages"}
                     onClick={() => setCollapsedQueue(!collapsedQueue)}
                   >
-                    <ChevronDown className={`chat-queued-chevron ${collapsedQueue ? "collapsed" : ""}`} size={16} />
+                    <ChevronDown
+                      className={`chat-queued-chevron ${collapsedQueue ? "collapsed" : ""}`}
+                      size={16}
+                    />
                   </IconButton>
                 </div>
               </div>
@@ -851,7 +926,11 @@ export function ChatWidget({
                             }}
                             autoFocus
                           />
-                          <IconButton size="sm" label="Save" onClick={() => handleSaveEditQueued(q.id)}>
+                          <IconButton
+                            size="sm"
+                            label="Save"
+                            onClick={() => handleSaveEditQueued(q.id)}
+                          >
                             <Check size={14} />
                           </IconButton>
                           <IconButton
@@ -878,10 +957,18 @@ export function ChatWidget({
                             )}
                           </div>
                           <div className="chat-queued-item-actions">
-                            <IconButton size="sm" label="Send now" onClick={() => handleSendQueuedNow(q.id)}>
+                            <IconButton
+                              size="sm"
+                              label="Send now"
+                              onClick={() => handleSendQueuedNow(q.id)}
+                            >
                               <ArrowRight size={15} />
                             </IconButton>
-                            <IconButton size="sm" label="Edit message" onClick={() => handleStartEditQueued(q)}>
+                            <IconButton
+                              size="sm"
+                              label="Edit message"
+                              onClick={() => handleStartEditQueued(q)}
+                            >
                               <Pencil size={15} />
                             </IconButton>
                             <IconButton
@@ -908,8 +995,8 @@ export function ChatWidget({
             {isPayloadOversized && (
               <div className="chat-payload-warning" role="alert">
                 <span>
-                  Attachments exceed the 50 MB limit ({formatFileSize(totalAttachmentSize)} / 50 MB). Please remove or
-                  downsize files before sending.
+                  Attachments exceed the 50 MB limit ({formatFileSize(totalAttachmentSize)} / 50
+                  MB). Please remove or downsize files before sending.
                 </span>
               </div>
             )}
@@ -971,7 +1058,9 @@ export function ChatWidget({
                   supportsEffort={supportsEffort}
                   onAgentChange={(agentId) => emit("OnAgentChanged", agentId)}
                   onModelChange={(agentId, modelId) => emit("OnModelChanged", [agentId, modelId])}
-                  onEffortChange={(agentId, effortId) => emit("OnEffortChanged", [agentId, effortId])}
+                  onEffortChange={(agentId, effortId) =>
+                    emit("OnEffortChanged", [agentId, effortId])
+                  }
                   compact={embedded}
                 />
 
@@ -1003,7 +1092,11 @@ export function ChatWidget({
                         <ListPlus size={16} />
                       </IconButton>
                     )}
-                    <IconButton className="chat-stop-btn" label="Stop agent" onClick={handleCancelStream}>
+                    <IconButton
+                      className="chat-stop-btn"
+                      label="Stop agent"
+                      onClick={handleCancelStream}
+                    >
                       <Square size={12} fill="currentColor" />
                     </IconButton>
                   </>
@@ -1032,7 +1125,10 @@ export function ChatWidget({
           aria-modal="true"
           aria-label={activeLightboxImage.title || "Image preview"}
         >
-          <div className="chat-image-lightbox-backdrop" onClick={() => setActiveLightboxImage(null)} />
+          <div
+            className="chat-image-lightbox-backdrop"
+            onClick={() => setActiveLightboxImage(null)}
+          />
           <div className="chat-image-lightbox-container">
             <button
               type="button"
@@ -1048,7 +1144,9 @@ export function ChatWidget({
               className="chat-image-lightbox-img"
               onClick={(e) => e.stopPropagation()}
             />
-            {activeLightboxImage.title && <div className="chat-image-lightbox-caption">{activeLightboxImage.title}</div>}
+            {activeLightboxImage.title && (
+              <div className="chat-image-lightbox-caption">{activeLightboxImage.title}</div>
+            )}
           </div>
         </div>
       )}

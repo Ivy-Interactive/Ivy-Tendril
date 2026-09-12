@@ -2,7 +2,10 @@ import type { ChatJobDto, ChatMessageDto } from "./types";
 import { formatSystemEvent } from "./systemEvents";
 
 export const isRunningJob = (job: ChatJobDto) =>
-  job.status === "Running" || job.status === "Pending" || job.status === "Queued" || job.status === "Blocked";
+  job.status === "Running" ||
+  job.status === "Pending" ||
+  job.status === "Queued" ||
+  job.status === "Blocked";
 
 export const isCompletedJob = (job: ChatJobDto) => job.status === "Completed";
 

@@ -19,8 +19,10 @@ export interface SystemEventView {
 }
 
 const PREFIX = /^\s*\[System Event\]\s*/i;
-const FINISHED = /^Job\s+(\S+)\s+\(([^)]+)\)\s+for\s+'(.+?)'\s+has finished with status:\s*(\w+)(?:\s*\((.*?)\))?/i;
-const APPROVED = /^Manual approval granted and execution started for plan '(.+?)'\s*\(Job\s+(\S+)\)/i;
+const FINISHED =
+  /^Job\s+(\S+)\s+\(([^)]+)\)\s+for\s+'(.+?)'\s+has finished with status:\s*(\w+)(?:\s*\((.*?)\))?/i;
+const APPROVED =
+  /^Manual approval granted and execution started for plan '(.+?)'\s*\(Job\s+(\S+)\)/i;
 const PLAN_INFO = /^(\d+)\s*:\s*(.+)$/;
 
 const planRef = (info: string): SystemEventPlanRef | undefined => {
@@ -66,8 +68,13 @@ export function formatSystemEvent(content: string): SystemEventView {
     const { verb, kind } = statusVerb(status);
     const plan = planRef(info);
     const text = `${verb} ${jobNoun(type)}`;
-    const detail = kind === "failed" && summary && summary.toLowerCase() !== status.toLowerCase() ? summary : undefined;
-    return plan ? { kind, text, plan, detail, jobId } : { kind, text: `${text} '${info}'`, detail, jobId };
+    const detail =
+      kind === "failed" && summary && summary.toLowerCase() !== status.toLowerCase()
+        ? summary
+        : undefined;
+    return plan
+      ? { kind, text, plan, detail, jobId }
+      : { kind, text: `${text} '${info}'`, detail, jobId };
   }
 
   const approved = APPROVED.exec(body);
