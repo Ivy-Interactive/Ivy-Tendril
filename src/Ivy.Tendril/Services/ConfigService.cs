@@ -20,6 +20,7 @@ public record RepoRef
 {
     public string Path { get; set; } = "";
     public string? BaseBranch { get; set; }
+    public string? Subdirectory { get; set; }
 }
 
 public record ProjectMcpServerRef
@@ -85,6 +86,7 @@ public record ProjectEnvFileConfig
 public record ProjectConfig
 {
     public string Name { get; set; } = "";
+    public string? Subdirectory { get; set; }
     public string Color { get; set; } = "";
     public Dictionary<string, object> Meta { get; set; } = new();
     public List<RepoRef> Repos { get; set; } = new();

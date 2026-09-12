@@ -129,4 +129,219 @@ public class PlanProjectResolverTests
         Assert.Contains("Alpha", ex.Message);
         Assert.Contains("Beta", ex.Message);
     }
+
+    [Fact]
+    public void Resolves_Correct_Monorepo_Project_When_Multiple_Projects_Share_Git_Root_By_Repo_Subfolder()
+    {
+        var repoDir = Path.Combine(Path.GetTempPath(), $"tendril-test-monorepo-repo-{Guid.NewGuid():N}");
+        var gitDir = Path.Combine(repoDir, ".git");
+        var subDirA = Path.Combine(repoDir, "apps", "frontend");
+        var subDirB = Path.Combine(repoDir, "apps", "backend");
+        Directory.CreateDirectory(gitDir);
+        Directory.CreateDirectory(subDirA);
+        Directory.CreateDirectory(subDirB);
+
+        try
+        {
+            var projectA = ConfiguredProject("ProjectFrontend", subDirA);
+            var projectB = ConfiguredProject("ProjectBackend", subDirB);
+            var available = new List<ProjectConfig> { projectA, projectB };
+
+            var resolved = PlanProjectResolver.ResolveProject(subDirB, available);
+
+            Assert.Same(projectB, resolved);
+            Assert.Equal("ProjectBackend", resolved.Name);
+            Assert.False(resolved.IsAdHoc);
+        }
+        finally
+        {
+            if (Directory.Exists(repoDir))
+                Directory.Delete(repoDir, true);
+        }
+    }
+
+    [Fact]
+    public void Resolves_Correct_Monorepo_Project_Using_ProjectConfig_Subdirectory()
+    {
+        var repoDir = Path.Combine(Path.GetTempPath(), $"tendril-test-monorepo-sub-{Guid.NewGuid():N}");
+        var gitDir = Path.Combine(repoDir, ".git");
+        var subDirA = Path.Combine(repoDir, "apps", "frontend");
+        var subDirASrc = Path.Combine(subDirA, "src");
+        var subDirB = Path.Combine(repoDir, "apps", "backend");
+        Directory.CreateDirectory(gitDir);
+        Directory.CreateDirectory(subDirASrc);
+        Directory.CreateDirectory(subDirB);
+
+        try
+        {
+            var projectA = new ProjectConfig
+            {
+                Name = "ProjectFrontend",
+                Subdirectory = "apps/frontend",
+                Repos = [new RepoRef { Path = repoDir }]
+            };
+            var projectB = new ProjectConfig
+            {
+                Name = "ProjectBackend",
+                Subdirectory = "apps/backend",
+                Repos = [new RepoRef { Path = repoDir }]
+            };
+            var available = new List<ProjectConfig> { projectA, projectB };
+
+            var resolved = PlanProjectResolver.ResolveProject(subDirASrc, available);
+
+            Assert.Same(projectA, resolved);
+            Assert.Equal("ProjectFrontend", resolved.Name);
+            Assert.False(resolved.IsAdHoc);
+        }
+        finally
+        {
+            if (Directory.Exists(repoDir))
+                Directory.Delete(repoDir, true);
+        }
+    }
+
+    [Fact]
+    public void Resolves_Most_Specific_Subdirectory_When_Nested()
+    {
+        var repoDir = Path.Combine(Path.GetTempPath(), $"tendril-test-monorepo-nested-{Guid.NewGuid():N}");
+        var gitDir = Path.Combine(repoDir, ".git");
+        var appsDir = Path.Combine(repoDir, "apps");
+        var frontendDir = Path.Combine(appsDir, "frontend");
+        var srcDir = Path.Combine(frontendDir, "src");
+        Directory.CreateDirectory(gitDir);
+        Directory.CreateDirectory(srcDir);
+
+        try
+        {
+            var projectApps = new ProjectConfig
+            {
+                Name = "ProjectApps",
+                Subdirectory = "apps",
+                Repos = [new RepoRef { Path = repoDir }]
+            };
+            var projectFrontend = new ProjectConfig
+            {
+                Name = "ProjectFrontend",
+                Subdirectory = "apps/frontend",
+                Repos = [new RepoRef { Path = repoDir }]
+            };
+            var available = new List<ProjectConfig> { projectApps, projectFrontend };
+
+            var resolved = PlanProjectResolver.ResolveProject(srcDir, available);
+
+            Assert.Same(projectFrontend, resolved);
+            Assert.Equal("ProjectFrontend", resolved.Name);
+            Assert.False(resolved.IsAdHoc);
+        }
+        finally
+        {
+            if (Directory.Exists(repoDir))
+                Directory.Delete(repoDir, true);
+        }
+    }
+
+    [Fact]
+    public void Resolves_Root_Project_When_Subfolder_Does_Not_Match_Specific_Subprojects()
+    {
+        var repoDir = Path.Combine(Path.GetTempPath(), $"tendril-test-monorepo-root-{Guid.NewGuid():N}");
+        var gitDir = Path.Combine(repoDir, ".git");
+        var frontendDir = Path.Combine(repoDir, "apps", "frontend");
+        var toolsScriptsDir = Path.Combine(repoDir, "tools", "scripts");
+        Directory.CreateDirectory(gitDir);
+        Directory.CreateDirectory(frontendDir);
+        Directory.CreateDirectory(toolsScriptsDir);
+
+        try
+        {
+            var projectRoot = new ProjectConfig
+            {
+                Name = "MonorepoRoot",
+                Repos = [new RepoRef { Path = repoDir }]
+            };
+            var projectFrontend = new ProjectConfig
+            {
+                Name = "ProjectFrontend",
+                Subdirectory = "apps/frontend",
+                Repos = [new RepoRef { Path = repoDir }]
+            };
+            var available = new List<ProjectConfig> { projectFrontend, projectRoot };
+
+            var resolved = PlanProjectResolver.ResolveProject(toolsScriptsDir, available);
+
+            Assert.Same(projectRoot, resolved);
+            Assert.Equal("MonorepoRoot", resolved.Name);
+            Assert.False(resolved.IsAdHoc);
+        }
+        finally
+        {
+            if (Directory.Exists(repoDir))
+                Directory.Delete(repoDir, true);
+        }
+    }
+
+    [Fact]
+    public void Does_Not_Match_Subdirectory_When_Prefix_Is_Partial_Directory_Name()
+    {
+        var repoDir = Path.Combine(Path.GetTempPath(), $"tendril-test-monorepo-prefix-{Guid.NewGuid():N}");
+        var gitDir = Path.Combine(repoDir, ".git");
+        var frontendDir = Path.Combine(repoDir, "apps", "frontend");
+        var frontendExtraDir = Path.Combine(repoDir, "apps", "frontend-extra");
+        Directory.CreateDirectory(gitDir);
+        Directory.CreateDirectory(frontendDir);
+        Directory.CreateDirectory(frontendExtraDir);
+
+        try
+        {
+            var projectFrontend = new ProjectConfig
+            {
+                Name = "ProjectFrontend",
+                Subdirectory = "apps/frontend",
+                Repos = [new RepoRef { Path = repoDir }]
+            };
+            var available = new List<ProjectConfig> { projectFrontend };
+
+            // Single candidate whose subdirectory conflicts with target path: falls through to ad-hoc
+            var resolved = PlanProjectResolver.ResolveProject(frontendExtraDir, available);
+
+            Assert.True(resolved.IsAdHoc);
+            Assert.Equal(Path.GetFileName(repoDir), resolved.Name);
+        }
+        finally
+        {
+            if (Directory.Exists(repoDir))
+                Directory.Delete(repoDir, true);
+        }
+    }
+
+    [Fact]
+    public void Resolves_Using_RepoRef_Subdirectory()
+    {
+        var repoDir = Path.Combine(Path.GetTempPath(), $"tendril-test-reporef-sub-{Guid.NewGuid():N}");
+        var gitDir = Path.Combine(repoDir, ".git");
+        var adminDir = Path.Combine(repoDir, "apps", "admin");
+        Directory.CreateDirectory(gitDir);
+        Directory.CreateDirectory(adminDir);
+
+        try
+        {
+            var projectAdmin = new ProjectConfig
+            {
+                Name = "ProjectAdmin",
+                Repos = [new RepoRef { Path = repoDir, Subdirectory = "apps/admin" }]
+            };
+            var available = new List<ProjectConfig> { projectAdmin };
+
+            var resolved = PlanProjectResolver.ResolveProject(adminDir, available);
+
+            Assert.Same(projectAdmin, resolved);
+            Assert.Equal("ProjectAdmin", resolved.Name);
+            Assert.False(resolved.IsAdHoc);
+        }
+        finally
+        {
+            if (Directory.Exists(repoDir))
+                Directory.Delete(repoDir, true);
+        }
+    }
 }
