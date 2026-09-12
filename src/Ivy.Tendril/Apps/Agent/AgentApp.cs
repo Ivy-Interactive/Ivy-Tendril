@@ -126,7 +126,7 @@ public class AgentApp : ViewBase
                 sessionVersion.Set(v => v + 1);
             })
             .OnDeleteSession(id => deletingSessionId.Set(id))
-            .OnCreateSession(() => ChatLauncher.StartNew(navigator, configService, chatService, agentRunner))
+            .OnCreateSession(() => ChatLauncher.StartNew(navigator, configService, chatService))
             .OnReviewJobs(() => ptyHandle.HandleInput(ReviewJobsPrompt + "\r"))
             .OnOpenPlan(planId =>
             {

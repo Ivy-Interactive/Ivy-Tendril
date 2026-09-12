@@ -45,7 +45,7 @@ public class ChatLauncherTests
             var config = Config(ChatModes.Chat, tempDir);
             var chats = new ChatHistoryService(config);
 
-            var (app, args) = ChatLauncher.NewSessionTarget(config, chats, TestAgentRunner.Create());
+            var (app, args) = ChatLauncher.NewSessionTarget(config, chats);
 
             Assert.Equal(typeof(ChatApp), app);
             var chatArgs = Assert.IsType<ChatAppArgs>(args);
@@ -70,7 +70,7 @@ public class ChatLauncherTests
             var chats = new ChatHistoryService(config);
             var abandoned = chats.CreateSession("codex", "default", kind: ChatSessionKinds.Chat);
 
-            ChatLauncher.NewSessionTarget(config, chats, TestAgentRunner.Create());
+            ChatLauncher.NewSessionTarget(config, chats);
 
             Assert.Null(chats.GetSession(abandoned.Id));
         }
@@ -124,7 +124,7 @@ public class ChatLauncherTests
             var config = Config(ChatModes.Terminal, tempDir);
             var chats = new ChatHistoryService(config);
 
-            var (app, args) = ChatLauncher.NewSessionTarget(config, chats, TestAgentRunner.Create());
+            var (app, args) = ChatLauncher.NewSessionTarget(config, chats);
 
             Assert.Equal(typeof(AgentApp), app);
             var agentArgs = Assert.IsType<AgentAppArgs>(args);
