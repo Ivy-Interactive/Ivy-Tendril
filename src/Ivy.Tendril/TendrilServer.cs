@@ -28,7 +28,7 @@ public static class TendrilServer
 #if DEBUG
         server.UseHotReload();
 #endif
-        server.SetMetaTitle("Ivy Tendril");
+        server.SetMetaTitle(AppBrand.AppName);
 
         var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
         server.Services.AddSingleton(tendrilArgs);
@@ -159,7 +159,7 @@ public static class TendrilServer
                 Layout.Horizontal(
                     new Image("/tendril/assets/Tendril.svg").Width(Size.Px(32)).Height(Size.Px(32)),
                     Layout.Vertical(
-                        Text.Block("Ivy Tendril").NoWrap(),
+                        Text.Block(AppBrand.AppName).NoWrap(),
                         Text.Muted($"v{versionString}").NoWrap()
                     ).Gap(0)
                 ).Gap(2).Padding(2).AlignContent(Align.Left)
