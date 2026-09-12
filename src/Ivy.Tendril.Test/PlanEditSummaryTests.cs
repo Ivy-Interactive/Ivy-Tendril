@@ -166,7 +166,7 @@ public class PlanEditSummaryTests
 
     /// <summary>
     /// DraftActions polishes markdown before describing the edit, so a change that only normalizes
-    /// punctuation or spacing (what PolishMarkdown does automatically) should not announce as a
+    /// line endings or spacing (what PolishMarkdown does automatically) should not announce as a
     /// section change. This is why the call site polishes before describing.
     /// </summary>
     [Fact]
@@ -174,13 +174,13 @@ public class PlanEditSummaryTests
     {
         var config = new ConfigService(new TendrilSettings(), Path.GetTempPath());
         var original = Before;
-        var typed = Before.Replace("Report the edit to the master.", "Report the edit to the master");
+        var typedWithExtraSpaces = Before.Replace("Report the edit to the master.", "Report the edit to the master.  ");
 
-        // Without polishing, the diff shows as a change (period removed)
-        Assert.Equal("Solution changed (+1/-1 lines)", PlanEditSummary.Describe(original, typed));
+        // Without polishing, the diff shows as a change (trailing spaces added)
+        Assert.Equal("Solution changed (+1/-1 lines)", PlanEditSummary.Describe(original, typedWithExtraSpaces));
 
-        // But polishing normalizes the punctuation, making them equivalent
-        var polished = config.PolishMarkdown(typed);
+        // But polishing normalizes the whitespace, making them equivalent
+        var polished = config.PolishMarkdown(typedWithExtraSpaces);
         Assert.Equal("no section changes", PlanEditSummary.Describe(original, polished));
     }
 }

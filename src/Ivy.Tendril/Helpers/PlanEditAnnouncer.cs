@@ -44,11 +44,13 @@ public static class PlanEditAnnouncer
     ///     Internal async implementation for testability.
     /// </summary>
     internal static async Task AnnounceAsync(
-        IChatExecutionService chatExecution,
+        IChatExecutionService? chatExecution,
         PlanFile plan,
         string summary,
         string? revisionFile = null)
     {
+        if (chatExecution == null || string.IsNullOrWhiteSpace(summary)) return;
+
         await chatExecution.NotifyPlanEditAsync(
             plan.FolderName,
             summary,
