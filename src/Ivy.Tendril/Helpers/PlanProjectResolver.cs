@@ -19,7 +19,26 @@ public static class PlanProjectResolver
             p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
 
         if (project == null)
+        {
+            if (Directory.Exists(projectName))
+            {
+                var fullPath = Path.GetFullPath(projectName);
+                var folderName = Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (string.IsNullOrEmpty(folderName))
+                {
+                    folderName = fullPath;
+                }
+
+                return new ProjectConfig
+                {
+                    Name = folderName,
+                    Repos = [new RepoRef { Path = fullPath }],
+                    Meta = new Dictionary<string, object> { ["adhoc"] = true }
+                };
+            }
+
             throw new ArgumentException($"Project '{projectName}' not found. Available: {namesList}");
+        }
 
         if (project.Repos.Count == 0)
             throw new ArgumentException($"Project '{project.Name}' has no repos configured.");
