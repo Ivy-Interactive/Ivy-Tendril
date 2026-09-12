@@ -930,4 +930,52 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void PruneEmptySessions_KeepsEmptyTerminalSessions()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var terminal = service.CreateSession("claude", "opus", "Terminal", kind: ChatSessionKinds.Terminal);
+            var chat = service.CreateSession("claude", "opus", "Chat", kind: ChatSessionKinds.Chat);
+
+            service.PruneEmptySessions();
+
+            // A terminal pane opened without an initial prompt has no messages, but closing it is the
+            // pane's decision, not the prune's.
+            Assert.NotNull(service.GetSession(terminal.Id));
+            Assert.Null(service.GetSession(chat.Id));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PruneEmptySessions_RaisesSessionsChangedWhenARowDisappears()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            service.CreateSession("claude", "opus", "Empty", kind: ChatSessionKinds.Chat);
+            var raised = 0;
+            service.SessionsChanged += (_, _) => raised++;
+
+            service.PruneEmptySessions();
+
+            // The chat app's sidebar refresh hangs off this event: no event, no row removal.
+            Assert.Equal(1, raised);
+
+            service.PruneEmptySessions();
+            Assert.Equal(1, raised);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }

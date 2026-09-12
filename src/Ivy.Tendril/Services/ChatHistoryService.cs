@@ -825,6 +825,14 @@ public class ChatHistoryService : IChatHistoryService
                 continue;
             }
 
+            // A terminal session's lifetime belongs to its pane, not to the chat app. A pane opened
+            // without an initial prompt has no messages, so pruning it here would close the pane out
+            // from under the user; the shell deletes it when its tab closes instead.
+            if (session.IsTerminal())
+            {
+                continue;
+            }
+
             if (session.Messages == null || session.Messages.Count == 0)
             {
                 if (_sessions.TryRemove(id, out _))

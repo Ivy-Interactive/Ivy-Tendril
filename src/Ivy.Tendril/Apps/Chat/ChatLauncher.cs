@@ -19,15 +19,17 @@ internal static class ChatLauncher
         navigator.Navigate(app, args);
     }
 
+    // runner is unused now that neither mode creates a session here, but it stays in the signature
+    // so the call sites and their tests keep compiling.
     public static (Type App, object? Args) NewSessionTarget(IConfigService config, IChatHistoryService chats, IAgentRunner runner)
     {
+        _ = runner;
         if (UsesTerminal(config)) return (typeof(AgentApp), new AgentAppArgs());
 
+        // Both modes defer creation: the chat page creates its session when the first message is
+        // sent, the shell creates a terminal pane's session when the pane opens.
         chats.PruneEmptySessions();
-        var agent = config.Settings.CodingAgent ?? "claude";
-        var models = ChatApp.GetModelsForAgent(runner, agent);
-        var session = chats.CreateSession(agent, models.Count > 0 ? models[0].Id : "default", kind: ChatSessionKinds.Chat);
-        return (typeof(ChatApp), new ChatAppArgs(SessionId: session.Id));
+        return (typeof(ChatApp), new ChatAppArgs(NewChat: true));
     }
 
     public static void StartNew(INavigator navigator, IConfigService config, IChatHistoryService chats, IAgentRunner runner)

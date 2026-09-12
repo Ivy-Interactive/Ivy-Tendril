@@ -215,6 +215,12 @@ public class ChatApp : ViewBase
                 chatService.ClearSessionCompleted(activeSessionId.Value);
             }
 
+            // Prune on entry, not only on teardown. Subscribing first means the SessionsChanged this
+            // raises reaches OnSessionsChanged, which rebuilds and republishes the sidebar list
+            // without the removed rows. A prune in the dispose callback alone races the incoming
+            // view's publish, so an abandoned chat can linger in the shell's snapshot.
+            chatService.PruneEmptySessions(activeSessionId: activeSessionId.Value);
+
             return Disposable.Create(() =>
             {
                 chatService.SessionsChanged -= OnSessionsChanged;
@@ -226,8 +232,9 @@ public class ChatApp : ViewBase
             });
         });
 
-        // The chat session the args name, when it still exists; a bare prompt starts a fresh chat;
-        // otherwise the most recent chat. Terminal sessions belong to the AgentApp pane, never here.
+        // The chat session the args name, when it still exists; NewChat or a bare prompt starts a
+        // fresh chat; otherwise the most recent chat. Terminal sessions belong to the AgentApp pane,
+        // never here.
         ChatSessionModel? InitialSession()
         {
             if (!string.IsNullOrEmpty(args?.SessionId))
@@ -235,6 +242,7 @@ public class ChatApp : ViewBase
                 var named = chatService.GetSession(args.SessionId);
                 if (named != null && !named.IsTerminal()) return named;
             }
+            if (args?.NewChat == true) return null;
             if (!string.IsNullOrEmpty(args?.Prompt)) return null;
             return chatService.GetSessions().FirstOrDefault(s => !s.IsTerminal());
         }
@@ -293,9 +301,12 @@ public class ChatApp : ViewBase
                 navigator.Navigate(typeof(AgentApp), new AgentAppArgs());
                 return;
             }
+            // No session is created here: SendMessage creates one on demand, so a chat the user
+            // never types into never reaches the history. Until then the Chats list shows no row
+            // and no selection.
             chatService.PruneEmptySessions();
-            var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort, kind: ChatSessionKinds.Chat);
-            SelectSession(newSess.Id);
+            activeSessionId.Set((string?)null);
+            navigator.Navigate(typeof(ChatApp), new ChatAppArgs(NewChat: true));
         }
 
         void SendMessage(ChatSendMessageDto dto)
