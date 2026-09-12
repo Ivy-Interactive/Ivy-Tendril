@@ -677,7 +677,7 @@ public class ChatHistoryService : IChatHistoryService
         return false;
     }
 
-    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true, bool markCompleted = false)
+    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, ChatMessageUpdate update)
     {
         if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(messageId)) return null;
 
@@ -695,9 +695,9 @@ public class ChatHistoryService : IChatHistoryService
             var existingMsg = session.Messages[msgIndex];
             updatedMsg = existingMsg with
             {
-                Content = content,
-                RawStream = rawStream ?? existingMsg.RawStream,
-                CompletedAt = markCompleted ? DateTimeOffset.UtcNow : existingMsg.CompletedAt
+                Content = update.Content,
+                RawStream = update.RawStream ?? existingMsg.RawStream,
+                CompletedAt = update.MarkCompleted ? DateTimeOffset.UtcNow : existingMsg.CompletedAt
             };
 
             var newMessages = new List<ChatMessageModel>(session.Messages);
@@ -705,7 +705,7 @@ public class ChatHistoryService : IChatHistoryService
 
             updatedSession = session with
             {
-                UpdatedAt = touchUpdatedAt ? DateTimeOffset.UtcNow : session.UpdatedAt,
+                UpdatedAt = update.TouchUpdatedAt ? DateTimeOffset.UtcNow : session.UpdatedAt,
                 Messages = newMessages
             };
 
@@ -714,7 +714,7 @@ public class ChatHistoryService : IChatHistoryService
 
         if (updatedSession != null)
         {
-            if (flushImmediately)
+            if (update.FlushImmediately)
             {
                 CancelPendingPersist(sessionId);
                 _lastPersistTimes[sessionId] = DateTimeOffset.UtcNow;

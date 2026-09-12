@@ -182,7 +182,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 }
                 if (!string.IsNullOrEmpty(exec.AssistantMessageId))
                 {
-                    _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false, touchUpdatedAt: false);
+                    _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, new ChatMessageUpdate(currentText ?? string.Empty, currentRaw, FlushImmediately: false, TouchUpdatedAt: false));
                 }
             }
         }
@@ -589,7 +589,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                                     currentText = activeExec.LastText;
                                     currentRaw = activeExec.RawLines.Count > 0 ? string.Join("\n", activeExec.RawLines) : null;
                                 }
-                                _chatService.UpdateMessage(sessionId, assistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false, touchUpdatedAt: false);
+                                _chatService.UpdateMessage(sessionId, assistantMessageId, new ChatMessageUpdate(currentText ?? string.Empty, currentRaw, FlushImmediately: false, TouchUpdatedAt: false));
                             }
                         }
                     }
@@ -635,7 +635,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                         ? (result.IsSuccess ? collectedText : $"{collectedText}\n\n{failureText}")
                         : (result.IsSuccess ? "Task completed successfully." : failureText);
 
-                _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true, markCompleted: true);
+                _chatService.UpdateMessage(sessionId, assistantMessageId, new ChatMessageUpdate(responseContent, fullRawStream, FlushImmediately: true, MarkCompleted: true));
             }
             catch (OperationCanceledException)
             {
@@ -686,7 +686,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                     ? $"{collectedText}\n\n{abortText}"
                     : abortText;
 
-                _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true, markCompleted: true);
+                _chatService.UpdateMessage(sessionId, assistantMessageId, new ChatMessageUpdate(responseContent, fullRawStream, FlushImmediately: true, MarkCompleted: true));
             }
             catch (Exception ex)
             {
@@ -734,7 +734,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                     ? $"{collectedText}\n\nError executing request: {ex.Message}"
                     : $"Error executing request: {ex.Message}";
 
-                _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true, markCompleted: true);
+                _chatService.UpdateMessage(sessionId, assistantMessageId, new ChatMessageUpdate(responseContent, fullRawStream, FlushImmediately: true, MarkCompleted: true));
             }
             finally
             {
@@ -1200,7 +1200,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 ? collectedText
                 : (fallbackMessage ?? string.Empty);
 
-            _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, content, rawStream: fullRawStream, flushImmediately: true);
+            _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, new ChatMessageUpdate(content, fullRawStream, FlushImmediately: true));
         }
         catch (Exception ex)
         {
