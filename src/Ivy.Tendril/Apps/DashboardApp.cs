@@ -1,7 +1,8 @@
 using System.Globalization;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using Ivy.Tendril.Agents.Services;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Review;
@@ -12,6 +13,7 @@ using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Services.Telemetry;
 using Ivy.Tendril.Services.Tunnel;
 using Ivy.Tendril.Widgets;
 using Ivy.Widgets.QRCode;
@@ -35,7 +37,7 @@ public class DashboardApp : ViewBase
         var client = UseService<IClientProvider>();
         var tunnelService = UseService<ICloudflaredService>();
         var usage = UseService<AgentUsageService>();
-        var config = UseService<ConfigService>();
+        var config = UseService<IConfigService>();
         var copyToClipboard = UseClipboard();
         var navigator = UseNavigation();
         var refreshToken = UseRefreshToken();
@@ -44,7 +46,7 @@ public class DashboardApp : ViewBase
         var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
 
         var usageQuery = UseQuery<AgentUsageSnapshot?, string>(
-            config.CodingAgent,
+            config.Settings.CodingAgent,
             (agentId, ct) => usage.GetUsageAsync(agentId, ct),
             options: new QueryOptions { RefreshInterval = TimeSpan.FromSeconds(60) });
 
@@ -143,7 +145,7 @@ public class DashboardApp : ViewBase
             .ReviewCount(processStatus.ReviewCount)
             .CompletedCount(jobs.Count(j => j.Status == JobStatus.Completed))
             .FailedCount(jobs.Count(j => j.Status == JobStatus.Failed))
-            .Kpis(BuildKpis(stats, activity, prDays, featureDays, today, usageQuery.Data))
+            .Kpis(BuildKpis(stats, activity, prDays, featureDays, today, usageQuery.Value))
             .Trend(BuildTrend(activity, today))
             .TrendWeekly(BuildWeeklyTrend(activity, today))
             .PullRequests(BuildMonthlyPullRequests(activity.Months))
@@ -274,8 +276,8 @@ public class DashboardApp : ViewBase
         var dailyCosts = activity.DailyCosts;
         if (dailyCosts != null && dailyCosts.Count > 0 && features30 > 0)
         {
-            var cost30 = dailyCosts.Where(c => c.Date >= last30Start).Sum(c => c.TotalCost);
-            var prevCost30 = dailyCosts.Where(c => c.Date >= prev30Start && c.Date < last30Start).Sum(c => c.TotalCost);
+            var cost30 = dailyCosts.Where(c => c.Date >= last30Start).Sum(c => c.Cost);
+            var prevCost30 = dailyCosts.Where(c => c.Date >= prev30Start && c.Date < last30Start).Sum(c => c.Cost);
             var costPerFeature = cost30 / features30;
             var prevCostPerFeature = prevFeatures30 > 0 ? prevCost30 / prevFeatures30 : 0;
             var hint = $"{FormatHelper.FormatCost(cost30)} over {FormatHelper.FormatCount(features30)} features";

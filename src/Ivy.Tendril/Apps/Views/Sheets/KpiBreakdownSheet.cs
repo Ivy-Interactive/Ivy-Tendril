@@ -127,8 +127,8 @@ public class KpiBreakdownSheet(
         var features30 = featureDays.Where(p => p.Date >= last30Start).Sum(p => p.Count);
         var prevFeatures30 = featureDays.Where(p => p.Date >= prev30Start && p.Date < last30Start).Sum(p => p.Count);
 
-        var cost30 = dailyCosts.Where(c => c.Date >= last30Start).Sum(c => c.TotalCost);
-        var prevCost30 = dailyCosts.Where(c => c.Date >= prev30Start && c.Date < last30Start).Sum(c => c.TotalCost);
+        var cost30 = dailyCosts.Where(c => c.Date >= last30Start).Sum(c => c.Cost);
+        var prevCost30 = dailyCosts.Where(c => c.Date >= prev30Start && c.Date < last30Start).Sum(c => c.Cost);
 
         var costPerFeature = features30 > 0 ? cost30 / features30 : 0m;
         var prevCostPerFeature = prevFeatures30 > 0 ? prevCost30 / prevFeatures30 : 0m;
