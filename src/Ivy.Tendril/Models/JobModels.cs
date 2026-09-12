@@ -359,14 +359,14 @@ public record JobItemRow
     public string Type { get; init; } = "";
     public string Project { get; init; } = "";
     public string Timer { get; init; } = "";
-    /// <summary>
-    /// When the job finished, in the viewer's local time. Empty of meaning for a job that has not
-    /// reached a terminal status, which renders "-"; the Timer column beside it carries the duration.
-    /// </summary>
-    public string Timestamp { get; init; } = "";
     public string AgentOutput { get; init; } = "";
     public string Cost { get; init; } = "";
     public string Tokens { get; init; } = "";
+    /// <summary>
+    /// When the job finished, in the viewer's local time. Empty of meaning for a job that has not
+    /// reached a terminal status, which renders "-"; the Timer column carries the duration.
+    /// </summary>
+    public string Timestamp { get; init; } = "";
     public string StatusMessage { get; init; } = "";
     public string? ErrorContext { get; init; }  // Multi-line error context for tooltip/expansion
 }

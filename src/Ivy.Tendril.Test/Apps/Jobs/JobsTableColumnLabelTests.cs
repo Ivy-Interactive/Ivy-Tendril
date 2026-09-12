@@ -14,10 +14,10 @@ public class JobsTableColumnLabelTests
         { nameof(JobItemRow.Type), "Type" },
         { nameof(JobItemRow.Project), "Project" },
         { nameof(JobItemRow.Timer), "Timer" },
-        { nameof(JobItemRow.Timestamp), "Timestamp" },
         { nameof(JobItemRow.AgentOutput), "Agent Output" },
         { nameof(JobItemRow.Cost), "Cost" },
         { nameof(JobItemRow.Tokens), "Tokens" },
+        { nameof(JobItemRow.Timestamp), "Timestamp" },
         { nameof(JobItemRow.StatusMessage), "Status Message" },
         { nameof(JobItemRow.ErrorContext), "Error Context" }
     };
@@ -66,5 +66,30 @@ public class JobsTableColumnLabelTests
     {
         Assert.NotNull(typeof(JobItemRow).GetProperty("Prompt"));
         Assert.Null(typeof(JobItemRow).GetProperty("Plan"));
+    }
+
+    [Fact]
+    public void TimestampIsTheLastVisibleColumn()
+    {
+        // Ivy derives column order from JobItemRow's property declaration order, so this order IS
+        // the rendered order (issue #2636).
+        var declared = typeof(JobItemRow).GetProperties().Select(p => p.Name).ToArray();
+
+        Assert.Equal(new[]
+        {
+            nameof(JobItemRow.Id),            // hidden
+            nameof(JobItemRow.Status),
+            nameof(JobItemRow.PlanId),
+            nameof(JobItemRow.Prompt),
+            nameof(JobItemRow.Type),
+            nameof(JobItemRow.Project),
+            nameof(JobItemRow.Timer),
+            nameof(JobItemRow.AgentOutput),
+            nameof(JobItemRow.Cost),
+            nameof(JobItemRow.Tokens),
+            nameof(JobItemRow.Timestamp),
+            nameof(JobItemRow.StatusMessage),
+            nameof(JobItemRow.ErrorContext)    // hidden
+        }, declared);
     }
 }
