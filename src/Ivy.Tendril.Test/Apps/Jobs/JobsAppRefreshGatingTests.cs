@@ -6,10 +6,24 @@ using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Reactive.Testing;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Apps.Jobs;
 
 public class JobsAppRefreshGatingTests
 {
+    /// <summary>
+    ///     Every column <see cref="JobsApp.BuildDataTableUpdates" /> streams per candidate job. Adding a
+    ///     streamed cell is a one-line change here; the test name deliberately does not carry the count.
+    /// </summary>
+    private static readonly string[] StreamedColumns =
+    [
+        nameof(JobItemRow.Timer),
+        nameof(JobItemRow.Cost),
+        nameof(JobItemRow.Tokens),
+        nameof(JobItemRow.AgentOutput),
+        nameof(JobItemRow.Status),
+        nameof(JobItemRow.StatusMessage)
+    ];
+
     private static (RefreshToken Token, Func<int> RefreshCount) CreateRefreshToken()
     {
         var state = new State<(Guid, object?, bool)>((Guid.NewGuid(), null, false));
@@ -80,7 +94,7 @@ public class JobsAppRefreshGatingTests
     }
 
     [Fact]
-    public void BuildDataTableUpdates_FirstCall_ReturnsAllSixCells()
+    public void BuildDataTableUpdates_FirstCall_ReturnsEveryStreamedCell()
     {
         var jobService = new FakeJobService();
         jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
@@ -88,7 +102,7 @@ public class JobsAppRefreshGatingTests
 
         var updates = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
 
-        Assert.Equal(6, updates.Count);
+        Assert.Equal(StreamedColumns, updates.Select(u => u.ColumnName).ToArray());
     }
 
     [Fact]
