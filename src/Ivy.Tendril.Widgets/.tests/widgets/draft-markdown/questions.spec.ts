@@ -94,32 +94,32 @@ test.describe("DraftMarkdown Questions", () => {
     // This sample persists: it feeds every event through QuestionAnswers.Apply and hands the widget
     // the updated markdown, so a selection has to survive the round trip and come back rendered.
     const callout = blockFor(page, "retry-scope");
-    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(0);
+    await expect(callout.locator('.tq-option[data-selected="true"]')).toHaveCount(0);
 
     await callout.locator(".tq-option-input").first().click();
-    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(1, { timeout: 15_000 });
+    await expect(callout.locator('.tq-option[data-selected="true"]')).toHaveCount(1, { timeout: 15_000 });
 
     // Single-select, so the second choice replaces the first rather than joining it.
     await callout.locator(".tq-option-input").nth(1).click();
-    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(1, { timeout: 15_000 });
+    await expect(callout.locator('.tq-option[data-selected="true"]')).toHaveCount(1, { timeout: 15_000 });
     await expect(callout.locator(".tq-option").nth(1)).toHaveAttribute("data-selected", "true");
 
     await stepScreenshot("answer-merged");
 
     // Clear takes the answer key back out, so nothing is selected again.
     await callout.locator(".tq-clear").click();
-    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(0, { timeout: 15_000 });
+    await expect(callout.locator('.tq-option[data-selected="true"]')).toHaveCount(0, { timeout: 15_000 });
   });
 
   test("a multi-select answer accumulates", async ({ page }) => {
     const callout = blockFor(page, "launch-channels");
 
     await callout.locator(".tq-option-input").first().click();
-    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(1, { timeout: 15_000 });
+    await expect(callout.locator('.tq-option[data-selected="true"]')).toHaveCount(1, { timeout: 15_000 });
 
     // multiple: true, so the second option joins the first instead of replacing it.
     await callout.locator(".tq-option-input").nth(1).click();
-    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(2, { timeout: 15_000 });
+    await expect(callout.locator('.tq-option[data-selected="true"]')).toHaveCount(2, { timeout: 15_000 });
   });
 
   test("both questions of a block are on screen at once", async ({ page, stepScreenshot }) => {
