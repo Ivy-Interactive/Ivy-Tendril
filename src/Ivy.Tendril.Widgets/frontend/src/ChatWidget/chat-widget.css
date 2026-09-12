@@ -497,6 +497,30 @@ button.chat-jobs-dropdown-item:hover .chat-job-nav-icon {
   color: var(--tch-fg);
 }
 
+.chat-sample-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.chat-sample-prompt {
+  padding: 8px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--tch-border);
+  background: var(--tch-bg);
+  color: var(--tch-fg);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chat-sample-prompt:hover {
+  background: var(--tch-bg-hover);
+  border-color: var(--tch-fg-faint);
+}
+
 .chat-message-row {
   display: flex;
   width: 100%;
@@ -1793,6 +1817,11 @@ button.chat-system-event-plan {
   font-size: 20px;
   font-weight: 500;
   line-height: 26px;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-sample-prompts {
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 
 .chat-widget-root[data-embedded="true"] .chat-footer {

@@ -82,6 +82,11 @@ export interface ChatQueuedMessageDto {
   attachments?: ChatAttachmentDto[];
 }
 
+export interface ChatSamplePromptDto {
+  label: string;
+  prompt: string;
+}
+
 export interface ChatWidgetProps {
   id: string;
   activeSessionId?: string | null;
@@ -104,6 +109,7 @@ export interface ChatWidgetProps {
   /** Shown above the headline while the conversation is empty, e.g. "Good Morning, Joel!". */
   greeting?: string;
   headline?: string;
+  samplePrompts?: ChatSamplePromptDto[];
   /** Hosted inside another page (the plan chat panel): no title bar, a tighter composer. */
   embedded?: boolean;
   events?: string[];
