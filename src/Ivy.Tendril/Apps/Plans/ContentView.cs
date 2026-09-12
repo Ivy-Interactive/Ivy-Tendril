@@ -119,12 +119,31 @@ public class ContentView(
 
         var selectedPlanRef = UseRef(selectedPlan);
 
+        var planWatcher = UseService<Ivy.Tendril.Services.Plans.IPlanWatcherService>();
+        var localRefresh = UseRefreshToken();
+
         var planContentQuery = UseQuery<PlanContentData, string>(
             selectedPlan?.FolderPath ?? "",
             async (folderPath, ct) => await Task.Run(() => LoadPlanContent(folderPath), ct),
+            // The fetcher closes over this view's selectedPlan, so a server-scoped cache entry would be
+            // shared with every other session and hand one session another session's plan content.
+            options: QueryScope.View,
             initialValue: new PlanContentData(null,
                 new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(), null, new GitTabDataBuilder.GitTabData([], []))
         );
+
+        UseEffect(() => PlanChangeHookDisposable(planWatcher, localRefresh,
+            () => selectedPlanRef.Value?.FolderName));
+
+        UseEffect(() =>
+        {
+            // Without this the query key (the folder path) never changes while a plan is open, so the
+            // cached content - commits, git changes, artifacts - is served for the life of the view even
+            // while a job is executing the plan.
+            if (localRefresh.IsRefreshed)
+                planContentQuery.Mutator.Revalidate();
+            return Disposable.Empty;
+        }, [localRefresh]);
 
         // Authentication effects (was UseAuthenticationEffects)
         UseEffect(() =>
@@ -436,6 +455,55 @@ public class ContentView(
             return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
         }));
         return $"{meta} · Depends on {depIds}";
+    }
+
+    /// <summary>
+    ///     How long a burst of plan changes is collapsed over. The same window Review's content view and
+    ///     <c>UseInboxAutoRefresh</c> use, so a plan mutation that raises several events costs one rebuild.
+    /// </summary>
+    internal static readonly TimeSpan PlanRefreshWindow = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>
+    ///     Revalidates the plan content when the plan on screen changes on disk, owning a coalescer on the
+    ///     caller's behalf. See the overload below for what is gated and why.
+    /// </summary>
+    internal static IDisposable PlanChangeHookDisposable(
+        Ivy.Tendril.Services.Plans.IPlanWatcherService planWatcher,
+        RefreshToken refreshToken,
+        Func<string?> selectedFolder)
+    {
+        var coalescer = new RefreshCoalescer(refreshToken, PlanRefreshWindow);
+        var hook = PlanChangeHookDisposable(planWatcher, coalescer, selectedFolder);
+        return Disposable.Create(() =>
+        {
+            hook.Dispose();
+            coalescer.Dispose();
+        });
+    }
+
+    /// <summary>
+    ///     Subscribes <paramref name="planWatcher" /> and feeds only the events naming the plan on screen
+    ///     into <paramref name="coalescer" />, per <see cref="PlanRefreshGate" />. Rebuilding for another
+    ///     plan means running git for commits, the git tab and the full change set of a plan nobody is
+    ///     looking at (#2571). Extracted so the gate and the coalescing are testable without an Ivy
+    ///     runtime, as <c>JobsApp.JobChangeHookDisposable</c> is.
+    /// </summary>
+    /// <param name="selectedFolder">
+    ///     Read per event rather than captured, since the selection changes while the subscription lives.
+    /// </param>
+    internal static IDisposable PlanChangeHookDisposable(
+        Ivy.Tendril.Services.Plans.IPlanWatcherService planWatcher,
+        RefreshCoalescer coalescer,
+        Func<string?> selectedFolder)
+    {
+        void OnChanged(string? changedFolder)
+        {
+            if (!PlanRefreshGate.ShouldRefreshFor(changedFolder, selectedFolder())) return;
+            coalescer.Request();
+        }
+
+        planWatcher.PlansChanged += OnChanged;
+        return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
     }
 
     private object BuildNoSelectionView(object processView)
