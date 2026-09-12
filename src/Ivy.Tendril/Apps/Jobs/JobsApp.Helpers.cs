@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps.Jobs;
@@ -224,5 +225,25 @@ public partial class JobsApp
     private static Colors GetStatusColor(JobStatus status)
     {
         return Constants.JobStatusColors.GetValueOrDefault(status, Colors.Slate);
+    }
+
+    /// <summary>
+    /// Determines if a job can be rerun. Returns true for Failed/Timeout/Stopped
+    /// jobs (existing behavior), or for Completed jobs whose args type supports
+    /// corrective feedback (ExecutePlan/RetryPlan/UpdatePlan).
+    /// </summary>
+    internal static bool CanRerun(JobItem? job)
+    {
+        if (job == null) return false;
+
+        // Existing behavior: all failed-state jobs can be rerun regardless of type
+        if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+            return true;
+
+        // New: Completed jobs can be rerun only when their args support feedback
+        if (job.Status is JobStatus.Completed)
+            return RerunJobDialog.SupportsFeedback(job.TypedArgs);
+
+        return false;
     }
 }

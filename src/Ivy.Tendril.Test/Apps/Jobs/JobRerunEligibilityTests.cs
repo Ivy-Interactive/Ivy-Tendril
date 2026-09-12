@@ -1,8 +1,7 @@
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Models;
-using Xunit;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Apps.Jobs;
 
 public class JobRerunEligibilityTests
 {
