@@ -201,18 +201,24 @@ internal static class PlanYamlHelper
     ///         and free are different facts, and the parser turns the empty field back into SQL NULL so
     ///         the aggregates skip it instead of averaging a zero in.
     ///     </para>
+    ///     <para>
+    ///         <paramref name="agent" /> is the coding agent id (e.g. <c>claude</c>, <c>codex</c>) that
+    ///         produced this cost. Written to a sixth column (costs.csv v4). Absent in files created before
+    ///         agent tracking, and retained because <c>PurgeOldJobs</c> drops the <c>Jobs</c> row long
+    ///         before the plan folder is archived.
+    ///     </para>
     /// </summary>
-    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null, string? costSource = null)
+    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null, string? costSource = null, string? agent = null)
     {
         if (!Directory.Exists(planFolder)) return;
 
         var csvPath = Path.Combine(planFolder, "costs.csv");
         // An existing file keeps whatever header it was created with, including the 3 column one: the
         // parser reads by position and tolerates a short header with long rows appended under it.
-        if (!File.Exists(csvPath)) FileHelper.WriteAllText(csvPath, "Promptware,Tokens,Cost,Model,CostSource\n");
+        if (!File.Exists(csvPath)) FileHelper.WriteAllText(csvPath, "Promptware,Tokens,Cost,Model,CostSource,Agent\n");
 
         var costField = cost?.ToString("F4", System.Globalization.CultureInfo.InvariantCulture) ?? "";
-        var line = $"{jobType},{tokens},{costField},{model},{costSource}\n";
+        var line = $"{jobType},{tokens},{costField},{model},{costSource},{agent}\n";
         FileHelper.AppendAllText(csvPath, line);
     }
 
