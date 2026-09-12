@@ -388,12 +388,11 @@ describe("DraftMarkdown interactive questions", () => {
     expect(container.querySelector(".tq-question-optional")).toBeNull();
   });
 
-  it("renders no Other row when other is false", () => {
+  it("renders Other row even when other is false", () => {
     const { container } = renderInteractive(SINGLE_NO_OTHER);
 
-    expect(container.querySelector(".tq-option--other")).toBeNull();
-    expect(container.querySelector(".tq-text-input")).toBeNull();
-    expect(container.querySelectorAll(".tq-option")).toHaveLength(2);
+    expect(container.querySelector(".tq-option--other")).not.toBeNull();
+    expect(container.querySelectorAll(".tq-option")).toHaveLength(3);
   });
 
   it("renders a free-text input and no options for a question with no options", () => {

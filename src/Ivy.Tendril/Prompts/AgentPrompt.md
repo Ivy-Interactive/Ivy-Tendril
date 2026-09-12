@@ -321,7 +321,6 @@ questions:
     header: Optional Eyebrow   # optional <=12 char label
     description: Optional explanation of why you're asking
     multiple: false            # true for multi-select, false for single-select
-    other: true                # true if user may type custom text
     options:                   # 2-4 selectable options
       - title: Option Title
         description: Markdown details explaining this option

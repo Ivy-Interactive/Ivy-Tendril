@@ -11,7 +11,6 @@ class DemoApp : ViewBase
     private const string SingleSelect = """
         - id: proceed
           title: How should we proceed?
-          other: false
           options:
             - title: Open a PR
               description: Open a new Pull Request against development branch.
