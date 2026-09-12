@@ -102,6 +102,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
 
         var isGenerating = session != null && executionService.IsGenerating(session.Id);
         var streamSnapshot = isGenerating ? executionService.GetStreamSnapshot(session!.Id) : string.Empty;
+        var streamingMessageId = isGenerating ? executionService.GetStreamingMessageId(session!.Id) : null;
         var sessionDtos = session != null
             ? [ChatApp.ToSessionDto(session, true, executionService, jobService, chatService)]
             : new List<ChatSessionDto>();
@@ -146,6 +147,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
             supportsEffort,
             isGenerating,
             streamSnapshot,
+            streamingMessageId,
             $"#{plan.Id} {plan.Title}",
             Headline,
             chatService,
