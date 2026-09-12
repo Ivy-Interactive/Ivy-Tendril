@@ -88,6 +88,50 @@ public static partial class JobLogPaths
         }
     }
 
+    /// <summary>
+    /// Every plan's job logs in one directory pass, keyed by plan id and oldest job id first — the
+    /// same grouping <see cref="LogsForPlanId" /> produces per plan, for callers that need all of
+    /// them. A full sync used to glob the whole Jobs directory once per plan (339 globs over 6607
+    /// entries on the store that reported #2571); this reads it once.
+    /// </summary>
+    /// <remarks>
+    /// A log with no plan-id segment (the <c>{jobId}-{type}.md</c> shape a CreatePlan job writes)
+    /// belongs to no plan and lands in no group.
+    /// </remarks>
+    internal static Dictionary<string, string[]> LogsByPlanId(string tendrilHome)
+    {
+        var grouped = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        try
+        {
+            var dir = JobsDir(tendrilHome);
+            if (!Directory.Exists(dir)) return grouped;
+
+            foreach (var group in Directory.GetFiles(dir, "*.md")
+                         .Where(f => !f.EndsWith(".prompt.md", StringComparison.OrdinalIgnoreCase))
+                         .Select(f => (Path: f, PlanId: PlanIdSegment(f)))
+                         .Where(f => f.PlanId != null)
+                         // Job ids are fixed-width, so ordinal file-name order is job-id order —
+                         // the same ordering LogsForPlanId gives its callers.
+                         .OrderBy(f => Path.GetFileName(f.Path), StringComparer.Ordinal)
+                         .GroupBy(f => f.PlanId!, StringComparer.Ordinal))
+                grouped[group.Key] = group.Select(f => f.Path).ToArray();
+
+            return grouped;
+        }
+        catch
+        {
+            return grouped;
+        }
+    }
+
+    /// <summary>The plan-id segment of a job artifact's file name, or <c>null</c> for one without.</summary>
+    private static string? PlanIdSegment(string path)
+    {
+        var parts = Path.GetFileNameWithoutExtension(path).Split('-');
+        if (parts.Length < 3) return null;
+        return PlanIdPrefix().IsMatch(parts[1] + "-") ? parts[1] : null;
+    }
+
     /// <summary>Job logs (<c>.md</c>) belonging to <paramref name="planId"/>, oldest job id first.</summary>
     public static string[] LogsForPlanId(string tendrilHome, string planId)
     {

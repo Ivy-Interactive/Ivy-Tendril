@@ -40,6 +40,15 @@ public interface IPlanDatabaseService : IDisposable
     void UpdateRecommendationState(int planId, string recommendationTitle, string newState, string? declineReason);
 
     // Sync operations (bulk, called by sync service)
+
+    /// <summary>
+    ///     Opens a batch: one write lock and one transaction held for the caller's whole loop instead of
+    ///     one of each per plan. A full sync otherwise takes the write lock twice per plan, and every
+    ///     acquisition is another chance for a UI read to queue behind it (#2571). Not nestable.
+    /// </summary>
+    /// <returns>A scope that commits when disposed; a no-op for an implementation with no connection.</returns>
+    IDisposable BeginBatch() => NullBatch.Instance;
+
     void UpsertPlan(PlanFile plan);
     void DeletePlan(int planId);
     void UpsertCosts(int planId, List<CostEntry> costs);
@@ -67,6 +76,16 @@ public interface IPlanDatabaseService : IDisposable
     long GetDatabaseSize();
     DateTime GetLastSyncTime();
     void SetLastSyncTime(DateTime time);
+}
+
+/// <summary>
+///     What <see cref="IPlanDatabaseService.BeginBatch" /> hands back when there is nothing to batch —
+///     the in-memory fakes the tests use, which have neither a lock nor a transaction to hold.
+/// </summary>
+internal sealed class NullBatch : IDisposable
+{
+    internal static readonly NullBatch Instance = new();
+    public void Dispose() { }
 }
 
 /// <summary>

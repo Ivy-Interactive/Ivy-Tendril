@@ -24,27 +24,88 @@ public class PlanDatabaseService : IPlanDatabaseService
     private readonly DashboardRepository _dashboardRepository;
     private bool _disposed;
 
+    /// <summary>
+    ///     The transaction a <see cref="BeginBatch" /> scope holds open, or null. Only ever read and
+    ///     written by the thread inside the batch, which holds the write lock for its whole scope.
+    /// </summary>
+    private SqliteTransaction? _batchTransaction;
+
+    /// <remarks>
+    ///     A no-op when the calling thread is already inside a <see cref="BeginBatch" /> scope: that
+    ///     scope holds the write lock, which already covers every read under it, and re-entering a
+    ///     non-recursive <see cref="ReaderWriterLockSlim" /> would throw.
+    /// </remarks>
     private sealed class ReadLockHandle : IDisposable
     {
-        private readonly ReaderWriterLockSlim _lock;
+        private readonly ReaderWriterLockSlim? _lock;
         public ReadLockHandle(ReaderWriterLockSlim rwLock)
         {
+            if (rwLock.IsWriteLockHeld) return;
             _lock = rwLock;
             _lock.EnterReadLock();
         }
-        public void Dispose() => _lock.ExitReadLock();
+        public void Dispose() => _lock?.ExitReadLock();
     }
 
+    /// <inheritdoc cref="ReadLockHandle" />
     private sealed class WriteLockHandle : IDisposable
     {
-        private readonly ReaderWriterLockSlim _lock;
+        private readonly ReaderWriterLockSlim? _lock;
         public WriteLockHandle(ReaderWriterLockSlim rwLock)
         {
+            if (rwLock.IsWriteLockHeld) return;
             _lock = rwLock;
             _lock.EnterWriteLock();
         }
-        public void Dispose() => _lock.ExitWriteLock();
+        public void Dispose() => _lock?.ExitWriteLock();
     }
+
+    /// <summary>
+    ///     One write lock and one transaction held across many mutations. A full plan sync otherwise
+    ///     takes the write lock hundreds of times (twice per plan), and every acquisition is another
+    ///     chance to block a UI thread arriving for the read lock — which is how a burst of plan
+    ///     mutations froze a workspace (#2571).
+    /// </summary>
+    private sealed class BatchScope : IDisposable
+    {
+        private readonly PlanDatabaseService _service;
+        private readonly WriteLockHandle _writeLock;
+        private readonly SqliteTransaction _transaction;
+        private bool _disposed;
+
+        public BatchScope(PlanDatabaseService service)
+        {
+            _service = service;
+            _writeLock = new WriteLockHandle(service._lock);
+            _transaction = service._connection.BeginTransaction();
+            service._batchTransaction = _transaction;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            _service._batchTransaction = null;
+            try
+            {
+                _transaction.Commit();
+            }
+            catch (Exception ex)
+            {
+                _service._logger.LogError(ex, "Failed to commit batched database writes");
+                try { _transaction.Rollback(); } catch { /* connection may already be gone */ }
+            }
+            finally
+            {
+                _transaction.Dispose();
+                _writeLock.Dispose();
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public IDisposable BeginBatch() => new BatchScope(this);
 
     public PlanDatabaseService(string databasePath, ILogger<PlanDatabaseService> logger)
     {
@@ -574,15 +635,16 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new WriteLockHandle(_lock))
         {
-            using var transaction = _connection.BeginTransaction();
+            // Inside a batch the caller's transaction is already open and commits with the scope.
+            using var transaction = _batchTransaction == null ? _connection.BeginTransaction() : null;
             try
             {
                 UpsertPlanInternal(plan);
-                transaction.Commit();
+                transaction?.Commit();
             }
             catch
             {
-                transaction.Rollback();
+                transaction?.Rollback();
                 throw;
             }
         }
@@ -752,16 +814,17 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             if (plans.Count == 0) return;
 
-            using var transaction = _connection.BeginTransaction();
+            // Inside a batch the caller's transaction is already open and commits with the scope.
+            using var transaction = _batchTransaction == null ? _connection.BeginTransaction() : null;
             try
             {
                 foreach (var plan in plans)
                     UpsertPlanInternal(plan, forceOverwrite);
-                transaction.Commit();
+                transaction?.Commit();
             }
             catch
             {
-                transaction.Rollback();
+                transaction?.Rollback();
                 throw;
             }
         }
