@@ -172,16 +172,7 @@ public class InboxApp : ViewBase
                         ? selectedProject.Value
                         : (issue.Repository != null ? githubService.FindProjectForGithubRepo(issue.Repository)?.Name : null) ?? "Auto";
 
-                    var issueUrl = ResolveIssueUrl(issue) ?? "";
-
-                    var content = $"""
-                                   ---
-                                   project: {targetProject}
-                                   ---
-                                   {(string.IsNullOrEmpty(issueUrl) ? $"# Issue #{issue.Number}: {issue.Title}" : $"[GitHub Issue #{issue.Number}]({issueUrl})")}
-
-                                   {issue.Body}
-                                   """;
+                    var content = BuildInboxFileContent(issue, targetProject);
 
                     await FileHelper.WriteAllTextAsync(filePath, content);
                     importedCount++;
@@ -300,6 +291,29 @@ public class InboxApp : ViewBase
             : (!string.IsNullOrWhiteSpace(issue.Repository)
                 ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
                 : null);
+
+    /// <summary>
+    ///     Builds the markdown document written to the Tendril inbox for a GitHub issue: the project
+    ///     front matter, a link to the issue (or a plain heading when no url resolves) and the issue
+    ///     body. Shared by the interactive fire-off path and the background auto-import service so the
+    ///     inbox file format lives in exactly one place.
+    /// </summary>
+    public static string BuildInboxFileContent(GitHubIssue issue, string targetProject)
+    {
+        var issueUrl = ResolveIssueUrl(issue);
+        var heading = string.IsNullOrEmpty(issueUrl)
+            ? $"# Issue #{issue.Number}: {issue.Title}"
+            : $"[GitHub Issue #{issue.Number}]({issueUrl})";
+
+        return $"""
+                ---
+                project: {targetProject}
+                ---
+                {heading}
+
+                {issue.Body}
+                """;
+    }
 
     public static string TruncateBody(string? body, int maxLength = 500)
     {

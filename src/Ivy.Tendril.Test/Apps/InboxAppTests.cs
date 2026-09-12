@@ -425,6 +425,101 @@ public class InboxAppTests
             $"InboxApp.ResolveIssueUrl in {expectedFile}, but it was found at {hits[0]}.");
     }
 
+    [Fact]
+    public void BuildInboxFileContent_LinksTheIssueWhenAUrlResolves()
+    {
+        var issue = new GitHubIssue(101, "Fix login bug", "Login fails", [], [], "owner/repo", "https://github.com/owner/repo/issues/101");
+
+        var content = InboxApp.BuildInboxFileContent(issue, "Auto");
+
+        Assert.Equal(
+            "---\n" +
+            "project: Auto\n" +
+            "---\n" +
+            "[GitHub Issue #101](https://github.com/owner/repo/issues/101)\n" +
+            "\n" +
+            "Login fails",
+            content);
+    }
+
+    [Fact]
+    public void BuildInboxFileContent_DerivesTheUrlFromTheRepository()
+    {
+        var issue = new GitHubIssue(101, "Fix login bug", "Login fails", [], [], "acme/widgets");
+
+        var content = InboxApp.BuildInboxFileContent(issue, "Auto");
+
+        Assert.Equal(
+            "---\n" +
+            "project: Auto\n" +
+            "---\n" +
+            "[GitHub Issue #101](https://github.com/acme/widgets/issues/101)\n" +
+            "\n" +
+            "Login fails",
+            content);
+    }
+
+    [Fact]
+    public void BuildInboxFileContent_FallsBackToAPlainHeadingWhenNoUrlResolves()
+    {
+        var issue = new GitHubIssue(12, "Fix login bug", "Login fails", [], [], Repository: null, Url: null);
+
+        var content = InboxApp.BuildInboxFileContent(issue, "Tendril");
+
+        Assert.Equal(
+            "---\n" +
+            "project: Tendril\n" +
+            "---\n" +
+            "# Issue #12: Fix login bug\n" +
+            "\n" +
+            "Login fails",
+            content);
+        Assert.DoesNotContain("](", content);
+    }
+
+    [Fact]
+    public void InboxFileContentTemplate_LivesOnlyInBuildInboxFileContent()
+    {
+        var repoRoot = FindRepoRoot();
+        var productionDir = Path.Combine(repoRoot, "src", "Ivy.Tendril");
+
+        // This test file lives under src/Ivy.Tendril.Test, which is a sibling of the scanned
+        // directory, so the needle below cannot match the guard itself.
+        const string issueLinkTemplate = "[GitHub Issue #{issue.Number}](";
+
+        var hits = new List<string>();
+
+        var csFiles = Directory.EnumerateFiles(productionDir, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
+                        !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar));
+
+        foreach (var file in csFiles)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains(issueLinkTemplate, StringComparison.Ordinal))
+                {
+                    hits.Add($"{Path.GetRelativePath(repoRoot, file)}:{i + 1}");
+                }
+            }
+        }
+
+        var expectedFile = Path.Combine("src", "Ivy.Tendril", "Apps", "Inbox", "InboxApp.cs");
+
+        Assert.True(
+            hits.Count == 1,
+            $"Expected exactly one inline inbox issue-link template in {expectedFile} (the body of " +
+            $"InboxApp.BuildInboxFileContent), but found {hits.Count}: {string.Join(", ", hits)}. Call " +
+            "InboxApp.BuildInboxFileContent(issue, targetProject) instead of spelling out the inbox " +
+            "file template inline.");
+
+        Assert.True(
+            hits[0].StartsWith(expectedFile + ":", StringComparison.Ordinal),
+            $"The single inline inbox issue-link template should be the body of " +
+            $"InboxApp.BuildInboxFileContent in {expectedFile}, but it was found at {hits[0]}.");
+    }
+
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);

@@ -159,16 +159,7 @@ public class AssignedIssuesAutoImportService : IStartable, IDisposable
                 var fileName = $"{issue.Number}-{safeName}.md";
                 var filePath = Path.Combine(inboxPath, fileName);
 
-                var resolvedUrl = InboxApp.ResolveIssueUrl(issue) ?? "";
-
-                var content = $"""
-                               ---
-                               project: {targetProject}
-                               ---
-                               {(string.IsNullOrEmpty(resolvedUrl) ? $"# Issue #{issue.Number}: {issue.Title}" : $"[GitHub Issue #{issue.Number}]({resolvedUrl})")}
-
-                               {issue.Body}
-                               """;
+                var content = InboxApp.BuildInboxFileContent(issue, targetProject);
 
                 await FileHelper.WriteAllTextAsync(filePath, content);
                 _logger.LogInformation("Auto-imported assigned issue #{Number} into Inbox for project {Project}.", issue.Number, targetProject);
