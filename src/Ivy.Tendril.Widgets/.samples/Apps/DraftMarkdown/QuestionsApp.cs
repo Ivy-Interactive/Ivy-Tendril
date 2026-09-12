@@ -294,21 +294,21 @@ class QuestionsApp : ViewBase
                          | (Layout.Horizontal().Gap(2)
                             | new Button("Restore Plan").Outline().OnClick(() =>
                             {
-                              markdown.Set(InitialMarkdown);
-                              annotations.Set(DummyAnnotations);
-                              scrollTo.Set((QuestionScrollTarget?)null);
+                                markdown.Set(InitialMarkdown);
+                                annotations.Set(DummyAnnotations);
+                                scrollTo.Set((QuestionScrollTarget?)null);
                             })
                             | new Button("Clear Answers").OnClick(() =>
                             {
-                              // Every answer in the document, including the two it shipped with. Cleared one
-                              // at a time through the same merge the widget's own events use.
-                              var cleared = markdown.Value;
-                              foreach (var answered in QuestionAnswers.Read(cleared).Where(q => q.HasAnswer))
-                                QuestionAnswers.TryApply(cleared, new QuestionAnswer(answered.Id, null), out cleared);
+                                // Every answer in the document, including the two it shipped with. Cleared one
+                                // at a time through the same merge the widget's own events use.
+                                var cleared = markdown.Value;
+                                foreach (var answered in QuestionAnswers.Read(cleared).Where(q => q.HasAnswer))
+                                    QuestionAnswers.TryApply(cleared, new QuestionAnswer(answered.Id, null), out cleared);
 
-                              markdown.Set(cleared);
+                                markdown.Set(cleared);
                             }));
-          
+
 
         return Layout.Horizontal().Height(Size.Full()).RemoveParentPadding()
                | new DraftMarkdownWidget(markdown.Value)
