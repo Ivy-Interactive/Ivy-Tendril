@@ -73,11 +73,13 @@ public class ModelPricingProviderTests
     [Fact]
     public void GetPricing_Sonnet_ReturnsPricing()
     {
+        // The alias is priced like the model it resolves to, claude-sonnet-5, rather than carrying its
+        // own stale 2/10 rate.
         var pricing = _provider.GetPricing("sonnet");
 
         Assert.NotNull(pricing);
-        Assert.Equal(2m, pricing.InputPerMillion);
-        Assert.Equal(10m, pricing.OutputPerMillion);
+        Assert.Equal(3m, pricing.InputPerMillion);
+        Assert.Equal(15m, pricing.OutputPerMillion);
     }
 
     [Fact]
@@ -86,8 +88,8 @@ public class ModelPricingProviderTests
         var pricing = _provider.GetPricing("claude-sonnet-4");
 
         Assert.NotNull(pricing);
-        Assert.Equal(2m, pricing.InputPerMillion);
-        Assert.Equal(10m, pricing.OutputPerMillion);
+        Assert.Equal(3m, pricing.InputPerMillion);
+        Assert.Equal(15m, pricing.OutputPerMillion);
     }
 
     [Fact]
@@ -165,7 +167,7 @@ public class ModelPricingProviderTests
             inputTokens: 1000,
             outputTokens: 500);
 
-        var expected = (1000m * 2m / 1_000_000m) + (500m * 10m / 1_000_000m);
+        var expected = (1000m * 3m / 1_000_000m) + (500m * 15m / 1_000_000m);
         Assert.Equal(expected, cost);
     }
 
