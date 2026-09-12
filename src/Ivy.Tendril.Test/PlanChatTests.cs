@@ -8,6 +8,7 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
