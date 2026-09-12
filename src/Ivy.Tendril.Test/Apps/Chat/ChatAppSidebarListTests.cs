@@ -229,18 +229,20 @@ public class ChatAppSidebarListTests
     [Fact]
     public void ToJobDto_ClearsPlanId_WhenPlanFolderMissingOnDisk()
     {
-        var nonExistentFolder = Path.Combine(Path.GetTempPath(), "non-existent-" + Guid.NewGuid().ToString("N"));
+        // The id prefix is load-bearing: FindPlan must resolve the plan by id before the
+        // on-disk check is what clears PlanId, not an unresolved-plan fallback.
+        var missingFolder = Path.Combine(Path.GetTempPath(), "01583-MissingFolderPlan-" + Guid.NewGuid().ToString("N"));
         var metadata = new PlanMetadata(
             1583, "test-project", "Feature", "Missing Folder Plan", PlanStatus.Draft,
             [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
-        var planFile = new PlanFile(metadata, "", nonExistentFolder, "");
+        var planFile = new PlanFile(metadata, "", missingFolder, "");
         var planService = new FakePlanReaderService { Plans = [planFile] };
         var job = new JobItem
         {
             Id = "00155",
             Type = Constants.JobTypes.ExecutePlan,
             Status = JobStatus.Running,
-            PlanFile = Path.GetFileName(nonExistentFolder)
+            PlanFile = Path.GetFileName(missingFolder)
         };
 
         var dto = ChatApp.ToJobDto(job, planService);
