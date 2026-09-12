@@ -61,7 +61,7 @@ public class KpiBreakdownSheetTests
     [Fact]
     public void KpiBreakdownSheet_RendersDailyPrsBreakdown()
     {
-        var sheet = new KpiBreakdownSheet("dailyPrs", _stats, _activity, _prDays, _today, _fakeService);
+        var sheet = new KpiBreakdownSheet("dailyPrs", _stats, _activity, _prDays, [], _today, _fakeService);
         var result = sheet.Build();
 
         Assert.NotNull(result);
@@ -70,7 +70,7 @@ public class KpiBreakdownSheetTests
     [Fact]
     public void KpiBreakdownSheet_RendersAvgCostMonthBreakdown()
     {
-        var sheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, _today, _fakeService);
+        var sheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, [], _today, _fakeService);
         var result = sheet.Build();
 
         Assert.NotNull(result);
@@ -79,7 +79,7 @@ public class KpiBreakdownSheetTests
     [Fact]
     public void KpiBreakdownSheet_RendersForecastMonthBreakdown()
     {
-        var sheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, _today, _fakeService);
+        var sheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, [], _today, _fakeService);
         var result = sheet.Build();
 
         Assert.NotNull(result);
@@ -94,7 +94,7 @@ public class KpiBreakdownSheetTests
             new(new DateOnly(2026, 8, 25), 20.00m, 2000, ApiCost: 0m, ApiTokens: 0, SubsidizedCost: 20m, SubsidizedTokens: 2000)
         };
         var activity = new DashboardActivityStats([], 0m, dailyCosts);
-        var sheet = new KpiBreakdownSheet("forecastMonth", _stats, activity, _prDays, _today, _fakeService);
+        var sheet = new KpiBreakdownSheet("forecastMonth", _stats, activity, _prDays, [], _today, _fakeService);
         var result = sheet.Build();
 
         Assert.NotNull(result);
@@ -106,7 +106,7 @@ public class KpiBreakdownSheetTests
     [Fact]
     public void KpiBreakdownSheet_RendersAvgCostPlanBreakdown()
     {
-        var sheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, _today, _fakeService);
+        var sheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, [], _today, _fakeService);
         var result = sheet.Build();
 
         Assert.NotNull(result);
@@ -115,7 +115,7 @@ public class KpiBreakdownSheetTests
     [Fact]
     public void KpiBreakdownSheet_RendersUnknownKeyGracefully()
     {
-        var sheet = new KpiBreakdownSheet("unknownMetricKey", _stats, _activity, _prDays, _today, _fakeService);
+        var sheet = new KpiBreakdownSheet("unknownMetricKey", _stats, _activity, _prDays, [], _today, _fakeService);
         var result = sheet.Build();
 
         Assert.NotNull(result);
@@ -128,10 +128,10 @@ public class KpiBreakdownSheetTests
         var emptyActivity = new DashboardActivityStats([], 0m);
         var emptyService = new FakePlanReaderService();
 
-        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", emptyStats, emptyActivity, [], _today, emptyService);
-        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", emptyStats, emptyActivity, [], _today, emptyService);
-        var forecastSheet = new KpiBreakdownSheet("forecastMonth", emptyStats, emptyActivity, [], _today, emptyService);
-        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", emptyStats, emptyActivity, [], _today, emptyService);
+        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", emptyStats, emptyActivity, [], [], _today, emptyService);
+        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", emptyStats, emptyActivity, [], [], _today, emptyService);
+        var forecastSheet = new KpiBreakdownSheet("forecastMonth", emptyStats, emptyActivity, [], [], _today, emptyService);
+        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", emptyStats, emptyActivity, [], [], _today, emptyService);
 
         Assert.NotNull(dailyPrsSheet.Build());
         Assert.NotNull(avgCostMonthSheet.Build());
@@ -142,10 +142,10 @@ public class KpiBreakdownSheetTests
     [Fact]
     public void KpiBreakdownSheet_PopulatedData_BuildsDataTables()
     {
-        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", _stats, _activity, _prDays, _today, _fakeService);
-        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, _today, _fakeService);
-        var forecastSheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, _today, _fakeService);
-        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, _today, _fakeService);
+        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", _stats, _activity, _prDays, [], _today, _fakeService);
+        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, [], _today, _fakeService);
+        var forecastSheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, [], _today, _fakeService);
+        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, [], _today, _fakeService);
 
         var dailyPrsTable = ExtractTableContent(dailyPrsSheet.Build());
         var avgCostMonthTable = ExtractTableContent(avgCostMonthSheet.Build());
@@ -172,9 +172,9 @@ public class KpiBreakdownSheetTests
         var emptyActivity = new DashboardActivityStats([], 0m);
         var emptyService = new FakePlanReaderService();
 
-        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", emptyStats, emptyActivity, [], _today, emptyService);
-        var forecastSheet = new KpiBreakdownSheet("forecastMonth", emptyStats, emptyActivity, [], _today, emptyService);
-        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", emptyStats, emptyActivity, [], _today, emptyService);
+        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", emptyStats, emptyActivity, [], [], _today, emptyService);
+        var forecastSheet = new KpiBreakdownSheet("forecastMonth", emptyStats, emptyActivity, [], [], _today, emptyService);
+        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", emptyStats, emptyActivity, [], [], _today, emptyService);
 
         var dailyPrsContent = ExtractTableContent(dailyPrsSheet.Build());
         var forecastContent = ExtractTableContent(forecastSheet.Build());
@@ -195,9 +195,9 @@ public class KpiBreakdownSheetTests
             new DashboardAgentCost("Unknown", 10.00m, 10000, 1)
         ];
 
-        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, _today, _fakeService);
-        var forecastSheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, _today, _fakeService);
-        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, _today, _fakeService);
+        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, [], _today, _fakeService);
+        var forecastSheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, [], _today, _fakeService);
+        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, [], _today, _fakeService);
 
         var avgCostMonthSection = ExtractAgentSection(avgCostMonthSheet.Build());
         var forecastSection = ExtractAgentSection(forecastSheet.Build());
@@ -219,7 +219,7 @@ public class KpiBreakdownSheetTests
             new DashboardAgentCost("claude", 50.00m, 50000, 3)
         ];
 
-        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", _stats, _activity, _prDays, _today, _fakeService);
+        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", _stats, _activity, _prDays, [], _today, _fakeService);
         var result = dailyPrsSheet.Build();
 
         // dailyPrs should not have an agent section (only 3 children, not 4)
@@ -233,9 +233,9 @@ public class KpiBreakdownSheetTests
     {
         _fakeService.AgentCostsToReturn = [];
 
-        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, _today, _fakeService);
-        var forecastSheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, _today, _fakeService);
-        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, _today, _fakeService);
+        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, [], _today, _fakeService);
+        var forecastSheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, [], _today, _fakeService);
+        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, [], _today, _fakeService);
 
         var avgCostMonthSection = ExtractAgentSection(avgCostMonthSheet.Build());
         var forecastSection = ExtractAgentSection(forecastSheet.Build());
