@@ -551,18 +551,40 @@ describe("DraftMarkdown interactive questions", () => {
     expect(eventHandler).not.toHaveBeenCalled();
   });
 
-  it("ignores card click when user has an active text selection", () => {
+  it("ignores card click when the active text selection is anchored inside that card", () => {
     const { container, eventHandler } = renderInteractive(SINGLE);
-
-    const selectionSpy = vi.spyOn(window, "getSelection").mockReturnValue({
-      toString: () => "selected text",
-    } as Selection);
 
     const card = container.querySelector<HTMLElement>(".tq-option");
     expect(card).not.toBeNull();
+
+    const selectionSpy = vi.spyOn(window, "getSelection").mockReturnValue({
+      isCollapsed: false,
+      anchorNode: card,
+      toString: () => "selected text",
+    } as unknown as Selection);
+
     fireEvent.click(card!);
 
     expect(eventHandler).not.toHaveBeenCalled();
+    selectionSpy.mockRestore();
+  });
+
+  it("still handles a card click when the active text selection is anchored elsewhere", () => {
+    const { container, eventHandler } = renderInteractive(SINGLE);
+
+    const cards = container.querySelectorAll<HTMLElement>(".tq-option");
+    const [firstCard, secondCard] = Array.from(cards);
+    expect(secondCard).not.toBeUndefined();
+
+    const selectionSpy = vi.spyOn(window, "getSelection").mockReturnValue({
+      isCollapsed: false,
+      anchorNode: firstCard,
+      toString: () => "selected text",
+    } as unknown as Selection);
+
+    fireEvent.click(secondCard);
+
+    expect(eventHandler).toHaveBeenCalled();
     selectionSpy.mockRestore();
   });
 
