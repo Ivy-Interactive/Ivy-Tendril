@@ -40,7 +40,7 @@ public partial class JobsApp : ViewBase
         {
             if (!isOpen.Value) return null;
             var job = jobService.GetJob(jobId);
-            var title = job is not null ? $"{job.Type} {JobsApp.ExtractPlanId(job.PlanFile)}" : "Job Output";
+            var title = job is not null ? $"{job.Type} {ExtractPlanId(job.PlanFile)}" : "Job Output";
             return new Sheet(
                 () => isOpen.Set(false),
                 new OutputSheet(jobId, jobService),
@@ -91,25 +91,25 @@ public partial class JobsApp : ViewBase
 
         // Gated on the same signature the interval below compares, so a burst of job exits that leaves
         // the table looking identical costs no rebuild at all.
-        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken, () => renderedSignature.Value));
+        UseEffect(() => JobChangeHookDisposable(jobService, refreshToken, () => renderedSignature.Value));
         UseInterval(() =>
         {
-            if (JobsApp.ComputeStructuralSignature(jobService.GetJobs()) == renderedSignature.Value) return;
+            if (ComputeStructuralSignature(jobService.GetJobs()) == renderedSignature.Value) return;
             refreshToken.Refresh();
         }, TimeSpan.FromSeconds(5));
 
         var sentCells = UseRef(new Dictionary<string, string>(StringComparer.Ordinal));
         var updateStream = UseDataTableUpdates(
             Observable.Interval(TimeSpan.FromSeconds(1))
-                .SelectMany(_ => JobsApp.BuildDataTableUpdates(jobService, sentCells.Value)));
+                .SelectMany(_ => BuildDataTableUpdates(jobService, sentCells.Value)));
 
         var jobs = jobService.GetJobs();
-        renderedSignature.Value = JobsApp.ComputeStructuralSignature(jobs);
+        renderedSignature.Value = ComputeStructuralSignature(jobs);
         var projectColors = BuildProjectColorMapping(config);
         var rows = BuildJobRows(jobs, planService);
         var jobsProgress = jobs.Count > 0 ? BuildStatusProgress(jobs, config) : null;
 
-        var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
+        var dataTable = BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, showCost, showRerun, jobs, projectColors,
             jobsProgress, confirmDeleteOpen, deleteJobId, confirmStopQueuedOpen, confirmStopAllOpen);
 
