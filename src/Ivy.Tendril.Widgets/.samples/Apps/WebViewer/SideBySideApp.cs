@@ -24,12 +24,12 @@ public class SideBySideApp : ViewBase
 {
     private record Pin(string Id, int Number, string Comment);
 
+    private const string Home = "https://ivy.app";
+
     public override object Build()
     {
-        const string home = "https://ivy.app";
-
-        var address = UseState(home);
-        var url = UseState(home);
+        var address = UseState(Home);
+        var url = UseState(Home);
 
         var leftCommands = UseStream<WebViewerCommand>();
         var leftPins = UseState(ImmutableList<Pin>.Empty);

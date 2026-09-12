@@ -22,18 +22,22 @@ public class PromptwareCommandsTests
     [Fact]
     public void Handle_MatchesUpdatePromptwaresCommand()
     {
-        var prev = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        // An empty home rather than an unset TENDRIL_HOME: this dispatches into the real
+        // update-promptwares handler, and with no home set it would resolve (and write to) the
+        // machine's live Tendril home. See TendrilHomeIsolation.
+        var emptyHome = Path.Combine(TendrilHomeIsolation.Root, $"promptware-dispatch-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(emptyHome);
         var originalOut = Console.Out;
         try
         {
-            Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", emptyHome);
             Console.SetOut(new StringWriter());
             var result = PromptwareCommands.Handle(new[] { "update-promptwares" });
             Assert.NotEqual(-1, result);
         }
         finally
         {
-            Environment.SetEnvironmentVariable("TENDRIL_HOME", prev);
+            TendrilHomeIsolation.Apply();
             Console.SetOut(originalOut);
         }
     }

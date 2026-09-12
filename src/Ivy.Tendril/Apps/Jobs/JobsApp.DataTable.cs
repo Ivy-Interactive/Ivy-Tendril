@@ -72,6 +72,7 @@ public partial class JobsApp
             .Width(t => t.Prompt, Size.Px(250))
             .Width(t => t.Project, Size.Px(150))
             .Width(t => t.Timer, Size.Px(80))
+            .Width(t => t.Timestamp, Size.Px(110))
             .Width(t => t.AgentOutput, Size.Px(100))
             .Width(t => t.Cost, Size.Px(80))
             .Width(t => t.Tokens, Size.Px(80))
@@ -97,10 +98,8 @@ public partial class JobsApp
             .Renderer(t => t.Prompt, new TextDisplayRenderer())
             .Renderer(t => t.StatusMessage, new TextDisplayRenderer())
             .Hidden(t => t.Id)
-            .Hidden(t => t.LastOutputTimestamp)
             .Hidden(t => t.ErrorContext)
             .Filterable(t => t.Id, false)
-            .Filterable(t => t.LastOutputTimestamp, false)
             .Filterable(t => t.ErrorContext, false)
             .SortDirection(t => t.Id, SortDirection.Descending)
             .Config(c =>
@@ -180,21 +179,6 @@ public partial class JobsApp
                     showCost(id);
                 return ValueTask.CompletedTask;
             })
-            /*
-            .OnCellAction(t => t.StatusMessage, e =>
-            {
-                var id = e.Value.RowId?.ToString();
-                if (!string.IsNullOrEmpty(id))
-                {
-                    var job = jobs.FirstOrDefault(j => j.Id == id);
-                    if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
-                    {
-                        showOutput.Set(id);
-                    }
-                }
-                return ValueTask.CompletedTask;
-            })
-            */
             .OnCellAction(t => t.Prompt, e =>
             {
                 var id = e.Value.RowId?.ToString();

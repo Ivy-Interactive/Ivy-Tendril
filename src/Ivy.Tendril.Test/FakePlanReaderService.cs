@@ -162,9 +162,16 @@ internal class FakePlanReaderService : IPlanReaderService
     {
     }
 
+    /// <summary>
+    ///     What <see cref="FlushPendingWritesAsync" /> hands back. A test that needs a write queue which
+    ///     never drains — a queued write parked on the cross-process plan lock — sets a task that never
+    ///     completes.
+    /// </summary>
+    public Task FlushTask { get; set; } = Task.CompletedTask;
+
     public Task FlushPendingWritesAsync()
     {
-        return Task.CompletedTask;
+        return FlushTask;
     }
 
     public List<RecommendationYaml> GetRecommendationsForPlan(string folderName)

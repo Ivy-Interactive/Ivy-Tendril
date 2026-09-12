@@ -1,4 +1,3 @@
-using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Services;
 
@@ -19,11 +18,8 @@ internal static class ChatLauncher
         navigator.Navigate(app, args);
     }
 
-    // runner is unused now that neither mode creates a session here, but it stays in the signature
-    // so the call sites and their tests keep compiling.
-    public static (Type App, object? Args) NewSessionTarget(IConfigService config, IChatHistoryService chats, IAgentRunner runner)
+    public static (Type App, object? Args) NewSessionTarget(IConfigService config, IChatHistoryService chats)
     {
-        _ = runner;
         if (UsesTerminal(config)) return (typeof(AgentApp), new AgentAppArgs());
 
         // Both modes defer creation: the chat page creates its session when the first message is
@@ -32,9 +28,9 @@ internal static class ChatLauncher
         return (typeof(ChatApp), new ChatAppArgs(NewChat: true));
     }
 
-    public static void StartNew(INavigator navigator, IConfigService config, IChatHistoryService chats, IAgentRunner runner)
+    public static void StartNew(INavigator navigator, IConfigService config, IChatHistoryService chats)
     {
-        var (app, args) = NewSessionTarget(config, chats, runner);
+        var (app, args) = NewSessionTarget(config, chats);
         navigator.Navigate(app, args);
     }
 

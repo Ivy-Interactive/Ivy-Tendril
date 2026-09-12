@@ -418,6 +418,29 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         UseEffect(() =>
         {
+            // The summarizer flushes on a timer thread, so toasts are posted back to the context the
+            // shell was built on, which is where every other client call here happens.
+            var syncContext = SynchronizationContext.Current;
+
+            void Toast(JobNotification notification)
+            {
+                if (notification.IsSuccess)
+                    client.Toast(notification.Message, notification.Title);
+                else
+                    client.Toast(notification.Message, notification.Title).Destructive();
+            }
+
+            void ShowToast(JobNotification notification)
+            {
+                if (syncContext != null)
+                    syncContext.Post(_ => Toast(notification), null);
+                else
+                    Toast(notification);
+            }
+
+            // A wave of jobs exiting together is one toast, not one per job (#2571).
+            var summarizer = new NotificationBurstSummarizer(ShowToast);
+
             void OnNotification(JobNotification notification)
             {
                 // Read the setting at notification time: the user can toggle it in Settings while
@@ -425,14 +448,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 if (!ShouldShowInAppToast(desktopWindow != null, config.Settings.DesktopNotifications))
                     return;
 
-                if (notification.IsSuccess)
-                    client.Toast(notification.Message, notification.Title);
-                else
-                    client.Toast(notification.Message, notification.Title).Destructive();
+                summarizer.Add(notification);
             }
 
             jobService.NotificationReady += OnNotification;
-            return Disposable.Create(() => jobService.NotificationReady -= OnNotification);
+            return Disposable.Create(() =>
+            {
+                jobService.NotificationReady -= OnNotification;
+                summarizer.Dispose();
+            });
         });
 
 
@@ -948,7 +972,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             OpenApp(new NavigateArgs(AgentAppId, resumed != null ? new AgentAppArgs(SessionId: resumed) : null));
         }
 
-        void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService, agentRunner);
+        void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService);
 
         // Plan search is always reachable from the sidebar: apps without a list (and lists
         // with no rows) get the section's full-width Search button in place of the title.

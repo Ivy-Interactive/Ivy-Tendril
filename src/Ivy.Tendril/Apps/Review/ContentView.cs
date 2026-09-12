@@ -213,9 +213,23 @@ public class ContentView(
 
         UseEffect(() =>
         {
-            void OnChanged(string? _) => localRefresh.Refresh();
+            // 400ms, as UseInboxAutoRefresh does: a burst of plan mutations must not queue one rebuild
+            // per event, since each rebuild shells out to git and evaluates the project's review-action
+            // conditions in PowerShell (#2571).
+            var coalescer = new RefreshCoalescer(localRefresh, TimeSpan.FromMilliseconds(400));
+
+            void OnChanged(string? changedFolder)
+            {
+                if (!PlanRefreshGate.ShouldRefreshFor(changedFolder, selectedPlanState.Value?.FolderName)) return;
+                coalescer.Request();
+            }
+
             planWatcher.PlansChanged += OnChanged;
-            return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
+            return Disposable.Create(() =>
+            {
+                planWatcher.PlansChanged -= OnChanged;
+                coalescer.Dispose();
+            });
         });
 
         UseEffect(() =>

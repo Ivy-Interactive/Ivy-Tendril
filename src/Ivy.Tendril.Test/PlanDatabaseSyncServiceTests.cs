@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
@@ -371,5 +373,170 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         var rows = ReadCostRows(1800);
         Assert.Single(rows);
         Assert.Null(rows[0].Agent);
+    }
+
+    private const string DraftYaml =
+        "state: Draft\nproject: Tendril\ntitle: Test Plan\nlevel: NiceToHave\nrepos: []\ncommits: []\nprs: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\n";
+
+    /// <summary>
+    ///     The behaviour #2571 was about: closing a dozen plans in a row raises a dozen change events,
+    ///     and they must not turn into a dozen full rescans. The events are raised straight at
+    ///     <see cref="PlanDatabaseSyncService.OnPlansChanged" /> rather than through
+    ///     <see cref="PlanWatcherService.NotifyChanged" />, whose own debounce would hide the coalescing
+    ///     being asserted here.
+    /// </summary>
+    [Fact]
+    public async Task OnPlansChanged_BurstOfFullRescans_CostsAtMostTwoSyncs()
+    {
+        CreatePlan("01500-TestPlan", DraftYaml, "# Test");
+        _syncService.PerformInitialSync();
+
+        for (var i = 0; i < 20; i++)
+            _syncService.OnPlansChanged(null);
+
+        await _syncService.DrainAsync();
+
+        // One for the pass in flight, at most one more for everything that arrived while it ran.
+        Assert.InRange(_syncService.SyncCount, 1, 2);
+    }
+
+    /// <summary>
+    ///     The freeze itself: <c>PlansChanged</c> is raised from the watcher's timers and from every plan
+    ///     mutation, so a rescan running inline would block whichever thread closed the plan.
+    /// </summary>
+    [Fact]
+    public async Task OnPlansChanged_DoesNotSyncOnTheRaisingThread()
+    {
+        CreatePlan("01500-TestPlan", DraftYaml, "# Test");
+        _syncService.PerformInitialSync();
+
+        var raisingThreadId = Environment.CurrentManagedThreadId;
+        _syncService.OnPlansChanged(null);
+        await _syncService.DrainAsync();
+
+        Assert.NotEqual(0, _syncService.LastSyncThreadId);
+        Assert.NotEqual(raisingThreadId, _syncService.LastSyncThreadId);
+    }
+
+    [Fact]
+    public void TakeWork_FullRescanRequest_SupersedesPendingFolders()
+    {
+        CreatePlan("01500-TestPlan", DraftYaml, "# Test");
+        var folder = Path.Combine(_planReader.PlansDirectory, "01500-TestPlan");
+
+        // RecordPending rather than OnPlansChanged: queuing without waking the worker is what makes the
+        // coalesced state observable from the test thread.
+        _syncService.RecordPending(folder);
+        _syncService.RecordPending(null);
+
+        var (fullRescan, folders) = _syncService.TakeWork();
+
+        Assert.True(fullRescan);
+        Assert.Empty(folders);
+
+        // And the superseded folder is gone rather than queued behind the rescan that covers it.
+        Assert.False(_syncService.TakeWork().FullRescan);
+        Assert.Empty(_syncService.TakeWork().Folders);
+    }
+
+    [Fact]
+    public void TakeWork_DistinctFolders_AreKeptSeparate()
+    {
+        CreatePlan("01500-TestPlan", DraftYaml, "# Test");
+        CreatePlan("01501-OtherPlan", DraftYaml, "# Other");
+        var first = Path.Combine(_planReader.PlansDirectory, "01500-TestPlan");
+        var second = Path.Combine(_planReader.PlansDirectory, "01501-OtherPlan");
+
+        _syncService.RecordPending(first);
+        _syncService.RecordPending(second);
+        _syncService.RecordPending(first);
+
+        var (fullRescan, folders) = _syncService.TakeWork();
+
+        Assert.False(fullRescan);
+        Assert.Equal(2, folders.Count);
+        Assert.Contains(first, folders);
+        Assert.Contains(second, folders);
+    }
+
+    [Fact]
+    public void Dispose_WithSyncInFlight_ReturnsWithinTheShutdownBudget()
+    {
+        for (var i = 0; i < 40; i++)
+            CreatePlan($"0{1500 + i}-TestPlan", DraftYaml, "# Test");
+        _syncService.PerformInitialSync();
+
+        for (var i = 0; i < 10; i++)
+            _syncService.OnPlansChanged(null);
+
+        var stopwatch = Stopwatch.StartNew();
+        _syncService.Dispose();
+        stopwatch.Stop();
+
+        // Bounded at 5s inside Dispose; the slack covers a slow CI disk finishing the pass in flight.
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(20),
+            $"Dispose took {stopwatch.Elapsed.TotalSeconds:F1}s");
+
+        // Idempotent: the fixture disposes it again.
+        _syncService.Dispose();
+    }
+
+    /// <summary>
+    ///     Guards the change-2 refactor: a rescan now enumerates the Jobs directory once and hands the
+    ///     grouped result to every plan, where it used to glob per plan. Both paths must produce the same
+    ///     rows, log timestamps included — those are the only part of a cost row the lookup feeds.
+    /// </summary>
+    [Fact]
+    public async Task SinglePlanSync_AndFullRescan_ProduceTheSameCostRows()
+    {
+        CreateCostPlan("01500-CostPlan",
+            "Promptware,Tokens,Cost,Model,CostSource,Agent\nExecutePlan,50000,1.5000,claude-opus-5,agent,claude\nCreatePr,10000,0.3000,claude-opus-5,agent,claude\n");
+        var jobsDir = JobLogPaths.EnsureJobsDir(_tempDir.Path);
+        File.WriteAllText(Path.Combine(jobsDir, "00001-01500-ExecutePlan.md"),
+            "# Job\n**Completed:** 2026-01-02T03:04:05Z\n");
+        File.WriteAllText(Path.Combine(jobsDir, "00002-01500-CreatePr.md"),
+            "# Job\n**Completed:** 2026-01-03T04:05:06Z\n");
+        // Neither of these belongs to the plan's cost rows: a prompt is not a log, and a CreatePlan log
+        // carries no plan-id segment.
+        File.WriteAllText(Path.Combine(jobsDir, "00003-01500-ExecutePlan.prompt.md"), "prompt");
+        File.WriteAllText(Path.Combine(jobsDir, "00004-CreatePlan.md"), "**Completed:** 2026-01-04T00:00:00Z\n");
+
+        // The lookup path: PerformInitialSync goes through SyncPlanDetails.
+        _syncService.PerformInitialSync();
+        var fromRescan = ReadCostRowsWithTimestamps(1500);
+
+        // The per-plan glob path: a single-folder sync passes no lookup.
+        _syncService.OnPlansChanged(Path.Combine(_planReader.PlansDirectory, "01500-CostPlan"));
+        await _syncService.DrainAsync();
+        var fromSingleSync = ReadCostRowsWithTimestamps(1500);
+
+        Assert.Equal(2, fromRescan.Count);
+        Assert.StartsWith("2026-01-02T03:04:05", fromRescan[0].LogTimestamp);
+        Assert.StartsWith("2026-01-03T04:05:06", fromRescan[1].LogTimestamp);
+        Assert.Equal(fromRescan, fromSingleSync);
+    }
+
+    /// <summary>
+    ///     Cost rows including the log timestamp, which is the part of a row the log lookup feeds. Read as
+    ///     the stored text rather than through <c>GetDateTime</c>, which would shift a UTC value into
+    ///     local time and make the expectations machine dependent.
+    /// </summary>
+    private List<(string Promptware, int Tokens, decimal? Cost, string? LogTimestamp)> ReadCostRowsWithTimestamps(int planId)
+    {
+        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        connection.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Promptware, Tokens, Cost, LogTimestamp FROM Costs WHERE PlanId = @p ORDER BY Id";
+        cmd.Parameters.AddWithValue("@p", planId);
+
+        var rows = new List<(string, int, decimal?, string?)>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            rows.Add((
+                reader.GetString(0),
+                reader.GetInt32(1),
+                reader.IsDBNull(2) ? null : reader.GetDecimal(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3)));
+        return rows;
     }
 }

@@ -124,9 +124,7 @@ public class ContentView(
         {
             if (!isOpen.Value || issue == null) return null;
 
-            var issueUrl = issue.Url ?? (issue.Repository != null
-                ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
-                : null);
+            var issueUrl = InboxApp.ResolveIssueUrl(issue);
 
             var sheetHeader = Layout.Vertical().Width(Size.Full())
                 | (Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.SpaceBetween).Width(Size.Full())
@@ -619,9 +617,7 @@ public class IssuesTableView(
                         }
                         else if (tag == "open-github")
                         {
-                            var url = raw.Url ?? (raw.Repository != null
-                                ? $"https://github.com/{raw.Repository}/issues/{raw.Number}"
-                                : null);
+                            var url = InboxApp.ResolveIssueUrl(raw);
                             if (url != null) client.OpenUrl(url);
                         }
                     }

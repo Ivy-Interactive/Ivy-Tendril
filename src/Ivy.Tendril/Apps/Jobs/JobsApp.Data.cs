@@ -27,10 +27,10 @@ public partial class JobsApp
                 Type = j.Type,
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
                 Timer = JobsApp.FormatTimer(j),
+                Timestamp = JobsApp.FormatTimestamp(j),
                 Cost = FormatJobCost(j),
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
                 AgentOutput = JobsApp.FormatAgentOutput(j),
-                LastOutputTimestamp = j.LastOutputAt,
                 StatusMessage = JobsApp.GetStatusMessage(j),
                 ErrorContext = j.Status is JobStatus.Failed or JobStatus.Timeout
                     ? JobsApp.GetErrorContext(j)

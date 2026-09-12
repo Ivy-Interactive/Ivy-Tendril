@@ -1,13 +1,29 @@
 using System.Reactive.Linq;
 using Ivy.Core.Hooks;
 using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Microsoft.Reactive.Testing;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Apps.Jobs;
 
 public class JobsAppRefreshGatingTests
 {
+    /// <summary>
+    ///     Every column <see cref="JobsApp.BuildDataTableUpdates" /> streams per candidate job. Adding a
+    ///     streamed cell is a one-line change here; the test name deliberately does not carry the count.
+    /// </summary>
+    private static readonly string[] StreamedColumns =
+    [
+        nameof(JobItemRow.Timer),
+        nameof(JobItemRow.Cost),
+        nameof(JobItemRow.Tokens),
+        nameof(JobItemRow.AgentOutput),
+        nameof(JobItemRow.Status),
+        nameof(JobItemRow.StatusMessage)
+    ];
+
     private static (RefreshToken Token, Func<int> RefreshCount) CreateRefreshToken()
     {
         var state = new State<(Guid, object?, bool)>((Guid.NewGuid(), null, false));
@@ -78,7 +94,7 @@ public class JobsAppRefreshGatingTests
     }
 
     [Fact]
-    public void BuildDataTableUpdates_FirstCall_ReturnsAllSixCells()
+    public void BuildDataTableUpdates_FirstCall_ReturnsEveryStreamedCell()
     {
         var jobService = new FakeJobService();
         jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
@@ -86,7 +102,7 @@ public class JobsAppRefreshGatingTests
 
         var updates = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
 
-        Assert.Equal(6, updates.Count);
+        Assert.Equal(StreamedColumns, updates.Select(u => u.ColumnName).ToArray());
     }
 
     [Fact]
@@ -155,36 +171,92 @@ public class JobsAppRefreshGatingTests
     [Fact]
     public void JobChangeHookDisposable_SubscribesOnlyToJobsStructureChanged()
     {
+        var scheduler = new TestScheduler();
         var jobService = new FakeJobService();
         var (token, refreshCount) = CreateRefreshToken();
+        using var coalescer = new RefreshCoalescer(token, JobsApp.JobRefreshWindow, scheduler);
 
-        using var hook = JobsApp.JobChangeHookDisposable(jobService, token);
+        using var hook = JobsApp.JobChangeHookDisposable(jobService, coalescer);
 
         // JobPropertyChanged should not trigger a refresh
         jobService.FireJobPropertyChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
         Assert.Equal(0, refreshCount());
 
         // JobsStructureChanged should trigger a refresh
         jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
         Assert.Equal(1, refreshCount());
 
-        // Multiple structure changes trigger multiple refreshes
+        // Structure changes in a later window refresh again
         jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
         Assert.Equal(2, refreshCount());
     }
 
     [Fact]
     public void JobChangeHookDisposable_Dispose_UnhooksJobsStructureChanged()
     {
+        var scheduler = new TestScheduler();
         var jobService = new FakeJobService();
         var (token, refreshCount) = CreateRefreshToken();
+        using var coalescer = new RefreshCoalescer(token, JobsApp.JobRefreshWindow, scheduler);
 
-        var hook = JobsApp.JobChangeHookDisposable(jobService, token);
+        var hook = JobsApp.JobChangeHookDisposable(jobService, coalescer);
         jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
         Assert.Equal(1, refreshCount());
 
         hook.Dispose();
         jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+        Assert.Equal(1, refreshCount());
+    }
+
+    [Fact]
+    public void JobChangeHookDisposable_UnchangedSignature_DoesNotRefresh()
+    {
+        var scheduler = new TestScheduler();
+        var jobService = new FakeJobService();
+        jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
+        var (token, refreshCount) = CreateRefreshToken();
+        using var coalescer = new RefreshCoalescer(token, JobsApp.JobRefreshWindow, scheduler);
+
+        // What the view has on screen already matches the job list.
+        var rendered = JobsApp.ComputeStructuralSignature(jobService.GetJobs());
+        using var hook = JobsApp.JobChangeHookDisposable(jobService, coalescer, () => rendered);
+
+        // JobsStructureChanged also fires for changes the table does not show (a cost or token update
+        // lands through the cell update stream instead), and those must not rebuild the view.
+        jobService.Jobs[0].Cost = 1.23m;
+        jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+
+        Assert.Equal(0, refreshCount());
+    }
+
+    [Fact]
+    public void JobChangeHookDisposable_BurstOfStructuralChanges_RefreshesOnce()
+    {
+        var scheduler = new TestScheduler();
+        var jobService = new FakeJobService();
+        var (token, refreshCount) = CreateRefreshToken();
+        using var coalescer = new RefreshCoalescer(token, JobsApp.JobRefreshWindow, scheduler);
+
+        var rendered = JobsApp.ComputeStructuralSignature(jobService.GetJobs());
+        using var hook = JobsApp.JobChangeHookDisposable(jobService, coalescer, () => rendered);
+
+        // Ten jobs exiting at once: ten events, one rebuild. This is the fan-out that froze the
+        // workspace when every event rebuilt the table (#2571).
+        for (var i = 0; i < 10; i++)
+        {
+            jobService.Jobs.Add(MakeJob($"job-{i}", JobStatus.Completed, DateTime.UtcNow));
+            jobService.FireJobsStructureChanged();
+            scheduler.AdvanceBy(TimeSpan.FromMilliseconds(10).Ticks);
+        }
+
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+
         Assert.Equal(1, refreshCount());
     }
 

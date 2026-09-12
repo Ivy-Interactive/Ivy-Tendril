@@ -356,7 +356,7 @@ public class ChatHistoryServiceTests
             var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
             Assert.NotNull(initialMsg);
 
-            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, "updated response", rawStream: "{\"kind\":\"text\",\"text\":\"updated response\"}");
+            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("updated response", RawStream: "{\"kind\":\"text\",\"text\":\"updated response\"}"));
             Assert.NotNull(updatedMsg);
             Assert.Equal("updated response", updatedMsg.Content);
             Assert.Equal("{\"kind\":\"text\",\"text\":\"updated response\"}", updatedMsg.RawStream);
@@ -396,7 +396,7 @@ public class ChatHistoryServiceTests
             Assert.Null(initialMsg.CompletedAt);
 
             var beforeUpdate = DateTimeOffset.UtcNow;
-            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, "final response", rawStream: "{\"kind\":\"result\"}", markCompleted: true);
+            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("final response", RawStream: "{\"kind\":\"result\"}", MarkCompleted: true));
             var afterUpdate = DateTimeOffset.UtcNow;
 
             Assert.NotNull(updatedMsg);
@@ -430,7 +430,7 @@ public class ChatHistoryServiceTests
             Assert.NotNull(initialMsg);
             Assert.Null(initialMsg.CompletedAt);
 
-            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, "streaming update", rawStream: "{\"kind\":\"text\",\"delta\":true}", flushImmediately: false, touchUpdatedAt: false);
+            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("streaming update", RawStream: "{\"kind\":\"text\",\"delta\":true}", FlushImmediately: false, TouchUpdatedAt: false));
             Assert.NotNull(updatedMsg);
             Assert.Null(updatedMsg.CompletedAt);
         }
@@ -451,12 +451,12 @@ public class ChatHistoryServiceTests
             var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
             Assert.NotNull(initialMsg);
 
-            var completedMsg = service.UpdateMessage(session.Id, initialMsg.Id, "completed response", rawStream: "{\"kind\":\"result\"}", markCompleted: true);
+            var completedMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("completed response", RawStream: "{\"kind\":\"result\"}", MarkCompleted: true));
             Assert.NotNull(completedMsg);
             Assert.NotNull(completedMsg.CompletedAt);
             var originalCompletedAt = completedMsg.CompletedAt;
 
-            var laterMsg = service.UpdateMessage(session.Id, initialMsg.Id, "edit after completion", flushImmediately: false, touchUpdatedAt: false);
+            var laterMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("edit after completion", FlushImmediately: false, TouchUpdatedAt: false));
             Assert.NotNull(laterMsg);
             Assert.NotNull(laterMsg.CompletedAt);
             Assert.Equal(originalCompletedAt, laterMsg.CompletedAt);
@@ -615,7 +615,7 @@ public class ChatHistoryServiceTests
             var frozenUpdatedAt = beforeUpdate.UpdatedAt.AddMinutes(-5);
             service.SaveSession(beforeUpdate with { UpdatedAt = frozenUpdatedAt });
 
-            service.UpdateMessage(session.Id, msg.Id, "streamed chunk", flushImmediately: true, touchUpdatedAt: false);
+            service.UpdateMessage(session.Id, msg.Id, new ChatMessageUpdate("streamed chunk", FlushImmediately: true, TouchUpdatedAt: false));
 
             var updatedSession = service.GetSession(session.Id);
             Assert.NotNull(updatedSession);
@@ -641,7 +641,7 @@ public class ChatHistoryServiceTests
             var staleUpdatedAt = beforeUpdate.UpdatedAt.AddMinutes(-5);
             service.SaveSession(beforeUpdate with { UpdatedAt = staleUpdatedAt });
 
-            service.UpdateMessage(session.Id, msg.Id, "final content");
+            service.UpdateMessage(session.Id, msg.Id, new ChatMessageUpdate("final content"));
 
             var updatedSession = service.GetSession(session.Id);
             Assert.NotNull(updatedSession);
@@ -671,7 +671,7 @@ public class ChatHistoryServiceTests
 
             for (var i = 0; i < 3; i++)
             {
-                service.UpdateMessage(sessionA.Id, msgA.Id, $"streamed chunk {i}", flushImmediately: true, touchUpdatedAt: false);
+                service.UpdateMessage(sessionA.Id, msgA.Id, new ChatMessageUpdate($"streamed chunk {i}", FlushImmediately: true, TouchUpdatedAt: false));
             }
 
             var order = service.GetSessions();
@@ -699,7 +699,7 @@ public class ChatHistoryServiceTests
             service.SaveSession(service.GetSession(sessionA.Id)! with { UpdatedAt = baseTime });
             service.SaveSession(service.GetSession(sessionB.Id)! with { UpdatedAt = baseTime.AddSeconds(1) });
 
-            service.UpdateMessage(sessionA.Id, msgA.Id, "final content");
+            service.UpdateMessage(sessionA.Id, msgA.Id, new ChatMessageUpdate("final content"));
 
             var order = service.GetSessions();
             Assert.Equal(sessionA.Id, order[0].Id);
