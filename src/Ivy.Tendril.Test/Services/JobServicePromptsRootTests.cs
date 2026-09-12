@@ -1,6 +1,6 @@
 using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServicePromptsRootTests
 {

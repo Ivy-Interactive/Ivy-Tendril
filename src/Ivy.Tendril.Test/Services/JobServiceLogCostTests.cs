@@ -1,6 +1,6 @@
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServiceLogCostTests : IDisposable
 {

@@ -2,7 +2,7 @@ using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServicePriorityTests : IDisposable
 {

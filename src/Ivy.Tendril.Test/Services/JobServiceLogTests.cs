@@ -3,7 +3,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServiceLogTests : IDisposable
 {

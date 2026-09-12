@@ -1,7 +1,7 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 /// <summary>
 ///     Progressing a plan — executing the draft or opening its PR — retires the side chat that
