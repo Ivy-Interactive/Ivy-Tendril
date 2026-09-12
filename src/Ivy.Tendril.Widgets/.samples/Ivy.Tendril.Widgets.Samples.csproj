@@ -5,7 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>WidgetSamples</RootNamespace>
-    <IvySource>true</IvySource>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ivy.Tendril.Widgets.csproj" />
