@@ -225,7 +225,7 @@ public class KpiBreakdownSheetTests
         // dailyPrs should not have an agent section (only 3 children, not 4)
         var layout = Assert.IsAssignableFrom<LayoutView>(result);
         var stack = Assert.IsAssignableFrom<IWidget>(layout.Build());
-        Assert.Equal(3, stack.Children.Count);
+        Assert.Equal(3, stack.Children.Count());
     }
 
     [Fact]

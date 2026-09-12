@@ -1778,12 +1778,26 @@ public class PlanDatabaseServiceTests : IDisposable
     [Fact]
     public void GetAgentCostBreakdown_RespectsTimeWindow()
     {
-        var oldPlan = CreateTestPlan(300, "Old Plan", PlanStatus.Completed);
-        oldPlan = oldPlan with
-        {
-            Created = DateTime.UtcNow.AddDays(-10),
-            Updated = DateTime.UtcNow.AddDays(-10)
-        };
+        var oldPlanDate = DateTime.UtcNow.AddDays(-10);
+        var oldPlanMetadata = new PlanMetadata(
+            300, "Tendril", "Feature", "Old Plan", PlanStatus.Completed,
+            new List<string> { "D:\\Repos\\Test" },
+            new List<string> { "abc123" },
+            new List<string>(),
+            new List<PlanVerificationEntry>(),
+            new List<string>(),
+            new List<string>(),
+            oldPlanDate,
+            oldPlanDate,
+            null,
+            null
+        );
+        var oldPlan = new PlanFile(
+            oldPlanMetadata,
+            "# Old Plan",
+            $"D:\\Plans\\00300-OldPlan",
+            "state: Completed\ntitle: Old Plan"
+        );
         var recentPlan = CreateTestPlan(301, "Recent Plan", PlanStatus.Completed);
         _db.UpsertPlan(oldPlan);
         _db.UpsertPlan(recentPlan);
