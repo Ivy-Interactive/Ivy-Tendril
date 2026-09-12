@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ChatWidget } from "./ChatWidget";
-import { setupChatWidgetTestEnvironment } from "./ChatWidget.test";
+import { setupChatWidgetTestEnvironment } from "./ChatWidget.testUtils";
 import type { ChatSamplePromptDto, ChatSessionDto } from "./types";
 
 describe("ChatWidget - Sample Prompts", () => {
@@ -33,8 +32,7 @@ describe("ChatWidget - Sample Prompts", () => {
     expect(screen.getByText("What's next?")).toBeInTheDocument();
   });
 
-  it("clicking a chip fills the textarea without sending", async () => {
-    const user = userEvent.setup();
+  it("clicking a chip fills the textarea without sending", () => {
     const samplePrompts: ChatSamplePromptDto[] = [
       { label: "Review plans", prompt: "Review all the plans waiting for review." },
     ];
@@ -49,7 +47,7 @@ describe("ChatWidget - Sample Prompts", () => {
     );
 
     const promptButton = screen.getByText("Review plans");
-    await user.click(promptButton);
+    fireEvent.click(promptButton);
 
     const textarea = container.querySelector("textarea");
     expect(textarea).toHaveValue("Review all the plans waiting for review.");
