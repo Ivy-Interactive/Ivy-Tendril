@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom";
 import { PlanWorkspace } from "./PlanWorkspace";
@@ -7,9 +7,18 @@ import { matchesShortcut, shortcutKeys } from "./shortcuts";
 
 const actions = [
   { tag: "Edit", label: "Edit", icon: "Pencil", shortcut: "E" },
-  { tag: "Chat", label: "Update", icon: "WandSparkles", shortcut: "U", active: true, focusChat: true },
+  {
+    tag: "Chat",
+    label: "Update",
+    icon: "WandSparkles",
+    shortcut: "U",
+    active: true,
+    focusChat: true,
+  },
 ];
-const menuItems = [{ tag: "Delete", label: "Delete", icon: "Trash", shortcut: "Backspace", danger: true }];
+const menuItems = [
+  { tag: "Delete", label: "Delete", icon: "Trash", shortcut: "Backspace", danger: true },
+];
 const primary = { tag: "Execute", label: "Execute", icon: "Rocket", shortcut: "x" };
 const tabs = [
   { id: "plan", label: "Plan" },
@@ -42,6 +51,7 @@ const renderWorkspace = (handler = vi.fn(), extra: Record<string, unknown> = {})
 
 describe("PlanWorkspace", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     window.ResizeObserver = class {
       observe = vi.fn();
       unobserve = vi.fn();
@@ -51,6 +61,10 @@ describe("PlanWorkspace", () => {
   });
 
   afterEach(() => {
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    vi.useRealTimers();
     window.localStorage.removeItem(CHAT_WIDTH_STORAGE_KEY);
   });
 
@@ -133,7 +147,13 @@ describe("PlanWorkspace", () => {
       wrapper.style.visibility = "hidden";
       document.body.appendChild(wrapper);
       render(
-        <PlanWorkspace id="w" actions={actions} events={["OnAction"]} eventHandler={handler} slots={{ Content: [] }} />,
+        <PlanWorkspace
+          id="w"
+          actions={actions}
+          events={["OnAction"]}
+          eventHandler={handler}
+          slots={{ Content: [] }}
+        />,
         { container: wrapper },
       );
       fireEvent.keyDown(document.body, { key: "e" });
@@ -150,7 +170,10 @@ describe("PlanWorkspace", () => {
       { tag: "PreviousPlan", label: "Previous plan", shortcut: "ArrowLeft" },
       { tag: "NextPlan", label: "Next plan", shortcut: "ArrowRight" },
     ];
-    renderWorkspace(handler, { shortcuts, slots: { Content: [<textarea key="t" aria-label="editor" />] } });
+    renderWorkspace(handler, {
+      shortcuts,
+      slots: { Content: [<textarea key="t" aria-label="editor" />] },
+    });
 
     expect(screen.queryByText("Next plan")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Next plan")).not.toBeInTheDocument();
@@ -203,11 +226,135 @@ describe("PlanWorkspace", () => {
 
   it("shows no indicator when every question is answered", () => {
     renderWorkspace(vi.fn(), { unansweredQuestions: 0, planId: "#78" });
-    expect(screen.getByRole("button", { name: /Questions/ })).toHaveAttribute("data-indicator", "false");
+    expect(screen.getByRole("button", { name: /Questions/ })).toHaveAttribute(
+      "data-indicator",
+      "false",
+    );
+  });
+
+  it("opens the Questions panel on hover after 120 ms", () => {
+    renderWorkspace();
+    const questionsButton = screen.getByRole("button", { name: /Questions/ });
+    expect(screen.queryByText("question rows")).not.toBeInTheDocument();
+
+    fireEvent.pointerEnter(questionsButton, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(120);
+    });
+    expect(screen.getByText("question rows")).toBeInTheDocument();
+  });
+
+  it("delays and cancels the close when hovering between button and panel", () => {
+    renderWorkspace();
+    const questionsButton = screen.getByRole("button", { name: /Questions/ });
+
+    fireEvent.pointerEnter(questionsButton, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(120);
+    });
+    expect(screen.getByText("question rows")).toBeInTheDocument();
+
+    fireEvent.pointerLeave(questionsButton, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(screen.getByText("question rows")).toBeInTheDocument();
+
+    const dropdown = screen.getByText("question rows").closest(".pws-dropdown")!;
+    fireEvent.pointerEnter(dropdown, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByText("question rows")).toBeInTheDocument();
+
+    fireEvent.pointerLeave(dropdown, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(220);
+    });
+    expect(screen.queryByText("question rows")).not.toBeInTheDocument();
+  });
+
+  it("pins the panel on click and prevents hover-close", () => {
+    renderWorkspace();
+    const questionsButton = screen.getByRole("button", { name: /Questions/ });
+
+    fireEvent.pointerEnter(questionsButton, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(120);
+    });
+    expect(screen.getByText("question rows")).toBeInTheDocument();
+
+    fireEvent.pointerLeave(questionsButton, { pointerType: "mouse" });
+    fireEvent.click(questionsButton);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByText("question rows")).toBeInTheDocument();
+
+    fireEvent.click(questionsButton);
+    expect(screen.queryByText("question rows")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.queryByText("question rows")).not.toBeInTheDocument();
+  });
+
+  it("unpins on Escape and allows hover to reopen", () => {
+    renderWorkspace();
+    const questionsButton = screen.getByRole("button", { name: /Questions/ });
+
+    fireEvent.click(questionsButton);
+    expect(screen.getByText("question rows")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByText("question rows")).not.toBeInTheDocument();
+
+    fireEvent.pointerEnter(questionsButton, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(120);
+    });
+    expect(screen.getByText("question rows")).toBeInTheDocument();
+  });
+
+  it("suppresses the tooltip while the panel is open", () => {
+    renderWorkspace();
+    const questionsButton = screen.getByRole("button", { name: /Questions/ });
+
+    fireEvent.pointerEnter(questionsButton, { pointerType: "mouse" });
+    fireEvent.pointerMove(questionsButton, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByText("question rows")).not.toBeInTheDocument();
+
+    fireEvent.pointerEnter(questionsButton, { pointerType: "mouse" });
+    fireEvent.pointerMove(questionsButton, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  });
+
+  it("retires the indicator dot on hover-open", () => {
+    renderWorkspace(vi.fn(), { unansweredQuestions: 2, planId: "#79" });
+    const questionsButton = screen.getByRole("button", { name: /Questions/ });
+    expect(questionsButton).toHaveAttribute("data-indicator", "true");
+
+    fireEvent.pointerEnter(questionsButton, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(120);
+    });
+    expect(questionsButton).toHaveAttribute("data-indicator", "false");
   });
 
   it("hides the dropdown icons when their slots are empty", () => {
-    renderWorkspace(vi.fn(), { slots: { Content: [<div key="c" />], Verifications: [], Questions: undefined } });
+    renderWorkspace(vi.fn(), {
+      slots: { Content: [<div key="c" />], Verifications: [], Questions: undefined },
+    });
     expect(screen.queryByRole("button", { name: "Verifications" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Questions" })).not.toBeInTheDocument();
   });
@@ -241,7 +388,17 @@ describe("PlanWorkspace", () => {
     );
     const root = container.querySelector(".pws-root") as HTMLElement;
     root.getBoundingClientRect = () =>
-      ({ left: 0, right: 1200, top: 0, bottom: 800, width: 1200, height: 800, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+      ({
+        left: 0,
+        right: 1200,
+        top: 0,
+        bottom: 800,
+        width: 1200,
+        height: 800,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
 
     const handle = screen.getByRole("separator", { name: "Resize chat" });
     fireEvent.pointerDown(handle, { button: 0, clientX: 780 });
@@ -257,10 +414,22 @@ describe("PlanWorkspace", () => {
   });
 
   it("never lets the chat grow past its share of the workspace", () => {
-    const { container } = render(<PlanWorkspace id="w" slots={{ Chat: [<div key="chat">chat body</div>] }} />);
+    const { container } = render(
+      <PlanWorkspace id="w" slots={{ Chat: [<div key="chat">chat body</div>] }} />,
+    );
     const root = container.querySelector(".pws-root") as HTMLElement;
     root.getBoundingClientRect = () =>
-      ({ left: 0, right: 1000, top: 0, bottom: 800, width: 1000, height: 800, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+      ({
+        left: 0,
+        right: 1000,
+        top: 0,
+        bottom: 800,
+        width: 1000,
+        height: 800,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
 
     const handle = screen.getByRole("separator", { name: "Resize chat" });
     fireEvent.pointerDown(handle, { button: 0, clientX: 580 });
@@ -278,7 +447,11 @@ describe("PlanWorkspace", () => {
   it("renders project badges to the left of topbar actions", () => {
     renderWorkspace(vi.fn(), {
       slots: {
-        ProjectBadges: [<span key="1" data-testid="test-badge">tendril</span>],
+        ProjectBadges: [
+          <span key="1" data-testid="test-badge">
+            tendril
+          </span>,
+        ],
       },
     });
 

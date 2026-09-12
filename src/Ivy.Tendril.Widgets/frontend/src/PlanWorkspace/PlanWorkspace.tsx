@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Ellipsis, ExternalLink, FileCheck2, FileQuestion, LoaderCircle, LucideIcon } from "lucide-react";
+import {
+  Ellipsis,
+  ExternalLink,
+  FileCheck2,
+  FileQuestion,
+  LoaderCircle,
+  LucideIcon,
+} from "lucide-react";
 import { Badge, StatusDot } from "../ui/Badge";
 import { IconButton } from "../ui/IconButton";
 import { Kbd } from "../ui/Kbd";
@@ -8,7 +15,12 @@ import { useOutsideClick } from "../ChatWidget/useOutsideClick";
 import { ActionIcon } from "./icons";
 import { shortcutKeys, useActionShortcuts } from "./shortcuts";
 import type { ShortcutBinding } from "./shortcuts";
-import { clampChatWidth, MIN_CHAT_WIDTH, readStoredChatWidth, writeStoredChatWidth } from "./chatWidth";
+import {
+  clampChatWidth,
+  MIN_CHAT_WIDTH,
+  readStoredChatWidth,
+  writeStoredChatWidth,
+} from "./chatWidth";
 import { hasNodes } from "./types";
 import type { PlanActionDto, PlanWorkspaceProps } from "./types";
 import "./plan-workspace.css";
@@ -23,7 +35,13 @@ const COMPACT_WIDTH = 560;
 const EMPTY_ACTIONS: PlanActionDto[] = [];
 const EMPTY_EVENTS: string[] = [];
 
-const IconAction: React.FC<{ action: PlanActionDto; onFire: (tag: string) => void }> = ({ action, onFire }) => (
+const TOOL_OPEN_DELAY_MS = 120;
+const TOOL_CLOSE_DELAY_MS = 220;
+
+const IconAction: React.FC<{ action: PlanActionDto; onFire: (tag: string) => void }> = ({
+  action,
+  onFire,
+}) => (
   <IconButton
     className="pws-icon-btn"
     label={action.label}
@@ -35,7 +53,11 @@ const IconAction: React.FC<{ action: PlanActionDto; onFire: (tag: string) => voi
     disabled={action.disabled || action.loading}
     onClick={() => onFire(action.tag)}
   >
-    {action.loading ? <LoaderCircle size={16} className="pws-spin" /> : <ActionIcon icon={action.icon} />}
+    {action.loading ? (
+      <LoaderCircle size={16} className="pws-spin" />
+    ) : (
+      <ActionIcon icon={action.icon} />
+    )}
     {action.badge && (
       <Badge numeric className="pws-icon-badge">
         {action.badge}
@@ -44,11 +66,11 @@ const IconAction: React.FC<{ action: PlanActionDto; onFire: (tag: string) => voi
   </IconButton>
 );
 
-const LabeledButton: React.FC<{ action: PlanActionDto; primary?: boolean; onFire: (tag: string) => void }> = ({
-  action,
-  primary = false,
-  onFire,
-}) => (
+const LabeledButton: React.FC<{
+  action: PlanActionDto;
+  primary?: boolean;
+  onFire: (tag: string) => void;
+}> = ({ action, primary = false, onFire }) => (
   <button
     type="button"
     className={`pws-btn ${primary ? "pws-btn--primary" : "pws-btn--secondary"}`}
@@ -57,14 +79,20 @@ const LabeledButton: React.FC<{ action: PlanActionDto; primary?: boolean; onFire
     aria-busy={action.loading || undefined}
     onClick={() => onFire(action.tag)}
   >
-    {action.loading ? <LoaderCircle size={16} className="pws-spin" /> : <ActionIcon icon={action.icon} />}
+    {action.loading ? (
+      <LoaderCircle size={16} className="pws-spin" />
+    ) : (
+      <ActionIcon icon={action.icon} />
+    )}
     <span className="pws-btn-label">{action.label}</span>
     {action.badge && (
       <Badge numeric className="pws-btn-badge">
         {action.badge}
       </Badge>
     )}
-    {action.shortcut && <Kbd keys={shortcutKeys(action.shortcut)} variant="bare" className="pws-btn-kbd" />}
+    {action.shortcut && (
+      <Kbd keys={shortcutKeys(action.shortcut)} variant="bare" className="pws-btn-kbd" />
+    )}
   </button>
 );
 
@@ -121,7 +149,9 @@ const OverflowMenu: React.FC<OverflowMenuProps> = ({ items, onFire }) => {
                 <ActionIcon icon={item.icon} size={14} />
               </span>
               <span className="pws-menu-item-label">{item.label}</span>
-              {item.shortcut && <Kbd keys={shortcutKeys(item.shortcut)} variant="bare" className="pws-menu-kbd" />}
+              {item.shortcut && (
+                <Kbd keys={shortcutKeys(item.shortcut)} variant="bare" className="pws-menu-kbd" />
+              )}
             </button>
           ))}
         </div>
@@ -135,8 +165,10 @@ interface TabToolProps {
   label: string;
   panel: React.ReactNode;
   open: boolean;
+  pinned?: boolean;
   indicator?: boolean;
-  onToggle: () => void;
+  onHoverOpen: () => void;
+  onClick: () => void;
   onClose: () => void;
 }
 
@@ -144,9 +176,50 @@ interface TabToolProps {
 const seenQuestionPlans = new Set<string>();
 
 /** One of the two icons in the tab strip's far corner; its panel drops down beneath it. */
-const TabTool: React.FC<TabToolProps> = ({ icon: Icon, label, panel, open, indicator = false, onToggle, onClose }) => {
+const TabTool: React.FC<TabToolProps> = ({
+  icon: Icon,
+  label,
+  panel,
+  open,
+  pinned = false,
+  indicator = false,
+  onHoverOpen,
+  onClick,
+  onClose,
+}) => {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<number | undefined>(undefined);
+  const [tipOpen, setTipOpen] = useState(false);
   useOutsideClick(open, [wrapRef], onClose);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== undefined) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = undefined;
+    }
+  }, []);
+
+  const scheduleOpen = useCallback(() => {
+    clearTimer();
+    timerRef.current = window.setTimeout(() => {
+      onHoverOpen();
+    }, TOOL_OPEN_DELAY_MS);
+  }, [clearTimer, onHoverOpen]);
+
+  const scheduleClose = useCallback(() => {
+    clearTimer();
+    if (pinned) return;
+    timerRef.current = window.setTimeout(() => {
+      onClose();
+    }, TOOL_CLOSE_DELAY_MS);
+  }, [clearTimer, pinned, onClose]);
+
+  const handleClick = useCallback(() => {
+    clearTimer();
+    onClick();
+  }, [clearTimer, onClick]);
+
+  useEffect(() => clearTimer, [clearTimer]);
 
   useEffect(() => {
     if (!open) return;
@@ -164,17 +237,27 @@ const TabTool: React.FC<TabToolProps> = ({ icon: Icon, label, panel, open, indic
         className="pws-tool-btn"
         label={label}
         tooltipSide="bottom"
+        tooltipOpen={open ? false : tipOpen}
+        onTooltipOpenChange={setTipOpen}
         aria-haspopup="dialog"
         aria-expanded={open}
         active={open}
         data-indicator={indicator}
-        onClick={onToggle}
+        onClick={handleClick}
+        onPointerEnter={scheduleOpen}
+        onPointerLeave={scheduleClose}
       >
         <Icon size={16} />
         {indicator && <StatusDot tone="warning" className="pws-tool-dot" />}
       </IconButton>
       {open && (
-        <div className="pws-dropdown" role="group" aria-label={label}>
+        <div
+          className="pws-dropdown"
+          role="group"
+          aria-label={label}
+          onPointerEnter={clearTimer}
+          onPointerLeave={scheduleClose}
+        >
           <div className="pws-dropdown-title">{label}</div>
           <div className="pws-dropdown-body">{panel}</div>
         </div>
@@ -207,19 +290,20 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
   eventHandler,
   slots,
 }) => {
+  type ToolKey = "verifications" | "questions";
   const rootRef = useRef<HTMLDivElement>(null);
   const [rootWidth, setRootWidth] = useState<number | null>(null);
   const [width, setWidth] = useState(() => readStoredChatWidth() ?? chatWidth);
   const [dragging, setDragging] = useState(false);
-  const [openTool, setOpenTool] = useState<"verifications" | "questions" | null>(null);
+  const [openTool, setOpenTool] = useState<{ tool: ToolKey; pinned: boolean } | null>(null);
   const [, setSeenVersion] = useState(0);
   const questionsSeen = seenQuestionPlans.has(planId);
 
-  const openQuestions = () => {
+  useEffect(() => {
+    if (openTool?.tool !== "questions" || !planId) return;
     seenQuestionPlans.add(planId);
     setSeenVersion((value) => value + 1);
-    setOpenTool((value) => (value === "questions" ? null : "questions"));
-  };
+  }, [openTool?.tool, planId]);
 
   const emit = useCallback(
     (eventName: string, ...args: unknown[]) => {
@@ -233,7 +317,12 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
   }, []);
 
   const focusChatTags = useMemo(
-    () => new Set([...actions, ...menuItems, ...secondary, ...(primary ? [primary] : [])].filter((a) => a.focusChat).map((a) => a.tag)),
+    () =>
+      new Set(
+        [...actions, ...menuItems, ...secondary, ...(primary ? [primary] : [])]
+          .filter((a) => a.focusChat)
+          .map((a) => a.tag),
+      ),
     [actions, menuItems, secondary, primary],
   );
 
@@ -263,7 +352,10 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
   const compact = rootWidth != null && rootWidth < COMPACT_WIDTH;
 
   const iconActions = compact ? EMPTY_ACTIONS : actions;
-  const menu = useMemo(() => (compact ? [...actions, ...menuItems] : menuItems), [compact, actions, menuItems]);
+  const menu = useMemo(
+    () => (compact ? [...actions, ...menuItems] : menuItems),
+    [compact, actions, menuItems],
+  );
 
   const bindings = useMemo<ShortcutBinding[]>(
     () => [...actions, ...menuItems, ...secondary, ...(primary ? [primary] : []), ...shortcuts],
@@ -305,7 +397,9 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
   const hasProjectBadges = hasNodes(slots?.ProjectBadges);
   const showChat = hasNodes(slots?.Chat);
 
-  const rootStyle = { "--pws-chat-width": `${Math.max(width, MIN_CHAT_WIDTH)}px` } as React.CSSProperties;
+  const rootStyle = {
+    "--pws-chat-width": `${Math.max(width, MIN_CHAT_WIDTH)}px`,
+  } as React.CSSProperties;
 
   return (
     <div
@@ -325,7 +419,13 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
             </span>
           </div>
           {sourceUrl && (
-            <a className="pws-source" href={sourceUrl} target="_blank" rel="noreferrer" title={sourceUrl}>
+            <a
+              className="pws-source"
+              href={sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              title={sourceUrl}
+            >
               <ExternalLink size={14} />
               <span>{sourceLabel || "Source"}</span>
             </a>
@@ -333,11 +433,7 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
           {meta && <span className="pws-meta">{meta}</span>}
         </div>
         <div className="pws-topbar-right">
-          {hasProjectBadges && (
-            <div className="pws-project-badges">
-              {slots?.ProjectBadges}
-            </div>
-          )}
+          {hasProjectBadges && <div className="pws-project-badges">{slots?.ProjectBadges}</div>}
           {persona && (
             <div className="pws-persona" title={persona}>
               <span className="pws-avatar" aria-hidden="true">
@@ -392,9 +488,23 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
                       icon={FileCheck2}
                       label={verificationsLabel}
                       panel={slots?.Verifications}
-                      open={openTool === "verifications"}
-                      onToggle={() => setOpenTool((value) => (value === "verifications" ? null : "verifications"))}
-                      onClose={() => setOpenTool((value) => (value === "verifications" ? null : value))}
+                      open={openTool?.tool === "verifications"}
+                      pinned={openTool?.tool === "verifications" ? openTool.pinned : false}
+                      onHoverOpen={() => setOpenTool({ tool: "verifications", pinned: false })}
+                      onClick={() => {
+                        if (!openTool) {
+                          setOpenTool({ tool: "verifications", pinned: true });
+                        } else if (openTool.tool === "verifications") {
+                          if (openTool.pinned) {
+                            setOpenTool(null);
+                          } else {
+                            setOpenTool({ tool: "verifications", pinned: true });
+                          }
+                        } else {
+                          setOpenTool({ tool: "verifications", pinned: true });
+                        }
+                      }}
+                      onClose={() => setOpenTool(null)}
                     />
                   )}
                   {hasQuestions && (
@@ -402,10 +512,24 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
                       icon={FileQuestion}
                       label={questionsLabel}
                       panel={slots?.Questions}
-                      open={openTool === "questions"}
+                      open={openTool?.tool === "questions"}
+                      pinned={openTool?.tool === "questions" ? openTool.pinned : false}
                       indicator={unansweredQuestions > 0 && !questionsSeen}
-                      onToggle={openQuestions}
-                      onClose={() => setOpenTool((value) => (value === "questions" ? null : value))}
+                      onHoverOpen={() => setOpenTool({ tool: "questions", pinned: false })}
+                      onClick={() => {
+                        if (!openTool) {
+                          setOpenTool({ tool: "questions", pinned: true });
+                        } else if (openTool.tool === "questions") {
+                          if (openTool.pinned) {
+                            setOpenTool(null);
+                          } else {
+                            setOpenTool({ tool: "questions", pinned: true });
+                          }
+                        } else {
+                          setOpenTool({ tool: "questions", pinned: true });
+                        }
+                      }}
+                      onClose={() => setOpenTool(null)}
                     />
                   )}
                 </div>
