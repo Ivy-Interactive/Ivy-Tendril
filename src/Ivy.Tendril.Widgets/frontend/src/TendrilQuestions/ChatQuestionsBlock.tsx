@@ -9,6 +9,7 @@ import {
   documentAnswers,
   documentOtherOpen,
   hasEntries,
+  submitNote,
 } from "./answers";
 
 interface ChatQuestionsBlockProps {
@@ -72,7 +73,12 @@ export const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ question
       onAnswer={handleAnswer}
       onOtherOpenChange={handleOtherOpenChange}
       onClear={hasAnyAnswers ? clearAll : undefined}
-      submit={{ label: "Submit response", disabled: !submitEnabled, onSubmit: handleSubmit }}
+      submit={{
+        label: "Submit response",
+        disabled: !submitEnabled,
+        note: submitNote(questions, draft.answers),
+        onSubmit: handleSubmit,
+      }}
     />
   );
 };

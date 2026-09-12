@@ -33,6 +33,23 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
 
   const freeTextQuestion = questionsFence("- id: comment", "  title: Anything else?");
 
+  const costAndScopeQuestion = questionsFence(
+    "- id: cost",
+    "  title: How should cost be attributed?",
+    "  options:",
+    "    - title: Per session",
+    "      value: session",
+    "    - title: Per token",
+    "      value: token",
+    "- id: scope",
+    "  title: Which scope should ship first?",
+    "  options:",
+    "    - title: Ledger first",
+    "      value: ledger",
+    "    - title: Surfacing first",
+    "      value: surfacing",
+  );
+
   const twoBlockMessage = [
     "First block:",
     questionsFence(
@@ -320,5 +337,43 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
     );
 
     expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
+  });
+
+  it("submits a partly answered block, reporting only the answered question and leaving the rest to the agent", () => {
+    const session = sessionWith("sess-partial", costAndScopeQuestion);
+    const handleEvent = vi.fn();
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-partial"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+      />,
+    );
+
+    const submitBtn = screen.getByRole("button", { name: /Submit Response/i });
+    expect(submitBtn).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Ledger first/i }));
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnAnswerQuestion",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: "sess-partial",
+          messageId: "sess-partial-msg",
+          answers: { scope: ["ledger"] },
+          responseText: expect.stringContaining(
+            "How should cost be attributed?**: *(no preference, your call)*",
+          ),
+        }),
+      ]),
+    );
   });
 });
