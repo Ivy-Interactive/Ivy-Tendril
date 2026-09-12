@@ -188,7 +188,7 @@ rm -f "$body_file"
   fi
 
   # Construct body with issue link prepended
-  body="${issueLink}${summaryContent}\n\n---\n${commitsList}${artifactMarkdown}\n\n---\nCreated using [Ivy Tendril](https://ivy.app)."
+  body="${issueLink}${summaryContent}\n\n---\n${commitsList}${artifactMarkdown}\n\n---\nCreated using [${PrSignatureText:-Ivy Tendril}](${PrSignatureUrl:-https://ivy.app})."
   ```
 - **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
 - **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, split `PrReviewer` on commas and add one `--reviewer <username>` flag per name to the `gh pr create` command. **Never pass a bare `--reviewer` with no value** — that fails with `flag needs an argument: --reviewer`. Omit the flag entirely when `PrReviewer` is empty.
