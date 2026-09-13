@@ -1,5 +1,7 @@
+import "./ChatWidget.testUtils";
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import "@testing-library/jest-dom";
 import { ChatWidget } from "./ChatWidget";
 import { setupChatWidgetTestEnvironment } from "./ChatWidget.testUtils";
 import type { ChatSamplePromptDto, ChatSessionDto } from "./types";
