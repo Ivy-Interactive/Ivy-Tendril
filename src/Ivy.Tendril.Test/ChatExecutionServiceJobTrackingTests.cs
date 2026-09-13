@@ -7,6 +7,7 @@ using Ivy.Core;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
@@ -1205,6 +1206,73 @@ public class ChatExecutionServiceJobTrackingTests
     }
 
     [Fact]
+    public async Task CreatePr_EmitsManualApprovalSystemEventToLinkedChat()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilCreatePrApprovalTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(45, "Tendril", "NiceToHave", "Create PR Plan", PlanStatus.Review,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: session.Id),
+                "# Create PR Test",
+                Path.Combine(tempDir, "00045-CreatePrPlan"),
+                "state: Review"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            ManualApprovalAnnouncer.AnnounceCreatePr(plan, "job-005", isPrUpdate: false, chatService, execService, fakeJobService);
+
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            ChatSessionModel? updatedSession = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                updatedSession = chatService.GetSession(session.Id);
+                if (updatedSession?.Messages.Any(m => m.Role == "system" && m.Content.Contains("Manual approval granted and Create PR started")) == true)
+                    break;
+                await Task.Delay(20);
+            }
+
+            Assert.NotNull(updatedSession);
+            var systemMsg = updatedSession.Messages.FirstOrDefault(m => m.Role == "system" && m.Content.Contains("Manual approval granted and Create PR started"));
+            Assert.NotNull(systemMsg);
+            Assert.Contains(plan.Title, systemMsg.Content);
+            Assert.Contains("Job job-005", systemMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
     public void SetChatSessionId_UpdatesTypedArgs_AndPersistsToDatabase()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "JobServiceChatSessionTest_" + Guid.NewGuid().ToString("N"));
@@ -1382,6 +1450,68 @@ public class ChatExecutionServiceJobTrackingTests
             Assert.NotNull(approvalQ);
             Assert.True(approvalQ.HasAnswer);
             Assert.Contains("answer: approve-execution", updatedMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void CreatePr_ResolvesPendingPrQuestions_InLinkedChatSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "CreatePrQuestionsTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var questionMarkdown = """
+                Would you like me to proceed with creating the pull request?
+
+                ```questions
+                questions:
+                  - id: pr-approval
+                    title: Create PR now?
+                    options:
+                      - title: Create PR
+                        value: create-pr
+                        recommended: true
+                      - title: Cancel
+                        value: cancel
+                ```
+                """;
+
+            var msg = chatService.AddMessage(session.Id, "assistant", questionMarkdown);
+
+            var plan = new PlanFile(
+                new PlanMetadata(91, "Tendril", "NiceToHave", "PR Approval Plan", PlanStatus.Review,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: session.Id),
+                "# PR Approval Plan",
+                Path.Combine(tempDir, "00091-PrApprovalPlan"),
+                "state: Review"
+            );
+
+            var fakeJobService = new FakeChatJobService();
+            ManualApprovalAnnouncer.AnnounceCreatePr(plan, "job-003", isPrUpdate: false, chatService, chatExecution: null, fakeJobService);
+
+            var updatedSession = chatService.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var updatedMsg = updatedSession.Messages.FirstOrDefault(m => m.Id == msg.Id);
+            Assert.NotNull(updatedMsg);
+
+            var summaries = QuestionAnswers.Read(updatedMsg.Content);
+            Assert.NotEmpty(summaries);
+            var approvalQ = summaries.FirstOrDefault(q => q.Id == "pr-approval");
+            Assert.NotNull(approvalQ);
+            Assert.True(approvalQ.HasAnswer);
+            Assert.Contains("answer: create-pr", updatedMsg.Content);
         }
         finally
         {
