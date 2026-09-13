@@ -1,3 +1,4 @@
+using System.Globalization;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Models;
@@ -436,7 +437,30 @@ public class DashboardAppViewModelTests
         Assert.Equal(4, kpis.Count);
         Assert.Equal("usageWindow", kpis[3].Id);
         Assert.Equal("5h window", kpis[3].Label);
-        Assert.Equal($"{remaining:0.#}% left", kpis[3].Value);
+        Assert.Equal("83.3% left", kpis[3].Value);
+    }
+
+    [Fact]
+    public void BuildKpis_WithUsageSnapshot_CommaDecimalCulture_StillUsesAPeriod()
+    {
+        var today = new DateTime(2026, 8, 31);
+        var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 15.5m, [], []);
+        var activity = new DashboardActivityStats([], 10m);
+        const double remaining = 83.3;
+        var snapshot = new AgentUsageSnapshot
+        {
+            AgentId = "test-agent",
+            Windows =
+            [
+                new AgentUsageWindow { WindowMinutes = 300, RemainingPercent = remaining }
+            ]
+        };
+
+        InCulture("sv-SE", () =>
+        {
+            var kpis = DashboardApp.BuildKpis(stats, activity, [], [], today, snapshot);
+            Assert.Equal("83.3% left", kpis[3].Value);
+        });
     }
 
     [Fact]
@@ -593,5 +617,28 @@ public class DashboardAppViewModelTests
         Assert.Equal(9, result[5].Month);
         Assert.Equal(1, result[5].Day);
         Assert.Equal("2026-09-01", result[5].Date);
+    }
+
+    private static void InCulture(string culture, Action body)
+    {
+        Exception? failure = null;
+
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                CultureInfo.CurrentCulture = new CultureInfo(culture);
+                body();
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+        });
+
+        thread.Start();
+        thread.Join();
+
+        if (failure is not null) throw failure;
     }
 }

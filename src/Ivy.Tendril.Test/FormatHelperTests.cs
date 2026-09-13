@@ -82,6 +82,22 @@ public class FormatHelperTests
         Assert.Equal("1.0M", FormatHelper.FormatTokens(1_000_000));
     }
 
+    [Fact]
+    public void FormatPercent_CommaDecimalCulture_StillUsesAPeriod()
+    {
+        Assert.Equal("83.3%", InCulture(CommaDecimalCulture, () => FormatHelper.FormatPercent(83.3)));
+        Assert.Equal("83.3%", InCulture(CommaDecimalCulture, () => FormatHelper.FormatPercent(83.3m)));
+    }
+
+    [Theory]
+    [InlineData(0.0, "0%")]
+    [InlineData(83.3, "83.3%")]
+    [InlineData(100.0, "100%")]
+    public void FormatPercent_ThresholdsAndDecimals(double percent, string expected)
+    {
+        Assert.Equal(expected, FormatHelper.FormatPercent(percent));
+    }
+
     // Shared by the plan details row and the job cost sheet, which read the profile from different
     // places (the plan's yaml and the job's launch record) but must label it the same way.
     [Theory]

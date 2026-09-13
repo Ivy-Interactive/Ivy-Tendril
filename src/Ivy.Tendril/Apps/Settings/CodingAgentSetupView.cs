@@ -288,7 +288,7 @@ public class CodingAgentSetupView : ViewBase
             };
 
             var valueText = Text.Block(p is { } pct
-                ? $"{pct:0.#}% left"
+                ? $"{FormatHelper.FormatPercent(pct)} left"
                 : $"{UsageWindowCalculator.FormatTokens(w.TotalTokens)} tokens").Small();
 
             if (valueColor.HasValue)
