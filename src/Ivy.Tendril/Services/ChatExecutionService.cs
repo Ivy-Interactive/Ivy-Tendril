@@ -401,6 +401,8 @@ public sealed class ChatExecutionService : IChatExecutionService
                 Directory.CreateDirectory(attachDir);
             }
 
+            var tempDir = Path.Combine(_configService.TendrilHome, "Attachments", "temp");
+
             foreach (var att in attList)
             {
                 try
@@ -421,6 +423,44 @@ public sealed class ChatExecutionService : IChatExecutionService
                             : att.Base64Data;
                         var bytes = Convert.FromBase64String(base64);
                         File.WriteAllBytes(filePath, bytes);
+                    }
+
+                    var tempFilePath = Path.Combine(tempDir, fileName);
+                    var tempCandidate = File.Exists(tempFilePath)
+                        ? tempFilePath
+                        : (!string.IsNullOrWhiteSpace(att.LocalPath) && File.Exists(Path.Combine(tempDir, Path.GetFileName(att.LocalPath)))
+                            ? Path.Combine(tempDir, Path.GetFileName(att.LocalPath))
+                            : null);
+
+                    if (!File.Exists(filePath) && tempCandidate != null)
+                    {
+                        if (!Directory.Exists(attachDir))
+                        {
+                            Directory.CreateDirectory(attachDir);
+                        }
+                        File.Move(tempCandidate, filePath, overwrite: true);
+                    }
+                    else if (File.Exists(filePath))
+                    {
+                        var fullFilePath = Path.GetFullPath(filePath);
+                        var fullTempDir = Path.GetFullPath(tempDir);
+                        var isInsideTemp = fullFilePath.Equals(fullTempDir, StringComparison.OrdinalIgnoreCase) ||
+                                           fullFilePath.StartsWith(fullTempDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                                           fullFilePath.StartsWith(fullTempDir + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+                        if (isInsideTemp)
+                        {
+                            var sessionFilePath = Path.Combine(attachDir, fileName);
+                            if (!Directory.Exists(attachDir))
+                            {
+                                Directory.CreateDirectory(attachDir);
+                            }
+                            if (!string.Equals(fullFilePath, Path.GetFullPath(sessionFilePath), StringComparison.OrdinalIgnoreCase))
+                            {
+                                File.Move(filePath, sessionFilePath, overwrite: true);
+                                filePath = sessionFilePath;
+                            }
+                        }
                     }
 
                     if (File.Exists(filePath))
