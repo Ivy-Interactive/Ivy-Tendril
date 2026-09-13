@@ -1,6 +1,8 @@
+using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Test.TestHelpers;
 using Microsoft.Extensions.Logging;
 
@@ -221,6 +223,129 @@ public class PlanReaderServiceTests
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, true);
         }
+    }
+
+    [Fact]
+    public void GetShippedFeaturesByDay_WhenDatabaseNotReady_ReturnsEmptyList()
+    {
+        // Arrange
+        var testConfig = new StubConfigService();
+        var testLogger = new TestLogger();
+        var service = new PlanReaderService(testConfig, testLogger);
+
+        // Act
+        var result = service.GetShippedFeaturesByDay(60);
+
+        // Assert
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void GetShippedFeaturesByDay_WhenDatabaseReady_DelegatesAndCaches()
+    {
+        // Arrange
+        var testConfig = new StubConfigService();
+        var testLogger = new TestLogger();
+        var service = new PlanReaderService(testConfig, testLogger);
+        var fakeDb = new TestDatabaseService();
+        fakeDb.ShippedFeaturesResponse = [(new DateOnly(2026, 9, 13), 5)];
+        service.EnableDatabaseReads(fakeDb);
+
+        // Act: first call fetches from database
+        var firstResult = service.GetShippedFeaturesByDay(60);
+
+        // Assert first call
+        Assert.Single(firstResult);
+        Assert.Equal(5, firstResult[0].Count);
+        Assert.Equal(1, fakeDb.GetShippedFeaturesCallCount);
+
+        // Change response on fakeDb to ensure cached result is returned
+        fakeDb.ShippedFeaturesResponse = [(new DateOnly(2026, 9, 13), 10)];
+
+        // Act: second call should use cache
+        var secondResult = service.GetShippedFeaturesByDay(60);
+
+        // Assert second call
+        Assert.Single(secondResult);
+        Assert.Equal(5, secondResult[0].Count);
+        Assert.Equal(1, fakeDb.GetShippedFeaturesCallCount);
+    }
+
+    [Fact]
+    public void InvalidateCaches_ClearsShippedFeaturesCache()
+    {
+        // Arrange
+        var testConfig = new StubConfigService();
+        var testLogger = new TestLogger();
+        var service = new PlanReaderService(testConfig, testLogger);
+        var fakeDb = new TestDatabaseService();
+        fakeDb.ShippedFeaturesResponse = [(new DateOnly(2026, 9, 13), 5)];
+        service.EnableDatabaseReads(fakeDb);
+
+        // Act: populate cache
+        var firstResult = service.GetShippedFeaturesByDay(60);
+        Assert.Equal(1, fakeDb.GetShippedFeaturesCallCount);
+
+        // Invalidate caches and change DB response
+        service.InvalidateCaches();
+        fakeDb.ShippedFeaturesResponse = [(new DateOnly(2026, 9, 13), 8)];
+
+        // Act: fetch again after invalidation
+        var secondResult = service.GetShippedFeaturesByDay(60);
+
+        // Assert
+        Assert.Equal(2, fakeDb.GetShippedFeaturesCallCount);
+        Assert.Single(secondResult);
+        Assert.Equal(8, secondResult[0].Count);
+    }
+
+    private class TestDatabaseService : IPlanDatabaseService
+    {
+        public int GetShippedFeaturesCallCount { get; private set; }
+        public List<(DateOnly Date, int Count)> ShippedFeaturesResponse { get; set; } = [];
+
+        public List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60)
+        {
+            GetShippedFeaturesCallCount++;
+            return ShippedFeaturesResponse;
+        }
+
+        public DashboardActivityStats GetActivityStats(int monthsBack = 24) => new([], 0m);
+        public void DeleteJob(string id) { }
+        public void Dispose() { }
+        public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => [];
+        public PlanFile? GetPlanByFolder(string folderPath) => null;
+        public PlanFile? GetPlanById(int planId) => null;
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0, 0);
+        public DashboardModels GetDashboardData(string? projectFilter) => new(0, 0, 0, 0, 0, 0, 0, [], []);
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30) => [];
+        public decimal GetPlanTotalCost(int planId) => 0;
+        public int GetPlanTotalTokens(int planId) => 0;
+        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null) => [];
+        public List<Recommendation> GetRecommendations() => [];
+        public int GetPendingRecommendationsCount() => 0;
+        public List<PlanFile> SearchPlans(string query) => [];
+        public void RebuildFtsIndex() { }
+        public void UpdatePlanState(int planId, PlanStatus state) { }
+        public void UpdatePlanContent(int planId, string latestRevisionContent, int revisionCount) { }
+        public void UpdateRecommendationState(int planId, string recommendationTitle, string newState, string? declineReason) { }
+        public void UpsertPlan(PlanFile plan) { }
+        public void DeletePlan(int planId) { }
+        public void UpsertCosts(int planId, List<CostEntry> costs) { }
+        public void UpsertRecommendations(int planId, string folderName, List<RecommendationYaml> recommendations, string project, string planTitle, DateTime updated, PlanStatus status) { }
+        public void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false) { }
+        public HashSet<int> GetTerminalPlanIds() => [];
+        public void UpsertJob(JobItem job) { }
+        public List<JobItem> GetRecentJobs(int limit = 100) => [];
+        public JobItem? GetJobById(string id) => null;
+        public List<JobItem> GetJobsForPlan(string planFile) => [];
+        public List<string> PurgeOldJobs(int keepCount = 500) => [];
+        public Dictionary<string, PrInfo> GetAllPrStatuses() => [];
+        public void UpsertPrStatus(string prUrl, string owner, string repo, string status, string branch, DateTime lastChecked) { }
+        public List<string> GetNonMergedPrUrls() => [];
+        public long GetDatabaseSize() => 0;
+        public DateTime GetLastSyncTime() => DateTime.UtcNow;
+        public void SetLastSyncTime(DateTime time) { }
     }
 
     private class TempDirConfigService(string planFolder) : StubConfigService, IConfigService
