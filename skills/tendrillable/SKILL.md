@@ -1,6 +1,7 @@
 ---
 name: tendrillable
-description: Find "Tendrillable" GitHub issues - open, recent, code-requiring issues that an agent can plan and one-shot WITHOUT asking clarifying questions, with high probability of success. Classifies a repo's open issues against the Tendrillable rubric and prints a ranked list of issue URLs. Use when asked to find tendrillable issues, source candidates for Tendril, or triage a repo's backlog for one-shottable work. Usage: tendrillable <githubUrl> <amount>.
+description: >-
+  Find "Tendrillable" GitHub issues - open, recent, code-requiring issues that an agent can plan and one-shot WITHOUT asking clarifying questions, with high probability of success. Classifies a repo's open issues against the Tendrillable rubric and prints a ranked list of issue URLs. Use when asked to find tendrillable issues, source candidates for Tendril, or triage a repo's backlog for one-shottable work. Usage: tendrillable <githubUrl> <amount>.
 ---
 
 # tendrillable
