@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Apps.Chat;
 
 internal static class SamplePrompts
 {
-    public const int Max = 4;
+    public const int Max = 5;
 
     public static List<ChatSamplePromptDto> ForChat(
         IReadOnlyList<PlanFile> plans,
@@ -91,6 +91,30 @@ internal static class SamplePrompts
         }
 
         // Fallbacks
+        var addProject = "Add a new project";
+        if (labels.Add(addProject))
+        {
+            prompts.Add(new ChatSamplePromptDto(
+                addProject,
+                "Add a new project to my tendril"));
+        }
+
+        var editVerifications = "Edit verifications";
+        if (labels.Add(editVerifications))
+        {
+            prompts.Add(new ChatSamplePromptDto(
+                editVerifications,
+                "Edit verifications for my projects"));
+        }
+
+        var createVault = "Create a team vault";
+        if (labels.Add(createVault))
+        {
+            prompts.Add(new ChatSamplePromptDto(
+                createVault,
+                "Create a shared team vault"));
+        }
+
         var fallback1 = "What should I work on next?";
         if (labels.Add(fallback1))
         {

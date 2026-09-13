@@ -72,13 +72,16 @@ public class ChatSamplePromptsTests
     {
         var prompts = SamplePrompts.ForChat(new List<PlanFile>(), new List<JobItem>());
 
-        Assert.Equal(2, prompts.Count);
+        Assert.Equal(5, prompts.Count);
+        Assert.Contains(prompts, p => p.Label == "Add a new project" && p.Prompt == "Add a new project to my tendril");
+        Assert.Contains(prompts, p => p.Label == "Edit verifications" && p.Prompt == "Edit verifications for my projects");
+        Assert.Contains(prompts, p => p.Label == "Create a team vault" && p.Prompt == "Create a shared team vault");
         Assert.Contains(prompts, p => p.Label == "What should I work on next?");
         Assert.Contains(prompts, p => p.Label == "What shipped this week?");
     }
 
     [Fact]
-    public void ForChat_CapsTheListAtFourAndIsDeterministic()
+    public void ForChat_CapsTheListAtMaxAndIsDeterministic()
     {
         var now = DateTime.UtcNow;
         var plans = new List<PlanFile>
