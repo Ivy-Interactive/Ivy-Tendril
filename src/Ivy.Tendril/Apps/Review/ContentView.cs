@@ -96,7 +96,7 @@ public class ContentView(
         {
             if (!isOpen.Value) return null;
             return new CreatePrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
-                config, githubService);
+                config, githubService, chatExecution: chatExecution, chatHistory: chatService);
         });
 
         var (resetToDraftDialog, showResetToDraftDialog) = UseTrigger((isOpen) =>
@@ -303,7 +303,7 @@ public class ContentView(
 
         if (!isShareMode)
         {
-            AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog, chatExecution);
+            AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog, chatExecution, chatService);
             PlanNeighborShortcuts.Add(actions, allPlans, currentIndex, plan =>
             {
                 selectedPlanState.Set(plan);
@@ -360,7 +360,8 @@ public class ContentView(
         ReviewViewContext context,
         Action showCreatePrDialog,
         Action showDiscardDialog,
-        IChatExecutionService? chatExecution)
+        IChatExecutionService? chatExecution,
+        IChatHistoryService? chatService)
     {
         if (selectedPlan.Commits.Count > 0)
         {
@@ -375,12 +376,16 @@ public class ContentView(
                     // Push the fix onto the original PR's branch and leave the PR open for
                     // review. ExecutePlan already based the worktree on the PR's head branch,
                     // so CreatePr's push updates the existing PR (no new PR is created).
-                    jobService.StartJob(new CreatePrArgs(
+                    var jobId = jobService.StartJob(new CreatePrArgs(
                         selectedPlan.FolderPath,
                         SolveMergeConflicts: true,
                         Merge: false,
                         DeleteBranch: false,
-                        IncludeArtifacts: true));
+                        IncludeArtifacts: true)
+                    {
+                        ChatSessionId = selectedPlan.ChatSessionId
+                    });
+                    ManualApprovalAnnouncer.AnnounceCreatePr(selectedPlan, jobId, isPrUpdate: true, chatService, chatExecution, jobService);
                     refreshPlans();
                 }
                 else
