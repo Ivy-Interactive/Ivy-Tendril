@@ -37,6 +37,7 @@ interface ShellRailFlyoutProps {
   onNew?: () => void;
   onRename?: (itemId: string, title: string) => void;
   onDelete?: (itemId: string) => void;
+  onTogglePin?: (itemId: string) => void;
   children: (trigger: RailFlyoutTrigger) => React.ReactNode;
 }
 
@@ -56,6 +57,7 @@ export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
   onNew,
   onRename,
   onDelete,
+  onTogglePin,
   children,
 }) => {
   const [open, setOpen] = useState(false);
@@ -251,6 +253,7 @@ export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
               onSelect={selectItem}
               onRename={onRename}
               onDelete={onDelete}
+              onTogglePin={onTogglePin}
               onInteractionChange={setRowInteracting}
             />
           </div>,

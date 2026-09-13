@@ -6,6 +6,8 @@ import {
   LoaderCircle,
   MessageCircle,
   Pencil,
+  Pin,
+  PinOff,
   SquareTerminal,
   Trash2,
 } from "lucide-react";
@@ -19,8 +21,17 @@ const MENU_OFFSET = 4;
 const MENU_MARGIN = 8;
 
 const ItemStateIcon: React.FC<{ state: ShellItemState }> = ({ state }) => (
-  <span className="tsh-section-item-state" data-state={state} role="img" aria-label={STATE_LABELS[state]}>
-    {state === "working" ? <LoaderCircle size={12} className="tsh-spin" /> : <CircleCheck size={12} />}
+  <span
+    className="tsh-section-item-state"
+    data-state={state}
+    role="img"
+    aria-label={STATE_LABELS[state]}
+  >
+    {state === "working" ? (
+      <LoaderCircle size={12} className="tsh-spin" />
+    ) : (
+      <CircleCheck size={12} />
+    )}
   </span>
 );
 
@@ -34,6 +45,7 @@ interface ItemMenuProps {
   item: ShellSectionItemDto;
   onRename?: () => void;
   onDelete?: () => void;
+  onTogglePin?: () => void;
   onOpenChange?: (open: boolean) => void;
 }
 
@@ -42,7 +54,13 @@ interface ItemMenuProps {
  * the menu is open. The menu is portaled and fixed so the scrolling list cannot
  * clip it, and it closes on Escape, a click outside, or a pick.
  */
-const ItemMenu: React.FC<ItemMenuProps> = ({ item, onRename, onDelete, onOpenChange }) => {
+const ItemMenu: React.FC<ItemMenuProps> = ({
+  item,
+  onRename,
+  onDelete,
+  onTogglePin,
+  onOpenChange,
+}) => {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -132,8 +150,24 @@ const ItemMenu: React.FC<ItemMenuProps> = ({ item, onRename, onDelete, onOpenCha
             aria-label={`${item.title} options`}
             style={{ top: position.top, right: position.right }}
           >
+            {onTogglePin && (
+              <button
+                type="button"
+                role="menuitem"
+                className="tsh-item-menu-item"
+                onClick={() => pick(onTogglePin)}
+              >
+                {item.pinned ? <PinOff size={14} /> : <Pin size={14} />}
+                {item.pinned ? "Unpin chat" : "Pin chat"}
+              </button>
+            )}
             {onRename && (
-              <button type="button" role="menuitem" className="tsh-item-menu-item" onClick={() => pick(onRename)}>
+              <button
+                type="button"
+                role="menuitem"
+                className="tsh-item-menu-item"
+                onClick={() => pick(onRename)}
+              >
                 <Pencil size={14} />
                 Edit name
               </button>
@@ -193,9 +227,10 @@ interface ShellSectionItemsProps {
   emptyText?: string;
   className?: string;
   onSelect: (itemId: string) => void;
-  /** Rows gain an options menu when either of these is given. */
+  /** Rows gain an options menu when any of these is given. */
   onRename?: (itemId: string, title: string) => void;
   onDelete?: (itemId: string) => void;
+  onTogglePin?: (itemId: string) => void;
   /** True while a row menu is open or a row is being renamed; a floating host should not close over it. */
   onInteractionChange?: (active: boolean) => void;
 }
@@ -210,11 +245,12 @@ export const ShellSectionItems: React.FC<ShellSectionItemsProps> = ({
   onSelect,
   onRename,
   onDelete,
+  onTogglePin,
   onInteractionChange,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const hasMenu = !!onRename || !!onDelete;
+  const hasMenu = !!onRename || !!onDelete || !!onTogglePin;
 
   useEffect(() => {
     if (editingId != null && !items.some((item) => item.id === editingId)) setEditingId(null);
@@ -225,75 +261,102 @@ export const ShellSectionItems: React.FC<ShellSectionItemsProps> = ({
     onInteractionChange?.(interacting);
   }, [interacting, onInteractionChange]);
 
+  const renderItem = (item: ShellSectionItemDto) => {
+    const ItemIcon = item.icon ? sectionItemIcons[item.icon] : undefined;
+    const badges = showBadges ? item.badges : undefined;
+    const editing = editingId === item.id;
+    const row = (
+      <span className="tsh-section-item-top">
+        {ItemIcon && (
+          <span className="tsh-section-item-icon">
+            <ItemIcon size={14} />
+          </span>
+        )}
+        {item.state && <ItemStateIcon state={item.state} />}
+        {editing && onRename ? (
+          <ItemTitleEditor
+            title={item.title}
+            onSave={(title) => {
+              setEditingId(null);
+              onRename(item.id, title);
+            }}
+            onCancel={() => setEditingId(null)}
+          />
+        ) : (
+          <span className="tsh-section-item-title">{item.title}</span>
+        )}
+        {item.pinned && <Pin size={12} className="tsh-section-item-pin" />}
+        {item.tag && <span className="tsh-section-item-tag">{item.tag}</span>}
+      </span>
+    );
+    const badgeRow = badges && badges.length > 0 && (
+      <span className="tsh-section-item-badges">
+        {badges.map((badge, i) => (
+          <Badge key={i} kind={badge.kind} color={badge.color}>
+            {badge.label}
+          </Badge>
+        ))}
+      </span>
+    );
+    const rowElement = editing ? (
+      <div className="tsh-section-item" data-selected={item.id === selectedId} data-editing="true">
+        {row}
+        {badgeRow}
+      </div>
+    ) : (
+      <button
+        className="tsh-section-item"
+        data-selected={item.id === selectedId}
+        onClick={() => onSelect(item.id)}
+      >
+        {row}
+        {badgeRow}
+      </button>
+    );
+    if (!hasMenu) return <React.Fragment key={item.id}>{rowElement}</React.Fragment>;
+    return (
+      <div key={item.id} className="tsh-section-item-wrap">
+        {rowElement}
+        {!editing && (
+          <ItemMenu
+            item={item}
+            onTogglePin={onTogglePin ? () => onTogglePin(item.id) : undefined}
+            onRename={onRename ? () => setEditingId(item.id) : undefined}
+            onDelete={onDelete ? () => onDelete(item.id) : undefined}
+            onOpenChange={(open) =>
+              setMenuOpenId((current) => (open ? item.id : current === item.id ? null : current))
+            }
+          />
+        )}
+      </div>
+    );
+  };
+
+  const hasPinned = items.some((item) => item.pinned);
+  const pinnedItems = hasPinned ? items.filter((item) => item.pinned) : [];
+  const recentItems = hasPinned ? items.filter((item) => !item.pinned) : [];
+
   return (
     <div className={`tsh-section-list ${className}`.trim()}>
       {items.length === 0 && emptyText && <div className="tsh-section-empty">{emptyText}</div>}
-      {items.map((item) => {
-        const ItemIcon = item.icon ? sectionItemIcons[item.icon] : undefined;
-        const badges = showBadges ? item.badges : undefined;
-        const editing = editingId === item.id;
-        const row = (
-          <span className="tsh-section-item-top">
-            {ItemIcon && (
-              <span className="tsh-section-item-icon">
-                <ItemIcon size={14} />
-              </span>
-            )}
-            {item.state && <ItemStateIcon state={item.state} />}
-            {editing && onRename ? (
-              <ItemTitleEditor
-                title={item.title}
-                onSave={(title) => {
-                  setEditingId(null);
-                  onRename(item.id, title);
-                }}
-                onCancel={() => setEditingId(null)}
-              />
-            ) : (
-              <span className="tsh-section-item-title">{item.title}</span>
-            )}
-            {item.tag && <span className="tsh-section-item-tag">{item.tag}</span>}
-          </span>
-        );
-        const badgeRow = badges && badges.length > 0 && (
-          <span className="tsh-section-item-badges">
-            {badges.map((badge, i) => (
-              <Badge key={i} kind={badge.kind} color={badge.color}>
-                {badge.label}
-              </Badge>
-            ))}
-          </span>
-        );
-        const rowElement = editing ? (
-          <div className="tsh-section-item" data-selected={item.id === selectedId} data-editing="true">
-            {row}
-            {badgeRow}
-          </div>
-        ) : (
-          <button
-            className="tsh-section-item"
-            data-selected={item.id === selectedId}
-            onClick={() => onSelect(item.id)}
-          >
-            {row}
-            {badgeRow}
-          </button>
-        );
-        if (!hasMenu) return <React.Fragment key={item.id}>{rowElement}</React.Fragment>;
-        return (
-          <div key={item.id} className="tsh-section-item-wrap">
-            {rowElement}
-            {!editing && (
-              <ItemMenu
-                item={item}
-                onRename={onRename ? () => setEditingId(item.id) : undefined}
-                onDelete={onDelete ? () => onDelete(item.id) : undefined}
-                onOpenChange={(open) => setMenuOpenId((current) => (open ? item.id : current === item.id ? null : current))}
-              />
-            )}
-          </div>
-        );
-      })}
+      {hasPinned ? (
+        <>
+          {pinnedItems.length > 0 && (
+            <>
+              <div className="tsh-section-group-label">Pinned</div>
+              {pinnedItems.map(renderItem)}
+            </>
+          )}
+          {recentItems.length > 0 && (
+            <>
+              <div className="tsh-section-group-label">Recent</div>
+              {recentItems.map(renderItem)}
+            </>
+          )}
+        </>
+      ) : (
+        items.map(renderItem)
+      )}
     </div>
   );
 };

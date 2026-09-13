@@ -42,7 +42,9 @@ public record ChatSessionModel(
     string? Effort = null,
     List<string>? SpawnedJobIds = null,
     string? Kind = null,
-    string? PlanFolderName = null
+    string? PlanFolderName = null,
+    bool IsPinned = false,
+    DateTimeOffset? PinnedAt = null
 );
 
 public static class ChatSessionKinds
@@ -64,6 +66,7 @@ public interface IChatHistoryService
     void SaveSession(ChatSessionModel session);
     void DeleteSession(string id);
     void RenameSession(string id, string newTitle);
+    void PinSession(string id, bool isPinned);
     ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null);
     ChatMessageModel? UpdateMessage(string sessionId, string messageId, ChatMessageUpdate update);
     void FlushSession(string sessionId);

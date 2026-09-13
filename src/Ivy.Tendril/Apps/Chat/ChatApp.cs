@@ -105,7 +105,8 @@ public class ChatApp : ViewBase
         Action openSearch,
         Action? startNewChat = null,
         Action<string, string>? renameSession = null,
-        Action<string>? deleteSession = null)
+        Action<string>? deleteSession = null,
+        Action<string>? togglePinSession = null)
     {
         var items = sessions
             .Select(s => new ShellSectionItemDto(
@@ -113,7 +114,8 @@ public class ChatApp : ViewBase
                 DisplayTitle(s),
                 PlanTag(s),
                 Icon: s.IsTerminal() ? "Terminal" : null,
-                State: BuildRowState(s, selectedId, generatingIds, completedIds)))
+                State: BuildRowState(s, selectedId, generatingIds, completedIds),
+                Pinned: s.IsPinned))
             .ToList();
         return new ShellSidebarListState(
             "chat", "Chats", items, selectedId,
@@ -125,7 +127,8 @@ public class ChatApp : ViewBase
             NewLabel: startNewChat != null ? "New chat" : null,
             CollapsedMenu: true,
             OnRename: renameSession,
-            OnDelete: deleteSession);
+            OnDelete: deleteSession,
+            OnTogglePin: togglePinSession);
     }
 
     public override object Build()
@@ -388,7 +391,7 @@ public class ChatApp : ViewBase
             SendMessage(new ChatSendMessageDto(args.Prompt, null, targetId));
         }
 
-        var sidebarFingerprint = $"{currentSessionId}|{allSessions.Count}|{string.Join(",", chatService.GetGeneratingSessionIds())}|{string.Join(",", chatService.GetCompletedSessionIds())}|{sessionVersion.Value}";
+        var sidebarFingerprint = $"{currentSessionId}|{allSessions.Count}|{string.Join(",", chatService.GetGeneratingSessionIds())}|{string.Join(",", chatService.GetCompletedSessionIds())}|{string.Join(",", allSessions.Where(s => s.IsPinned).Select(s => s.Id))}|{sessionVersion.Value}";
         if (sidebarFingerprint != lastSidebarFingerprint.Value)
         {
             lastSidebarFingerprint.Value = sidebarFingerprint;
@@ -404,7 +407,16 @@ public class ChatApp : ViewBase
                     chatService.RenameSession(id, title);
                     sessionVersion.Set(v => v + 1);
                 },
-                id => deletingSessionId.Set(id)));
+                id => deletingSessionId.Set(id),
+                id =>
+                {
+                    var s = chatService.GetSession(id);
+                    if (s != null)
+                    {
+                        chatService.PinSession(id, !s.IsPinned);
+                        sessionVersion.Set(v => v + 1);
+                    }
+                }));
         }
 
         var content = new ContentView(

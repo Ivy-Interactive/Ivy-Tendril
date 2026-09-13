@@ -73,6 +73,9 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   const deleteItem = events.includes("OnDeleteItem")
     ? (itemId: string) => eventHandler("OnDeleteItem", id, [itemId])
     : undefined;
+  const togglePinItem = events.includes("OnTogglePinItem")
+    ? (itemId: string) => eventHandler("OnTogglePinItem", id, [itemId])
+    : undefined;
 
   useEffect(() => {
     if (!searchable) return;
@@ -168,7 +171,11 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                   <Search size={16} />
                   <span className="tsh-section-search-button-label">Search</span>
                 </span>
-                <Kbd keys={[modKeyLabel(), SEARCH_SHORTCUT_KEY]} variant="bare" className="tsh-kbd" />
+                <Kbd
+                  keys={[modKeyLabel(), SEARCH_SHORTCUT_KEY]}
+                  variant="bare"
+                  className="tsh-kbd"
+                />
               </span>
             </button>
           </ShellTooltip>
@@ -187,7 +194,11 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
             )}
             {searchable && (
               <ShellTooltip content={searchLabel} shortcut={shortcutHint} side="right">
-                <button className="tsh-section-search" onClick={openSearch} aria-label={searchLabel}>
+                <button
+                  className="tsh-section-search"
+                  onClick={openSearch}
+                  aria-label={searchLabel}
+                >
                   <Search size={16} />
                 </button>
               </ShellTooltip>
@@ -202,6 +213,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
         onSelect={select}
         onRename={renameItem}
         onDelete={deleteItem}
+        onTogglePin={togglePinItem}
       />
     </div>
   );

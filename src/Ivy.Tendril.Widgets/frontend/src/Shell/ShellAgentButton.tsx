@@ -66,6 +66,9 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   const fireDelete = events.includes("OnDeleteItem")
     ? (itemId: string) => eventHandler("OnDeleteItem", id, [itemId])
     : undefined;
+  const fireTogglePin = events.includes("OnTogglePinItem")
+    ? (itemId: string) => eventHandler("OnTogglePinItem", id, [itemId])
+    : undefined;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -145,6 +148,7 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
           onNew={fireNewChat}
           onRename={fireRename}
           onDelete={fireDelete}
+          onTogglePin={fireTogglePin}
         >
           {renderButton}
         </ShellRailFlyout>

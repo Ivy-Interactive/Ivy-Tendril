@@ -978,4 +978,91 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void PinSession_SetsIsPinnedAndPinnedAt_AndPersistsToDisk()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus", "Pin Test");
+            service.AddMessage(session.Id, "user", "Hello");
+
+            var eventRaised = false;
+            service.SessionsChanged += (_, _) => eventRaised = true;
+
+            service.PinSession(session.Id, true);
+
+            var updated = service.GetSession(session.Id);
+            Assert.NotNull(updated);
+            Assert.True(updated.IsPinned);
+            Assert.NotNull(updated.PinnedAt);
+            Assert.True(eventRaised);
+
+            var filePath = Path.Combine(tempDir, "Chats", $"{session.Id}.json");
+            Assert.True(File.Exists(filePath));
+            var json = File.ReadAllText(filePath);
+            Assert.Contains("\"IsPinned\": true", json);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PinSession_UnpinClearsPinnedAt()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus", "Unpin Test");
+            service.AddMessage(session.Id, "user", "Hello");
+
+            service.PinSession(session.Id, true);
+            var pinned = service.GetSession(session.Id);
+            Assert.NotNull(pinned);
+            Assert.True(pinned.IsPinned);
+            Assert.NotNull(pinned.PinnedAt);
+
+            service.PinSession(session.Id, false);
+            var unpinned = service.GetSession(session.Id);
+            Assert.NotNull(unpinned);
+            Assert.False(unpinned.IsPinned);
+            Assert.Null(unpinned.PinnedAt);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void GetSessions_ReturnsPinnedSessionsFirst()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session1 = service.CreateSession("claude", "opus", "Old Session");
+            service.AddMessage(session1.Id, "user", "Msg 1");
+
+            var session2 = service.CreateSession("claude", "opus", "Newer Session");
+            service.AddMessage(session2.Id, "user", "Msg 2");
+
+            // Pin session1 (which has an older UpdatedAt than session2)
+            service.PinSession(session1.Id, true);
+
+            var sessions = service.GetSessions();
+            Assert.Equal(2, sessions.Count);
+            Assert.Equal(session1.Id, sessions[0].Id);
+            Assert.Equal(session2.Id, sessions[1].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }

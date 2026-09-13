@@ -31,7 +31,8 @@ public record ShellSidebarListState(
     string? NewLabel = null,
     bool CollapsedMenu = false,
     Action<string, string>? OnRename = null,
-    Action<string>? OnDelete = null);
+    Action<string>? OnDelete = null,
+    Action<string>? OnTogglePin = null);
 
 [Signal(BroadcastType.AppShell)]
 public class ShellSidebarListSignal : AbstractSignal<ShellSidebarListState, Unit> { }

@@ -291,7 +291,8 @@ public class ChatHistoryService : IChatHistoryService
     public IReadOnlyList<ChatSessionModel> GetSessions()
     {
         return _sessions.Values
-            .OrderByDescending(s => s.UpdatedAt)
+            .OrderByDescending(s => s.IsPinned)
+            .ThenByDescending(s => s.IsPinned ? (s.PinnedAt ?? s.UpdatedAt) : s.UpdatedAt)
             .ToList();
     }
 
@@ -394,6 +395,32 @@ public class ChatHistoryService : IChatHistoryService
             {
                 Title = CleanTitle(newTitle),
                 UpdatedAt = DateTimeOffset.UtcNow
+            };
+            _sessions[id] = updated;
+        }
+
+        if (updated != null)
+        {
+            CancelPendingPersist(id);
+            _lastPersistTimes[id] = DateTimeOffset.UtcNow;
+            PersistSessionToDisk(updated);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public void PinSession(string id, bool isPinned)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+        ChatSessionModel? updated = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(id);
+            if (session == null) return;
+            if (session.IsPinned == isPinned) return;
+            updated = session with
+            {
+                IsPinned = isPinned,
+                PinnedAt = isPinned ? DateTimeOffset.UtcNow : null
             };
             _sessions[id] = updated;
         }
