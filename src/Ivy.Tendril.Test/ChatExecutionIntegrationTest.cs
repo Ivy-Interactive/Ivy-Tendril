@@ -921,6 +921,118 @@ public class ChatExecutionServiceTests
             }
         }
     }
+
+    [Fact]
+    public async Task SendMessageAsync_WithAttachmentStagedInTemp_MigratesAttachmentToSessionFolderAndResolvesPath()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatAttachTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var execService = new ChatExecutionService(configService, chatService, agentRunner, namingService, serializer);
+
+            var stagedTempDir = Path.Combine(tempDir, "Attachments", "temp");
+            Directory.CreateDirectory(stagedTempDir);
+            var stagedFile = Path.Combine(stagedTempDir, "test_diagram.png");
+            await File.WriteAllTextAsync(stagedFile, "fake-image-bytes");
+
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            await execService.SendMessageAsync(
+                session.Id,
+                "Review this image",
+                [new ChatAttachmentDto("test_diagram.png", "image/png", 1024)]);
+
+            var expectedSessionFile = Path.Combine(tempDir, "Attachments", session.Id, "test_diagram.png");
+            Assert.True(File.Exists(expectedSessionFile), $"Expected file to exist at {expectedSessionFile}");
+            Assert.False(File.Exists(stagedFile), $"Expected staged file at {stagedFile} to have been moved");
+
+            var updatedSession = chatService.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var userMessage = updatedSession.Messages.FirstOrDefault(m => m.Role == "user");
+            Assert.NotNull(userMessage);
+            Assert.Contains("[Attached Files]:", userMessage.Content);
+            Assert.Contains(expectedSessionFile, userMessage.Content);
+
+            var warningMessage = updatedSession.Messages.FirstOrDefault(m => m.Role == "assistant" && m.Content.Contains("Warning: Some attachments could not be processed"));
+            Assert.Null(warningMessage);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_WithMultipleAttachmentsStagedInTemp_MigratesAllAttachmentsSuccessfully()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatAttachMultiTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var execService = new ChatExecutionService(configService, chatService, agentRunner, namingService, serializer);
+
+            var stagedTempDir = Path.Combine(tempDir, "Attachments", "temp");
+            Directory.CreateDirectory(stagedTempDir);
+            var file1 = Path.Combine(stagedTempDir, "doc1.txt");
+            var file2 = Path.Combine(stagedTempDir, "chart.png");
+            await File.WriteAllTextAsync(file1, "doc content");
+            await File.WriteAllTextAsync(file2, "chart content");
+
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            await execService.SendMessageAsync(
+                session.Id,
+                "Check these two files",
+                [
+                    new ChatAttachmentDto("doc1.txt", "text/plain", 11),
+                    new ChatAttachmentDto("chart.png", "image/png", 13, LocalPath: file2)
+                ]);
+
+            var expectedSessionFile1 = Path.Combine(tempDir, "Attachments", session.Id, "doc1.txt");
+            var expectedSessionFile2 = Path.Combine(tempDir, "Attachments", session.Id, "chart.png");
+
+            Assert.True(File.Exists(expectedSessionFile1), $"Expected file 1 to exist at {expectedSessionFile1}");
+            Assert.True(File.Exists(expectedSessionFile2), $"Expected file 2 to exist at {expectedSessionFile2}");
+            Assert.False(File.Exists(file1), $"Expected {file1} to be moved");
+            Assert.False(File.Exists(file2), $"Expected {file2} to be moved");
+
+            var updatedSession = chatService.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var userMessage = updatedSession.Messages.FirstOrDefault(m => m.Role == "user");
+            Assert.NotNull(userMessage);
+            Assert.Contains("[Attached Files]:", userMessage.Content);
+            Assert.Contains(expectedSessionFile1, userMessage.Content);
+            Assert.Contains(expectedSessionFile2, userMessage.Content);
+
+            var warningMessage = updatedSession.Messages.FirstOrDefault(m => m.Role == "assistant" && m.Content.Contains("Warning: Some attachments could not be processed"));
+            Assert.Null(warningMessage);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
 }
 
 
