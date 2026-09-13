@@ -186,7 +186,7 @@ public class ContentView(
             {
                 if (string.IsNullOrEmpty(e.Value)) return ValueTask.CompletedTask;
                 var preference = preferences?.Get(e.Value) ?? new ChatAgentPreference();
-                var model = ChatApp.ResolveModel(ChatApp.GetModelsForAgent(agentRunner, e.Value), preference.ModelId);
+                var model = ChatApp.ResolveModel(agentRunner, e.Value, ChatApp.GetModelsForAgent(agentRunner, e.Value), preference.ModelId);
                 var effort = ChatApp.ResolveEffort(ChatApp.GetEffortsForAgentAndModel(agentRunner, e.Value, model), preference.Effort);
                 selectedAgent.Set(e.Value);
                 selectedModel.Set(model);

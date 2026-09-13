@@ -159,6 +159,8 @@ public class ChatApp : ViewBase
             var sess = InitialSession();
             if (!string.IsNullOrEmpty(sess?.ModelId)) return sess.ModelId;
             return ResolveModel(
+                agentRunner,
+                selectedAgent.Value,
                 GetModelsForAgent(agentRunner, selectedAgent.Value),
                 preferences?.Get(selectedAgent.Value).ModelId,
                 configService.Settings.LastChatModel);
@@ -304,7 +306,7 @@ public class ChatApp : ViewBase
         var streamingMessageId = isSessionGenerating ? executionService.GetStreamingMessageId(currentSessionId!) : null;
 
         var currentModelOptions = GetModelsForAgent(agentRunner, selectedAgent.Value);
-        var effectiveModel = ResolveModel(currentModelOptions, selectedModel.Value);
+        var effectiveModel = ResolveModel(agentRunner, selectedAgent.Value, currentModelOptions, selectedModel.Value);
         var modelDtos = currentModelOptions.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList();
 
         var supportsEffort = DoesAgentSupportEffort(agentRunner, selectedAgent.Value);
@@ -548,7 +550,35 @@ public class ChatApp : ViewBase
             var match = models.FirstOrDefault(m => m.Id.Equals(candidate, StringComparison.OrdinalIgnoreCase));
             if (match.Id != null) return match.Id;
         }
+
+        var defaultCandidate = models.FirstOrDefault(m =>
+            m.DisplayName.Contains("(Default)", StringComparison.OrdinalIgnoreCase) ||
+            m.DisplayName.EndsWith(" Default", StringComparison.OrdinalIgnoreCase) ||
+            m.Id.Equals("default", StringComparison.OrdinalIgnoreCase));
+        if (defaultCandidate.Id != null) return defaultCandidate.Id;
+
         return models.Count > 0 ? models[0].Id : "default";
+    }
+
+    internal static string ResolveModel(IAgentRunner runner, string agentId, IReadOnlyList<(string Id, string DisplayName)> models, params string?[]? preferred)
+    {
+        foreach (var candidate in preferred ?? [])
+        {
+            if (string.IsNullOrEmpty(candidate)) continue;
+            var match = models.FirstOrDefault(m => m.Id.Equals(candidate, StringComparison.OrdinalIgnoreCase));
+            if (match.Id != null) return match.Id;
+        }
+
+        var normalized = AgentProviderFactory.NormalizeAgentName(agentId);
+        var catalog = runner.GetModelCatalog(normalized);
+        var defaultModelId = catalog?.GetStaticModels()?.FirstOrDefault(m => m.IsDefault)?.Id;
+        if (!string.IsNullOrEmpty(defaultModelId))
+        {
+            var match = models.FirstOrDefault(m => m.Id.Equals(defaultModelId, StringComparison.OrdinalIgnoreCase));
+            if (match.Id != null) return match.Id;
+        }
+
+        return ResolveModel(models, preferred);
     }
 
     internal static string ResolveEffort(IReadOnlyList<EffortOptionDto> efforts, params string?[]? preferred)
@@ -586,7 +616,7 @@ public class ChatApp : ViewBase
             var isSelected = agentId.Equals(selectedAgent, StringComparison.OrdinalIgnoreCase);
             var preference = preferences?.Get(agentId) ?? new ChatAgentPreference();
             var agentModels = GetModelsForAgent(agentRunner, agentId);
-            var model = ResolveModel(agentModels, isSelected ? selectedModel : preference.ModelId);
+            var model = ResolveModel(agentRunner, agentId, agentModels, isSelected ? selectedModel : preference.ModelId);
             var agentEfforts = GetEffortsForAgentAndModel(agentRunner, agentId, model);
             var effort = ResolveEffort(agentEfforts, isSelected ? selectedEffort : preference.Effort);
             return new AgentOptionDto(
@@ -662,7 +692,7 @@ public class ChatApp : ViewBase
             var staticModels = catalog.GetStaticModels();
             if (staticModels != null && staticModels.Count > 0)
             {
-                var sorted = ModelCatalogSorter.Sort(staticModels);
+                var sorted = ModelCatalogSorter.Sort(staticModels, preserveDefault: true);
                 return sorted.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
             }
         }

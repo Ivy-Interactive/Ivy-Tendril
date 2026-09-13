@@ -36,6 +36,13 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
     [
         new ModelInfo
         {
+            Id = "claude-opus-5", DisplayName = "Claude Opus 5",
+            Capabilities = FullCaps, IsDefault = true,
+            SupportedEfforts = EffortLevels.Claude,
+            Provider = "anthropic",
+        }.WithSpec(),
+        new ModelInfo
+        {
             Id = "claude-fable-5", DisplayName = "Claude Fable 5",
             Capabilities = FullCaps,
             SupportedEfforts = EffortLevels.Claude,
@@ -45,13 +52,6 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         {
             Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1",
             Capabilities = FullCaps,
-            SupportedEfforts = EffortLevels.Claude,
-            Provider = "anthropic",
-        }.WithSpec(),
-        new ModelInfo
-        {
-            Id = "claude-opus-5", DisplayName = "Claude Opus 5",
-            Capabilities = FullCaps, IsDefault = true,
             SupportedEfforts = EffortLevels.Claude,
             Provider = "anthropic",
         }.WithSpec(),
@@ -78,7 +78,7 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         }.WithSpec(),
         new ModelInfo
         {
-            Id = "opus", DisplayName = "Claude Opus (Default)",
+            Id = "opus", DisplayName = "Claude Opus",
             Capabilities = FullCaps,
             SupportedEfforts = EffortLevels.Claude,
             Provider = "anthropic",
