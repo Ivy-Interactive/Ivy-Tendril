@@ -43,6 +43,24 @@ public static class FormatHelper
     }
 
     /// <summary>
+    ///     Formats a percentage as a human-readable string with at most one decimal place,
+    ///     e.g. "83.3%" or "100%".
+    /// </summary>
+    public static string FormatPercent(double percent)
+    {
+        return percent.ToString("0.#", CultureInfo.InvariantCulture) + "%";
+    }
+
+    /// <summary>
+    ///     Formats a percentage as a human-readable string with at most one decimal place,
+    ///     e.g. "83.3%" or "100%".
+    /// </summary>
+    public static string FormatPercent(decimal percent)
+    {
+        return percent.ToString("0.#", CultureInfo.InvariantCulture) + "%";
+    }
+
+    /// <summary>
     ///     Title-cases an execution profile for display: profiles are stored lowercase ("deep",
     ///     "balanced") but read as labels, so "Deep" is what belongs in a table cell or a details
     ///     row. Returns null for a blank profile, so callers can drop the row rather than render an
