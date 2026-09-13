@@ -35,6 +35,7 @@ internal class JobMonitor
         Task.Run(MonitorProcessAsync);
         _ = RunJobTimeoutWatchdog();
         _ = RunStaleOutputWatchdog(_id, _timeoutCts, _ctx.Jobs, _ctx.StaleOutputTimeout);
+        _ = RunPostResultGraceWatchdog(_id, _timeoutCts, _ctx.Jobs, _process, _logger);
 
         // Status updates now arrive via HTTP (PUT /api/jobs/{id}/status)
         // — no file polling needed.
@@ -88,6 +89,15 @@ internal class JobMonitor
 
     private void HandleNormalExit(bool normalExit)
     {
+        if (_ctx.Jobs.TryGetValue(_id, out var postResultJob) && postResultJob.PostResultGraceExceeded)
+        {
+            _logger.LogInformation("Job {JobId}: Process terminated after post-result grace period. Completing with ResultEvent outcome", _id);
+            var exitCode = postResultJob.LastResultEvent?.IsSuccess == true ? 0 : (postResultJob.LastResultEvent?.ExitCode ?? 1);
+            postResultJob.ExitCode = exitCode;
+            _ctx.CompleteJob(_id, exitCode, false, false);
+            return;
+        }
+
         if (!normalExit)
         {
             _logger.LogWarning("Job {JobId}: Process killed after timeout", _id);
@@ -110,6 +120,15 @@ internal class JobMonitor
 
     private void HandleHardTimeout()
     {
+        if (_ctx.Jobs.TryGetValue(_id, out var postResultJob) && postResultJob.PostResultGraceExceeded)
+        {
+            _logger.LogInformation("Job {JobId}: Hard timeout reached after post-result grace termination. Completing with ResultEvent outcome", _id);
+            var exitCode = postResultJob.LastResultEvent?.IsSuccess == true ? 0 : (postResultJob.LastResultEvent?.ExitCode ?? 1);
+            postResultJob.ExitCode = exitCode;
+            _ctx.CompleteJob(_id, exitCode, false, false);
+            return;
+        }
+
         var hardTimeout = _ctx.JobTimeout() + TimeSpan.FromMinutes(5);
         _logger.LogError("Job {JobId}: HARD TIMEOUT after {Minutes} minutes - process may still be running",
             _id, hardTimeout.TotalMinutes);
@@ -153,6 +172,12 @@ internal class JobMonitor
                 if (job.Process is { HasExited: true })
                     return;
 
+                // Once a terminal ResultEvent has been received, the agent has finished its work;
+                // lack of further output is expected while the process wraps up.
+                // The post-result grace watchdog handles terminating the process if it lingers.
+                if (job.LastResultEvent != null)
+                    return;
+
                 var currentTimeout = staleOutputTimeout();
                 if (currentTimeout <= TimeSpan.Zero)
                     continue;
@@ -164,6 +189,55 @@ internal class JobMonitor
                 job.StaleOutputDetected = true;
                 try { timeoutCts.Cancel(); } catch (ObjectDisposedException) { }
                 return;
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    internal static async Task RunPostResultGraceWatchdog(
+        string id,
+        CancellationTokenSource timeoutCts,
+        ConcurrentDictionary<string, JobItem> jobs,
+        Process process,
+        ILogger logger,
+        TimeSpan? gracePeriodOverride = null,
+        TimeSpan? tickInterval = null)
+    {
+        var gracePeriod = gracePeriodOverride ?? TimeSpan.FromSeconds(20);
+        var interval = tickInterval ?? TimeSpan.FromSeconds(1);
+        try
+        {
+            while (!timeoutCts.Token.IsCancellationRequested)
+            {
+                await Task.Delay(interval, timeoutCts.Token);
+                if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
+                    return;
+
+                if (job.Process is { HasExited: true } || process.HasExited)
+                    return;
+
+                if (job.ResultReceivedAt is { } resultAt)
+                {
+                    if (DateTime.UtcNow - resultAt >= gracePeriod)
+                    {
+                        job.PostResultGraceExceeded = true;
+                        logger.LogInformation(
+                            "Job {JobId}: Agent emitted terminal ResultEvent but process did not exit within {GraceSeconds}s grace period — terminating process tree",
+                            id, (int)gracePeriod.TotalSeconds);
+
+                        try
+                        {
+                            if (!process.HasExited)
+                                process.Kill(entireProcessTree: true);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "Job {JobId}: Failed to kill process after post-result grace period", id);
+                        }
+                        return;
+                    }
+                }
             }
         }
         catch (OperationCanceledException) { }

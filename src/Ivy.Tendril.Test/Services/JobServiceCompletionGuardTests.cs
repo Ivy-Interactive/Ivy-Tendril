@@ -1,5 +1,10 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Jobs;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Services;
 
@@ -581,6 +586,175 @@ public class JobServiceCompletionGuardTests : IDisposable
         Assert.NotNull(job);
         Assert.Equal(JobStatus.Failed, job.Status);
         Assert.True(Directory.Exists(foreignFolder));
+    }
+
+    [Fact]
+    public void CompleteJob_TimedOutExecutePlan_CompletedPlan_DoesNotRevertToDraft()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Completed);
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Draft;
+
+        service.CompleteJob(id, null, timedOut: true, staleOutput: true);
+
+        Assert.Equal(JobStatus.Timeout, service.GetJob(id)!.Status);
+        Assert.Empty(plan.Transitions);
+    }
+
+    [Fact]
+    public void CompleteJob_TimedOutExecutePlan_ReviewPlan_DoesNotRevertToDraft()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Review);
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Draft;
+
+        service.CompleteJob(id, null, timedOut: true, staleOutput: true);
+
+        Assert.Equal(JobStatus.Timeout, service.GetJob(id)!.Status);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Draft);
+    }
+
+    [Fact]
+    public void CompleteJob_FailedExecutePlan_CompletedPlan_DoesNotRevertToDraft()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Completed);
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Draft;
+
+        service.CompleteJob(id, 1);
+
+        Assert.Equal(JobStatus.Failed, service.GetJob(id)!.Status);
+        Assert.Empty(plan.Transitions);
+    }
+
+    [Fact]
+    public void CompleteJob_FailedExecutePlan_ReviewPlan_DoesNotRevertToDraft()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Review);
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Draft;
+
+        service.CompleteJob(id, 1);
+
+        Assert.Equal(JobStatus.Failed, service.GetJob(id)!.Status);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Draft);
+    }
+
+    [Fact]
+    public void StopJob_CompletedPlan_DoesNotRevertToDraft()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Completed);
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Draft;
+
+        service.StopJob(id);
+
+        Assert.Equal(JobStatus.Stopped, service.GetJob(id)!.Status);
+        Assert.Empty(plan.Transitions);
+    }
+
+    [Fact]
+    public void StopJob_ReviewPlan_DoesNotRevertToDraft()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Review);
+        var id = service.CreateTestJob(new ExecutePlanArgs("test-plan"));
+        service.GetJob(id)!.PreviousPlanState = PlanStatus.Draft;
+
+        service.StopJob(id);
+
+        Assert.Equal(JobStatus.Stopped, service.GetJob(id)!.Status);
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Draft);
+    }
+
+    [Fact]
+    public void CompleteJob_EnsurePlanStateTransitioned_CompletedPlan_DoesNotTransition()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Completed);
+        var planFolder = Path.Combine(_tempDir.Path, "00778-CompletedPlan");
+        Directory.CreateDirectory(planFolder);
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"),
+            "state: Completed\nproject: Test\nverifications:\n- name: DotnetBuild\n  status: Pass\n");
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
+        service.CompleteJob(id, 0);
+
+        Assert.Empty(plan.Transitions);
+    }
+
+    [Fact]
+    public void CompleteJob_EnsurePlanStateTransitioned_ReviewPlan_DoesNotTransitionToFailed()
+    {
+        var (service, plan) = CreateServiceWithStub(currentStatus: PlanStatus.Review);
+        var planFolder = Path.Combine(_tempDir.Path, "00779-ReviewPlan");
+        Directory.CreateDirectory(planFolder);
+        File.WriteAllText(Path.Combine(planFolder, "plan.yaml"),
+            "state: Review\nproject: Test\nverifications:\n- name: DotnetBuild\n  status: Pending\n");
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
+        service.CompleteJob(id, 0);
+
+        Assert.DoesNotContain(plan.Transitions, t => t.State == PlanStatus.Failed);
+    }
+
+    [Fact]
+    public async Task RunStaleOutputWatchdog_WhenResultEventPresent_DoesNotTimeout()
+    {
+        using var cts = new CancellationTokenSource();
+        var jobs = new ConcurrentDictionary<string, JobItem>();
+        var job = new JobItem
+        {
+            Id = "job-stale-test",
+            Status = JobStatus.Running,
+            LastOutputAt = DateTime.UtcNow.AddMinutes(-30),
+            LastResultEvent = new ResultEvent { Kind = AgentEventKind.Result, IsSuccess = true }
+        };
+        jobs[job.Id] = job;
+
+        await JobMonitor.RunStaleOutputWatchdog(
+            job.Id, cts, jobs, () => TimeSpan.FromMilliseconds(1));
+
+        Assert.False(job.StaleOutputDetected);
+        Assert.False(cts.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task RunPostResultGraceWatchdog_GraceExpired_SetsPostResultGraceExceeded()
+    {
+        using var cts = new CancellationTokenSource();
+        var jobs = new ConcurrentDictionary<string, JobItem>();
+        var job = new JobItem
+        {
+            Id = "job-grace-test",
+            Status = JobStatus.Running,
+            ResultReceivedAt = DateTime.UtcNow.AddSeconds(-30),
+            LastResultEvent = new ResultEvent { Kind = AgentEventKind.Result, IsSuccess = true }
+        };
+        jobs[job.Id] = job;
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "sleep",
+            Arguments = OperatingSystem.IsWindows() ? "/c ping 127.0.0.1 -n 10" : "10",
+            CreateNoWindow = true,
+            UseShellExecute = false
+        };
+        using var sleepProc = Process.Start(psi)!;
+        job.Process = sleepProc;
+
+        try
+        {
+            await JobMonitor.RunPostResultGraceWatchdog(
+                job.Id, cts, jobs, sleepProc, NullLogger.Instance,
+                gracePeriodOverride: TimeSpan.FromMilliseconds(10),
+                tickInterval: TimeSpan.FromMilliseconds(5));
+
+            Assert.True(job.PostResultGraceExceeded);
+            Assert.True(sleepProc.WaitForExit(3000));
+        }
+        finally
+        {
+            try { if (!sleepProc.HasExited) sleepProc.Kill(true); } catch { }
+        }
     }
 
     private class StubPlanReaderService(string plansDirectory) : IPlanReaderService

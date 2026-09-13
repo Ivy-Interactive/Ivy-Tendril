@@ -159,6 +159,10 @@ public record JobItem
         set => _staleOutputDetected = value;
     }
 
+    [JsonIgnore] public ResultEvent? LastResultEvent { get; set; }
+    [JsonIgnore] public DateTime? ResultReceivedAt { get; set; }
+    [JsonIgnore] public bool PostResultGraceExceeded { get; set; }
+
     // Path to the .processing inbox file for CreatePlan job recovery
     public string? InboxFile { get; set; }
 
@@ -215,6 +219,12 @@ public record JobItem
 
             if (evt is SessionInitEvent { Model: not null } initEvt)
                 Model = initEvt.Model;
+
+            if (evt is ResultEvent resultEvt)
+            {
+                LastResultEvent = resultEvt;
+                ResultReceivedAt = DateTime.UtcNow;
+            }
 
             var serialized = _eventSerializer.Serialize(evt);
             RecordEvent(serialized);

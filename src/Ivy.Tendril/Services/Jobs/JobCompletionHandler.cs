@@ -595,6 +595,18 @@ internal class JobCompletionHandler
             var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
             if (planYaml == null) return;
 
+            var current = _planReaderService?.GetPlanByFolder(planFolder)?.Status
+                ?? (Enum.TryParse<PlanStatus>(planYaml.State, true, out var parsed) ? parsed : (PlanStatus?)null);
+
+            // Terminal plans (PR created, or manually Skipped) are immutable: a late
+            // successful job must not move them backward to Review or Failed.
+            if (current is PlanStatus.Completed or PlanStatus.Skipped)
+            {
+                _logger.LogInformation("Job {JobId}: Not transitioning plan {PlanFolder} because it is already {State}",
+                    job.Id, Path.GetFileName(planFolder), current);
+                return;
+            }
+
             // A failed pre-execution means the plan's premise was checked and rejected, so nothing
             // was implemented. That is decisive regardless of the verification rows: the agent may
             // have left them Pending (which hasIncomplete already catches) or set them all Skipped
@@ -607,6 +619,14 @@ internal class JobCompletionHandler
             var targetState = preExecution == VerificationStatus.Fail || hasIncomplete
                 ? PlanStatus.Failed
                 : PlanStatus.Review;
+
+            // Do not stomp Review back to Failed on a late job
+            if (current == PlanStatus.Review && targetState == PlanStatus.Failed)
+            {
+                _logger.LogInformation("Job {JobId}: Not transitioning plan {PlanFolder} from Review to Failed",
+                    job.Id, Path.GetFileName(planFolder));
+                return;
+            }
 
             var folderName = Path.GetFileName(planFolder);
             if (_planReaderService != null)
@@ -625,6 +645,20 @@ internal class JobCompletionHandler
         try
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
+            if (string.IsNullOrEmpty(planFolder)) return;
+
+            var current = _planReaderService?.GetPlanByFolder(planFolder)?.Status
+                ?? (Enum.TryParse<PlanStatus>(PlanYamlHelper.ReadPlanYaml(planFolder)?.State, true, out var parsed) ? parsed : (PlanStatus?)null);
+
+            // Terminal plans (Completed or Skipped) are immutable
+            if (current is PlanStatus.Completed or PlanStatus.Skipped &&
+                !string.Equals(state, nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(state, nameof(PlanStatus.Skipped), StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Job {JobId}: Not setting plan {PlanFolder} to {State} because it is already {Current}",
+                    job.Id, Path.GetFileName(planFolder), state, current);
+                return;
+            }
 
             _logger.LogDebug("SetPlanState: Setting {PlanFolder} to {State} for job {JobId}",
                 Path.GetFileName(planFolder), state, job.Id);
@@ -1240,10 +1274,29 @@ internal class JobCompletionHandler
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             if (string.IsNullOrEmpty(planFolder)) return;
 
+            var current = _planReaderService?.GetPlanByFolder(planFolder)?.Status
+                ?? (Enum.TryParse<PlanStatus>(PlanYamlHelper.ReadPlanYaml(planFolder)?.State, true, out var parsed) ? parsed : (PlanStatus?)null);
+
+            // Terminal plans are immutable
+            if (current is PlanStatus.Completed or PlanStatus.Skipped)
+            {
+                _logger.LogInformation("Job {JobId}: Not reverting plan {PlanFolder} because it is already {State}",
+                    job.Id, Path.GetFileName(planFolder), current);
+                return;
+            }
+
             var target = job.PreviousPlanState ?? FallbackPreviousState(job.TypedArgs);
             if (target == null) return;
             if (target == PlanStatus.Blocked)
                 target = PlanStatus.Draft;
+
+            // Do not stomp Review or Failed back to Draft on stale timeout/failure
+            if (current is PlanStatus.Review or PlanStatus.Failed && target == PlanStatus.Draft)
+            {
+                _logger.LogInformation("Job {JobId}: Not reverting plan {PlanFolder} from {Current} to Draft",
+                    job.Id, Path.GetFileName(planFolder), current);
+                return;
+            }
 
             if (_planReaderService != null)
                 _planReaderService.TransitionState(Path.GetFileName(planFolder), target.Value);
