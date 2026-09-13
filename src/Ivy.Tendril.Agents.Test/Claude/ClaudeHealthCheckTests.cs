@@ -83,4 +83,17 @@ public class ClaudeHealthCheckTests
         var result = await _healthCheck.RunAuthFlowAsync(callbacks);
         Assert.False(result);
     }
+
+    [Fact]
+    public void ValidateModel_DataRetentionModeError_ReturnsInvalidModelWithBedrockMessage()
+    {
+        var output = "API Error: 400 data retention mode 'default' is not available for this model";
+        var result = ClaudeHealthCheck.ParseModelValidationResult("claude-fable-5", 1, stdout: output, stderr: "");
+
+        Assert.Equal(ModelValidationStatus.InvalidModel, result.Status);
+        Assert.Equal("claude-fable-5", result.Model);
+        Assert.NotNull(result.ErrorMessage);
+        Assert.Contains("AWS Bedrock", result.ErrorMessage);
+        Assert.Contains("data retention mode", result.ErrorMessage);
+    }
 }

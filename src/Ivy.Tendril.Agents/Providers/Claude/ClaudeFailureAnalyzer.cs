@@ -21,6 +21,29 @@ public sealed class ClaudeFailureAnalyzer : IFailureAnalyzer
 
         var stderr = string.Join("\n", context.StderrLines);
         var lastResultResponse = context.Events.OfType<ResultEvent>().LastOrDefault()?.Response ?? "";
+        var textResponses = string.Join("\n", context.Events.OfType<TextEvent>().Select(e => e.Text));
+        var errorMessages = string.Join("\n", context.Events.OfType<ErrorEvent>().Select(e => e.Message));
+        var allOutput = $"{stderr}\n{lastResultResponse}\n{textResponses}\n{errorMessages}";
+
+        if (ContainsAny(allOutput, "data retention mode"))
+        {
+            var matchingLines = context.StderrLines
+                .Concat(context.Events.OfType<TextEvent>().Select(e => e.Text))
+                .Concat(context.Events.OfType<ErrorEvent>().Select(e => e.Message))
+                .Concat(string.IsNullOrEmpty(lastResultResponse) ? [] : [lastResultResponse])
+                .SelectMany(t => t.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                .Where(l => l.Contains("data retention mode", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            return new FailureAnalysis
+            {
+                Kind = FailureKind.InvalidModel,
+                Reason = "The selected model requires an AWS Bedrock data retention mode (such as 'aws_review') that is not enabled in your AWS Bedrock account or project.",
+                ContextLines = matchingLines.Count > 0 ? matchingLines : context.StderrLines,
+                IsRetryable = false,
+                Suggestion = "Switch to a supported model (such as Claude Opus or Claude Sonnet), or configure your AWS Bedrock data retention mode to 'aws_review' in the AWS Bedrock console or via the AWS data retention API.",
+            };
+        }
 
         if (ContainsAny(stderr, "rate limit", "429", "too many requests", "session limit", "usage limit")
             || ContainsAny(lastResultResponse, "rate limit", "session limit", "usage limit"))

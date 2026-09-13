@@ -81,10 +81,23 @@ public sealed class ClaudeHealthCheck : IAgentHealthCheck
         var (exitCode, stdout, stderr) = await HealthCheckRunner.RunAsync(
             "claude", args, TimeSpan.FromSeconds(30), ct);
 
+        return ParseModelValidationResult(model, exitCode, stdout, stderr);
+    }
+
+    internal static ModelValidationResult ParseModelValidationResult(string model, int exitCode, string stdout, string stderr)
+    {
         if (exitCode == 0)
             return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
 
-        var combined = string.IsNullOrEmpty(stderr) ? stdout : stderr;
+        var combined = $"{stdout}\n{stderr}";
+
+        if (combined.Contains("data retention mode", StringComparison.OrdinalIgnoreCase))
+            return new ModelValidationResult
+            {
+                Status = ModelValidationStatus.InvalidModel,
+                Model = model,
+                ErrorMessage = "The selected model requires an AWS Bedrock data retention mode (such as 'aws_review') that is not enabled in your AWS Bedrock account or project.",
+            };
 
         if (combined.Contains("model", StringComparison.OrdinalIgnoreCase) &&
             (combined.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||

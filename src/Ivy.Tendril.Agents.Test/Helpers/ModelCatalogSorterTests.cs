@@ -193,4 +193,22 @@ public class ModelCatalogSorterTests
         Assert.Equal("gemini-3.7-flash", sorted[1].Id);
         Assert.Equal("gemini-2.5-flash", sorted[2].Id);
     }
+
+    [Fact]
+    public void Sort_AnthropicPreserveDefault_KeepsOpus5AtTopEvenWithFable5Present()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "claude-fable-5", DisplayName = "Claude Fable 5", Provider = "anthropic" },
+            new() { Id = "claude-opus-5", DisplayName = "Claude Opus 5", Provider = "anthropic", IsDefault = true },
+            new() { Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1", Provider = "anthropic" },
+            new() { Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5", Provider = "anthropic" },
+        };
+
+        var sorted = ModelCatalogSorter.Sort(models, preserveDefault: true);
+
+        Assert.Equal("claude-opus-5", sorted[0].Id);
+        Assert.True(sorted[0].IsDefault);
+        Assert.Equal("claude-fable-5", sorted[1].Id);
+    }
 }
