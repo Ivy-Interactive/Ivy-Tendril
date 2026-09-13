@@ -51,7 +51,7 @@ public class PendingAnnotationsDialog(
                         dialogOpen.Set(false);
                         onDiscardAndExecute();
                     })
-                    | new Button("Update Plan & Execute").Primary().OnClick(() =>
+                    | new Button("Update Plan & Execute").Primary().ShortcutKey("Ctrl+Enter").OnClick(() =>
                     {
                         dialogOpen.Set(false);
                         onUpdateAndExecute();
