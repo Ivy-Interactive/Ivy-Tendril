@@ -30,6 +30,9 @@ public class PlanReaderService(
     private readonly TimeCache<Dictionary<int, List<(DateOnly Date, int Count)>>> _prsByDayCache =
         new(TimeSpan.FromSeconds(30));
 
+    private readonly TimeCache<Dictionary<int, List<(DateOnly Date, int Count)>>> _featuresByDayCache =
+        new(TimeSpan.FromSeconds(30));
+
     private readonly TimeCache<Dictionary<string, (decimal Cost, int Tokens)>> _planCostCache =
         new(TimeSpan.FromSeconds(90));
 
@@ -651,6 +654,23 @@ public class PlanReaderService(
         return [];
     }
 
+    public List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            var cache = _featuresByDayCache.GetOrCompute(() => new Dictionary<int, List<(DateOnly Date, int Count)>>());
+            if (!cache.TryGetValue(days, out var result))
+            {
+                result = _database.GetShippedFeaturesByDay(days);
+                cache[days] = result;
+            }
+
+            return result;
+        }
+
+        return [];
+    }
+
     public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50)
     {
         if (_useDatabaseForReads && _database != null)
@@ -1000,6 +1020,7 @@ public class PlanReaderService(
         _hourlyBurnCache.Invalidate();
         _activityStatsCache.Invalidate();
         _prsByDayCache.Invalidate();
+        _featuresByDayCache.Invalidate();
     }
 
     /// <summary>

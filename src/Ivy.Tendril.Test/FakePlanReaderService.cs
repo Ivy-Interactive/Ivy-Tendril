@@ -114,6 +114,10 @@ internal class FakePlanReaderService : IPlanReaderService
         return [];
     }
 
+    public List<(DateOnly Date, int Count)> ShippedFeaturesToReturn { get; set; } = [];
+
+    public List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60) => ShippedFeaturesToReturn;
+
     public List<RecentMergedPrDto> RecentMergedPrsToReturn { get; set; } = [];
     public List<RecentPlanCostDto> RecentPlanCostsToReturn { get; set; } = [];
     public List<DashboardAgentCost> AgentCostsToReturn { get; set; } = [];
