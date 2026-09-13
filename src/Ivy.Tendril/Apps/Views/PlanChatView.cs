@@ -94,7 +94,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
 
         var agentId = selectedAgent.Value;
         var modelOptions = ChatApp.GetModelsForAgent(agentRunner, agentId);
-        var effectiveModel = ChatApp.ResolveModel(modelOptions, selectedModel.Value);
+        var effectiveModel = ChatApp.ResolveModel(agentRunner, agentId, modelOptions, selectedModel.Value);
         var modelDtos = modelOptions.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList();
         var supportsEffort = ChatApp.DoesAgentSupportEffort(agentRunner, agentId);
         var effortOptions = ChatApp.GetEffortsForAgentAndModel(agentRunner, agentId, effectiveModel);
@@ -166,7 +166,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
         {
             if (!string.IsNullOrEmpty(sess?.ModelId)) return sess.ModelId;
             var agent = DefaultAgent(sess);
-            return ChatApp.ResolveModel(ChatApp.GetModelsForAgent(agentRunner, agent), preferences?.Get(agent).ModelId);
+            return ChatApp.ResolveModel(agentRunner, agent, ChatApp.GetModelsForAgent(agentRunner, agent), preferences?.Get(agent).ModelId);
         }
 
         string DefaultEffort(ChatSessionModel? sess)

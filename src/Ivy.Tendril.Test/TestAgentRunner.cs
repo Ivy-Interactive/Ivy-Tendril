@@ -17,7 +17,8 @@ internal static class TestAgentRunner
         var runner = new AgentRunner();
         runner.Register(
             new ClaudeCli(), new ClaudeEventParser(), new ClaudeHealthCheck(),
-            new ClaudeFailureAnalyzer(), new ClaudeSessionCostParser(), new ClaudePty());
+            new ClaudeFailureAnalyzer(), new ClaudeSessionCostParser(), new ClaudePty(),
+            new ClaudeModelCatalog());
         runner.Register(
             new CodexCli(), new CodexEventParser(), new CodexHealthCheck(),
             new CodexFailureAnalyzer(), new CodexSessionCostParser(), new CodexPty());
