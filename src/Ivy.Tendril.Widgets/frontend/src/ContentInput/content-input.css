@@ -455,6 +455,7 @@
 
 .civ-submit-btn.civ-submit-btn-labeled:hover:not(:disabled) {
   background: var(--primary);
+  color: var(--primary-foreground);
   opacity: 0.9;
   transform: none;
 }
@@ -563,6 +564,7 @@
 }
 
 .civ-split-btn-left:hover:not(:disabled) {
+  color: var(--primary-foreground);
   transform: none;
   opacity: 1;
 }
