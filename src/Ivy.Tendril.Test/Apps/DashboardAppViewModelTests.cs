@@ -1,3 +1,4 @@
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Widgets;
@@ -412,6 +413,30 @@ public class DashboardAppViewModelTests
         Assert.Equal("costPerFeature", kpis[1].Id);
         Assert.Equal("forecastMonth", kpis[2].Id);
         Assert.Equal("avgCostPlan", kpis[3].Id);
+    }
+
+    [Fact]
+    public void BuildKpis_WithUsageSnapshot_FormatsRemainingCapacityWithLeftDescriptor()
+    {
+        var today = new DateTime(2026, 8, 31);
+        var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 15.5m, [], []);
+        var activity = new DashboardActivityStats([], 10m);
+        const double remaining = 83.3;
+        var snapshot = new AgentUsageSnapshot
+        {
+            AgentId = "test-agent",
+            Windows =
+            [
+                new AgentUsageWindow { WindowMinutes = 300, RemainingPercent = remaining }
+            ]
+        };
+
+        var kpis = DashboardApp.BuildKpis(stats, activity, [], [], today, snapshot);
+
+        Assert.Equal(4, kpis.Count);
+        Assert.Equal("usageWindow", kpis[3].Id);
+        Assert.Equal("5h window", kpis[3].Label);
+        Assert.Equal($"{remaining:0.#}% left", kpis[3].Value);
     }
 
     [Fact]

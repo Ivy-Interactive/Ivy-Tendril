@@ -314,7 +314,7 @@ public class DashboardApp : ViewBase
         {
             var tightestWindow = windows.OrderBy(w => w.WindowMinutes).First();
             var label = $"{UsageWindowCalculator.FormatWindow(tightestWindow.WindowMinutes)} window";
-            var value = $"{tightestWindow.RemainingPercent:0.#}% remaining";
+            var value = $"{tightestWindow.RemainingPercent:0.#}% left";
             var hint = tightestWindow.ResetsAt.HasValue
                 ? $"resets in {UsageWindowCalculator.FormatCountdown(tightestWindow.ResetsAt.Value - DateTimeOffset.UtcNow)}"
                 : null;
