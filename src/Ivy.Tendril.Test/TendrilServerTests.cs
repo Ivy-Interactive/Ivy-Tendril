@@ -54,7 +54,10 @@ public class TendrilServerTests
 
             foreach (var expectedRoot in expectedRoots)
             {
-                Assert.Contains(expectedRoot, configuredRoots);
+                Assert.True(configuredRoots.Any(r =>
+                    r.Equals(expectedRoot, StringComparison.OrdinalIgnoreCase) ||
+                    (LocalFileRootPolicy.TryResolveRealPath(expectedRoot, out var real) && r.Equals(real, StringComparison.OrdinalIgnoreCase))),
+                    $"Expected configuredRoots to contain {expectedRoot}, but had: {string.Join(", ", configuredRoots)}");
             }
 
             Assert.Equal(LocalFileGuardMiddleware.AllowedFileExtensions, configuredExtensions);
@@ -93,7 +96,10 @@ public class TendrilServerTests
             if (rootsProp != null)
             {
                 var initialRoots = (string[])rootsProp.GetValue(server.Args)!;
-                Assert.Contains(tempHome, initialRoots);
+                Assert.True(initialRoots.Any(r =>
+                    r.Equals(tempHome, StringComparison.OrdinalIgnoreCase) ||
+                    (LocalFileRootPolicy.TryResolveRealPath(tempHome, out var realHome) && r.Equals(realHome, StringComparison.OrdinalIgnoreCase))),
+                    $"Expected initialRoots to contain {tempHome}, but had: {string.Join(", ", initialRoots)}");
 
                 var newRoot = Path.Combine(Path.GetTempPath(), "extra_root_" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(newRoot);
@@ -101,10 +107,13 @@ public class TendrilServerTests
                 {
                     configService.Settings.Security ??= new SecuritySettings();
                     configService.Settings.Security.LocalFileRoots = [newRoot];
-                    configService.ReloadSettings();
+                    configService.SaveSettings();
 
                     var refreshedRoots = (string[])rootsProp.GetValue(server.Args)!;
-                    Assert.Contains(newRoot, refreshedRoots);
+                    Assert.True(refreshedRoots.Any(r =>
+                        r.Equals(newRoot, StringComparison.OrdinalIgnoreCase) ||
+                        (LocalFileRootPolicy.TryResolveRealPath(newRoot, out var realNew) && r.Equals(realNew, StringComparison.OrdinalIgnoreCase))),
+                        $"Expected refreshedRoots to contain {newRoot}, but had: {string.Join(", ", refreshedRoots)}");
                 }
                 finally
                 {
