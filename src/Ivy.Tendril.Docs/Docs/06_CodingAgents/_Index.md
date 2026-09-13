@@ -13,8 +13,13 @@ searchHints:
 # Coding Agents
 
 <Ingress>
-Coding agents are the AI-powered runtimes that execute Tendril plans. Choose an agent, configure profiles, and let Tendril orchestrate the work.
+Coding agents are the AI-powered runtimes that execute Tendril plans. Choose an agent, configure profiles, install agent skills, and let Tendril orchestrate the work.
 </Ingress>
+
+## Agent Skills
+
+Tendril provides official agent skills for plan debugging, job log inspection, automated code reviews, and VS Code extension development. See [Agent Skills](00_Skills.md) for universal installation commands and agent-specific setup guides.
+
 
 ## Environment Variables
 
