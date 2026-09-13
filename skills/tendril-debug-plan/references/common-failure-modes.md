@@ -8,7 +8,7 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 - **Symptom**: Plan revision lists N components to create, agent only creates N-1
 - **Root cause**: Program.md doesn't enforce a checklist-driven approach per deliverable
 - **Where to look**: Compare revision acceptance criteria against actual file changes in commits
-- **Fix area**: `Promptwares/ExecutePlan/Program.md` — add explicit deliverable tracking
+- **Fix area**: `Promptwares/ExecutePlan/Program.md` - add explicit deliverable tracking
 
 ### CheckResult False Positive
 - **Symptom**: Verification marked Pass despite missing files or unmet targets
@@ -20,7 +20,7 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 
 ### Redundant File Reads
 - **Symptom**: Same file read 4+ times in a single session
-- **Where to look**: JSONL analysis — count Read tool calls per file path
+- **Where to look**: JSONL analysis - count Read tool calls per file path
 - **Threshold**: >3 reads of the same file is suspicious, >6 is definitely wasteful
 
 ### Context Bloat
@@ -34,7 +34,7 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 - **Symptom**: 3+ iterations of build → error → edit → build
 - **Where to look**: JSONL tool call sequences, grep for `dotnet build` or `npm run build`
 - **Root cause**: Agent missing knowledge about API changes, type system, or framework patterns
-- **Fix area**: `Promptwares/{Type}/Memory/` — add knowledge about the specific error pattern
+- **Fix area**: `Promptwares/{Type}/Memory/` - add knowledge about the specific error pattern
 
 ### Type Mismatch Loops
 - **Symptom**: Agent repeatedly tries different type casts/interfaces
@@ -46,7 +46,7 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 
 ### Stuck Plans
 - **Symptom**: Plan stays in Building/Executing state indefinitely
-- **Where to look**: `PlanReaderService.RecoverStuckPlans()` — runs on startup only
+- **Where to look**: `PlanReaderService.RecoverStuckPlans()` - runs on startup only
 - **Root cause**: Agent process died without cleanup
 - **Fix area**: `Services/PlanReaderService.cs`
 
@@ -57,16 +57,16 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 
 ### Missing Logs
 - **Symptom**: No `.raw.jsonl` for a job
-- **Where to look**: `$TENDRIL_HOME/Jobs/{jobId}-*` — all four artifacts share one stem
+- **Where to look**: `$TENDRIL_HOME/Jobs/{jobId}-*` - all four artifacts share one stem
 - **Root cause**: the raw writer is opened from `JobItem.LogFilePath`; if the job never launched, only the seeded `.md` exists
 
 ## CLI / Shim Failures
 
 ### Bash Shim Broken Quotes (Fixed 2026-04-26)
-- **Symptom**: Every `tendril` CLI call fails with `unexpected EOF while looking for matching '"'`. The entire execution should fail since there is no fallback — the CLI is required.
+- **Symptom**: Every `tendril` CLI call fails with `unexpected EOF while looking for matching '"'`. The entire execution should fail since there is no fallback - the CLI is required.
 - **Where to look**: Check JSONL for repeated bash errors mentioning the tendril command.
 - **Root cause**: The bash shim at `/tmp/tendril-shim/tendril` was generated with Windows backslash paths in double quotes. A trailing `\"` was interpreted as an escaped quote by bash.
-- **Fix area**: `Services/JobLauncher.cs` — shim generation. Bash shim now uses single quotes and forward slashes.
+- **Fix area**: `Services/JobLauncher.cs` - shim generation. Bash shim now uses single quotes and forward slashes.
 
 ### CLI Process File Lock
 - **Symptom**: `dotnet run --project` fails because another process holds a lock on the output directory
@@ -78,8 +78,8 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 
 ### Delegated Verification Self-Certification (Fixed 2026-04-26)
 - **Symptom**: A verification that has its own dedicated promptware (e.g., `IvyFrameworkVerification`) is marked Pass by the ExecutePlan agent without actually running the separate promptware. The verification report contains only a code review, not actual test execution.
-- **Where to look**: Check `verification/{Name}.md` — does it show actual test execution or just a code review? Cross-reference with config.yaml promptwares section.
-- **Root cause**: When the tendril CLI was broken, the agent wrote the verification report manually and bypassed the CLI to update plan.yaml directly. The fallback tool (`Update-PlanYaml.ps1`) has since been removed — the CLI is now the only path.
+- **Where to look**: Check `verification/{Name}.md` - does it show actual test execution or just a code review? Cross-reference with config.yaml promptwares section.
+- **Root cause**: When the tendril CLI was broken, the agent wrote the verification report manually and bypassed the CLI to update plan.yaml directly. The fallback tool (`Update-PlanYaml.ps1`) has since been removed - the CLI is now the only path.
 - **Detection**: If a verification name matches a directory under `Promptwares/`, it's delegated and should NOT be self-certified.
 - **Fix area**: `Promptwares/ExecutePlan/Program.md` (instruction-level). The CLI is the only supported mechanism for setting verification status.
 
@@ -87,14 +87,14 @@ Patterns observed from past PlanEvaluator runs and debugging sessions.
 - **Symptom**: All commits show "Potentially corrupted commits" in the UI with no messages or file counts, even though the commits exist.
 - **Where to look**: `plan.yaml` stores abbreviated 9-char hashes, but `GetCommitSummaries` returns full 40-char hashes. The dictionary lookup in `PlanContentHelpers.BuildCommitRows` fails silently.
 - **Root cause**: `GitService.GetCommitSummaries` keyed results by full hash only. The abbreviated hash from plan.yaml never matched.
-- **Fix area**: `Services/GitService.cs` — `StoreCommitResult` now stores under both full and abbreviated hashes.
+- **Fix area**: `Services/GitService.cs` - `StoreCommitResult` now stores under both full and abbreviated hashes.
 
 ## Log / Output Failures
 
 > Logs moved: every job artifact now lives flat in `$TENDRIL_HOME/Jobs/` keyed by job id
 > (`{jobId}-{planId}-{promptware}.{md,prompt.md,raw.jsonl,eventwire.jsonl}`). There is no `Logs/`
 > folder under promptwares or plans. The two historical failures below are structurally impossible now
-> — each job owns a unique stem — but the symptoms are worth recognizing in old reports.
+> - each job owns a unique stem - but the symptoms are worth recognizing in old reports.
 
 ### Log File Race Condition (Fixed 2026-04-26)
 - **Symptom**: A plan's execution log is overwritten by another concurrent execution. The original session's log is permanently lost.

@@ -22,25 +22,25 @@ Valid statuses: Pending, Pass, Fail, Skipped
 
 ## Pre-Execution Checks (ExecutePlan Steps 1.5–1.8)
 
-### Step 1.5 — Dependency Verification
+### Step 1.5 - Dependency Verification
 - Reads `dependsOn` from plan.yaml
 - For each dependency plan: checks state is `Completed` and PRs are `MERGED`
 - Uses `gh pr view` to verify PR merge status
 - **Common failure**: dependency plan completed but PR not yet merged
 
-### Step 1.6 — Worktree Isolation Validation
+### Step 1.6 - Worktree Isolation Validation
 - Ensures target repos are not already worktrees
 - Ensures plans directory is not inside a git worktree
 - **Common failure**: stale worktree from a previous failed execution
 
-### Step 1.7 — Code State Validation
+### Step 1.7 - Code State Validation
 - Scans plan revisions for `**Current implementation**` code blocks
 - Validates those blocks still match the actual codebase files
 - Writes `verification/PreExecution.md`
 - Also detects self-flagged redundancy (plan says it's already done)
 - **Common failure**: code changed between plan creation and execution
 
-### Step 1.8 — Auto-Commit Uncommitted Changes
+### Step 1.8 - Auto-Commit Uncommitted Changes
 - Detects dirty files in target repos
 - Commits and pushes before worktree creation
 - Includes stale-file detection
@@ -85,14 +85,14 @@ Verifications come in two forms:
 - Examples: `IvyFrameworkVerification` (creates a sample app, runs Playwright tests)
 
 ### How to detect delegation
-Check if a directory exists at `Promptwares/{VerificationName}/` — if it does, it's delegated. This is enforced by:
-- `Promptwares/ExecutePlan/Program.md` — instructs the agent that delegated verifications must be run via `tendril promptware <Name>` and cannot be self-certified
-- The tendril CLI itself — the only supported path for setting verification status
+Check if a directory exists at `Promptwares/{VerificationName}/` - if it does, it's delegated. This is enforced by:
+- `Promptwares/ExecutePlan/Program.md` - instructs the agent that delegated verifications must be run via `tendril promptware <Name>` and cannot be self-certified
+- The tendril CLI itself - the only supported path for setting verification status
 
 ### Self-certification red flags
 When debugging, if you see a delegated verification marked Pass:
-1. Check `verification/{Name}.md` — does it describe actual test execution or just code review?
-2. Check the JSONL for `tendril promptware {Name}` invocations — were they attempted?
+1. Check `verification/{Name}.md` - does it describe actual test execution or just code review?
+2. Check the JSONL for `tendril promptware {Name}` invocations - were they attempted?
 3. Check for CLI errors that might have prevented the agent from invoking the promptware
 
 ## Common Verification Gaps

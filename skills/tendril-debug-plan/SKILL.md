@@ -5,7 +5,7 @@ description: Debug a Tendril plan by analyzing its execution logs, session JSONL
 
 # tendril-debug-plan
 
-Debug and analyze Tendril plan executions end-to-end — from plan creation through checking/verification — and produce a set of concrete bugfix and improvement recommendations.
+Debug and analyze Tendril plan executions end-to-end - from plan creation through checking/verification - and produce a set of concrete bugfix and improvement recommendations.
 
 ## Invocation
 
@@ -13,8 +13,8 @@ Debug and analyze Tendril plan executions end-to-end — from plan creation thro
 /tendril-debug-plan <planid> <note>
 ```
 
-* **planid** — 5-digit Tendril plan ID (e.g., `03451`)
-* **note** — free-text context about what to look for (e.g., "verification passed but shouldn't have", "took forever", "got stuck in Building state")
+* **planid** - 5-digit Tendril plan ID (e.g., `03451`)
+* **note** - free-text context about what to look for (e.g., "verification passed but shouldn't have", "took forever", "got stuck in Building state")
 
 ## What This Skill Does
 
@@ -25,13 +25,13 @@ Debug and analyze Tendril plan executions end-to-end — from plan creation thro
 
 ## Execution Steps
 
-### Phase 1 — Gather Plan Artifacts
+### Phase 1 - Gather Plan Artifacts
 
 Resolve paths from environment:
 
-* `TENDRIL_HOME` — base config/data directory
-* `TENDRIL_PLANS` — plans directory (defaults to `$TENDRIL_HOME/Plans`)
-* `REPOS_HOME` — for locating Tendril source code
+* `TENDRIL_HOME` - base config/data directory
+* `TENDRIL_PLANS` - plans directory (defaults to `$TENDRIL_HOME/Plans`)
+* `REPOS_HOME` - for locating Tendril source code
 
 Read these files from the plan folder (`$TENDRIL_PLANS/{planid}-*/`):
 
@@ -52,15 +52,15 @@ ls "$TENDRIL_HOME/Jobs/"*"-{planid}-"*
 
 | File | Purpose |
 |------|---------|
-| `{stem}.md` | Job Log — status, timings, cost, CLI command, final output, agent `## Agent Log` narrative |
-| `{stem}.prompt.md` | Job Prompt — the exact prompt handed to the agent |
-| `{stem}.raw.jsonl` | Job Raw Log — full unparsed CLI session data |
-| `{stem}.eventwire.jsonl` | Job Eventwire Log — Tendril's parsed event stream |
+| `{stem}.md` | Job Log - status, timings, cost, CLI command, final output, agent `## Agent Log` narrative |
+| `{stem}.prompt.md` | Job Prompt - the exact prompt handed to the agent |
+| `{stem}.raw.jsonl` | Job Raw Log - full unparsed CLI session data |
+| `{stem}.eventwire.jsonl` | Job Eventwire Log - Tendril's parsed event stream |
 
 Note that the `CreatePlan` job that created the plan is named `{jobId}-CreatePlan` with **no** plan id,
 so it will not appear in the glob above. Use `/tendril-debug-job` to drill into any single job.
 
-### Phase 2 — Locate and Analyze Session JSONL
+### Phase 2 - Locate and Analyze Session JSONL
 
 Each Job Log contains a `SessionId`. The raw Claude session data lives at:
 
@@ -103,7 +103,7 @@ Use the `Analyze-SessionJsonl.ps1` tool if available at:
 $REPOS_HOME/Ivy-Tendril/src/Ivy.Tendril.TeamIvyConfig/Promptwares/PlanEvaluator/Tools/Analyze-SessionJsonl.ps1
 ```
 
-### Phase 3 — Analyze the Checking/Verification Pipeline
+### Phase 3 - Analyze the Checking/Verification Pipeline
 
 This is the core debugging focus. Examine:
 
@@ -137,20 +137,20 @@ This is the core debugging focus. Examine:
 
 Cross-reference each finding with:
 
-* `Promptwares/{Type}/Program.md` — could instructions prevent this?
-* `Promptwares/{Type}/Memory/` — is knowledge missing or ignored?
-* `Services/JobService.cs` — job lifecycle issues
-* `Services/PlanReaderService.cs` — plan state/repair issues
-* `Ivy.Tendril/Assets/Plans.md` — plan schema/CLI reference (embedded in assembly, injected into firmware)
+* `Promptwares/{Type}/Program.md` - could instructions prevent this?
+* `Promptwares/{Type}/Memory/` - is knowledge missing or ignored?
+* `Services/JobService.cs` - job lifecycle issues
+* `Services/PlanReaderService.cs` - plan state/repair issues
+* `Ivy.Tendril/Assets/Plans.md` - plan schema/CLI reference (embedded in assembly, injected into firmware)
 
-### Phase 4 — Produce Recommendations Report
+### Phase 4 - Produce Recommendations Report
 
 Write the report to `$TENDRIL_PLANS/{planid}-*/debug-report.md` (alongside the plan).
 
 Use this format:
 
 ```Markdown
-# Debug Report: {PlanId} — {Title}
+# Debug Report: {PlanId} - {Title}
 
 - **Analyzed:** {current timestamp}
 - **Plan State:** {state}
@@ -167,7 +167,7 @@ Use this format:
 
 | # | Step | Promptware | Status | Duration | Tokens | Notes |
 |---|------|------------|--------|----------|--------|-------|
-| 1 | CreatePlan | CreatePlan | Completed | 2m30s | 45k | — |
+| 1 | CreatePlan | CreatePlan | Completed | 2m30s | 45k | - |
 | 2 | Execute | ExecutePlan | Failed | 15m | 280k | build loop |
 | ... | | | | | | |
 
@@ -179,7 +179,7 @@ Use this format:
 ### Verification Results
 | Verification | Expected | Actual | Correct? | Notes |
 |-------------|----------|--------|----------|-------|
-| Build | Pass | Pass | Yes | — |
+| Build | Pass | Pass | Yes | - |
 | IvyFramework | Pass | Pass | No | Should have caught X |
 
 ### Completion Verification
@@ -198,7 +198,7 @@ Use this format:
 
 **Root Cause:** {why this happened}
 
-**Recommendation:** {concrete fix — which file to change, what to change, why}
+**Recommendation:** {concrete fix - which file to change, what to change, why}
 
 ---
 
@@ -240,10 +240,10 @@ These are the files most likely to contain the root cause of issues:
 ## Rules
 
 * **Read-only by default**: do NOT modify source code, promptware instructions, or memory files during analysis. The output is a recommendations report.
-* **Always produce a report**, even if no issues are found — "plan executed cleanly" is a valid finding.
+* **Always produce a report**, even if no issues are found - "plan executed cleanly" is a valid finding.
 * **Be specific**: cite file paths, line numbers, log timestamps, tool call sequences.
 * **Focus on the checking pipeline**: verification gaps (things that should have been caught but weren't) are higher priority than token waste.
-* **Use targeted reads**: JSONL files can be huge — use offset/limit or grep rather than reading entire files.
+* **Use targeted reads**: JSONL files can be huge - use offset/limit or grep rather than reading entire files.
 * **The user's note is your guide**: prioritize investigating what the user flagged.
 
 ## Self-Evolution

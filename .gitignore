@@ -67,5 +67,6 @@ build_local.sh
 .nuget/
 **/.nuget/
 Library/
-.claude/
+.claude/*
+!.claude/skills/
 

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "ivy-tendril",
+  "description": "Skills and tools for Ivy Tendril plan management, execution, and debugging.",
+  "owner": {
+    "name": "Ivy Interactive",
+    "url": "https://github.com/ivy-interactive"
+  },
+  "plugins": [
+    {
+      "name": "tendril-skills",
+      "version": "1.0.0",
+      "source": {
+        "source": "github",
+        "repo": "ivy-interactive/ivy-tendril"
+      },
+      "description": "Engineering and debugging skills for Ivy Tendril plans, jobs, reviews, and extension development.",
+      "homepage": "https://github.com/ivy-interactive/ivy-tendril",
+      "license": "FSL-1.1-ALv2",
+      "keywords": ["tendril", "skills", "agents", "plans", "debugging", "vscode"]
+    }
+  ]
+}
