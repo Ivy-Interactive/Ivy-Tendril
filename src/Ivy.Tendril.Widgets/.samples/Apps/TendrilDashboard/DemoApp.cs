@@ -103,7 +103,7 @@ class DemoApp : ViewBase
                 new DashboardKpiDto("Features shipped", "315", "+12%", "up", "merged PRs and solved issues, last 30 days"),
                 new DashboardKpiDto("Avg cost per Feature", "$3.62", "-5%", "down", "$1142 over 315 features"),
                 new DashboardKpiDto("Forecast This Month", "$1673"),
-                new DashboardKpiDto("5h window", "87.3% remaining", Hint: "resets in 2h 14m")
+                new DashboardKpiDto("5h window", "87.3% left", Hint: "resets in 2h 14m")
             ])
             .Trend(new DashboardTrendDto(
                 trendDates,
