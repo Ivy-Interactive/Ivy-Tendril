@@ -344,6 +344,10 @@
   padding: 8px 12px 0;
 }
 
+.pws-toolbar + .pws-tabs-row {
+  padding-top: 2px;
+}
+
 .pws-tabs {
   display: flex;
   align-items: center;
