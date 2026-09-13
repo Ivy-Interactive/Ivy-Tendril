@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
@@ -90,6 +90,15 @@ public sealed record JobCostModel
     /// </summary>
     public decimal? AgentReportedCost { get; init; }
 
+    /// <summary>
+    ///     The figure derived from this job's own tokens times the price list, when that is where the
+    ///     charge came from; see <see cref="JobCostSources.Estimated" />. Null for every other
+    ///     provenance, and never the same value as <see cref="AgentReportedCost" />: an estimate and a
+    ///     charge are mutually exclusive, so the sheet can label one without laundering it into the
+    ///     other.
+    /// </summary>
+    public decimal? EstimatedCost { get; init; }
+
     /// <summary>The job's charged cost, whatever its origin. Null when the job was never costed.</summary>
     public decimal? ChargedCost { get; init; }
 
@@ -142,9 +151,7 @@ public static class JobCostModelBuilder
         // Reasoning tokens are reported alongside (and by some providers within) the output bucket,
         // so they are shown for information but left out of the totals rather than double-counted.
         var counted = buckets.Where(b => b.CountsTowardTotal).ToList();
-        var computedCost = counted.Any(b => b.RatePerMillion.HasValue)
-            ? counted.Sum(b => b.Tokens * (b.RatePerMillion ?? 0m) / 1_000_000m)
-            : (decimal?)null;
+        var computedCost = ComputeCost(buckets);
 
         var (priceList, priceListUrl) = ResolvePriceList(pricing);
 
@@ -162,6 +169,7 @@ public static class JobCostModelBuilder
             TotalsOnlyCost = buckets.Count == 0 ? job.Cost : null,
             NoUsageReason = buckets.Count == 0 ? BuildNoUsageReason(job) : null,
             AgentReportedCost = job.CostSource == JobCostSources.Agent ? job.Cost : null,
+            EstimatedCost = job.CostSource == JobCostSources.Estimated ? job.Cost : null,
             ChargedCost = job.Cost,
             CostSource = job.CostSource,
             PriceList = priceList,
@@ -189,7 +197,23 @@ public static class JobCostModelBuilder
     internal static string? FormatProfile(JobItem job) =>
         FormatHelper.FormatExecutionProfile(job.ExecutionProfile);
 
-    internal static List<JobCostBucket> BuildBuckets(JobItem job, ModelPricing? pricing)
+    internal static List<JobCostBucket> BuildBuckets(JobItem job, ModelPricing? pricing) =>
+        BuildBuckets(job.InputTokens, job.OutputTokens, job.CacheReadTokens, job.CacheWriteTokens,
+            job.ReasoningTokens, pricing);
+
+    /// <summary>
+    ///     As <see cref="BuildBuckets(JobItem,ModelPricing?)" />, but from loose token counts, so a caller
+    ///     pricing a usage report it has not written to a job yet (see
+    ///     <c>JobCompletionHandler.ResolveJobCost</c>) does not have to invent a throwaway
+    ///     <see cref="JobItem" /> to do it.
+    /// </summary>
+    internal static List<JobCostBucket> BuildBuckets(
+        int? inputTokens,
+        int? outputTokens,
+        int? cacheReadTokens,
+        int? cacheWriteTokens,
+        int? reasoningTokens,
+        ModelPricing? pricing)
     {
         var buckets = new List<JobCostBucket>();
 
@@ -199,14 +223,32 @@ public static class JobCostModelBuilder
                 buckets.Add(new JobCostBucket(kind, tokens.Value, rate, countsTowardTotal));
         }
 
-        Add("Input", job.InputTokens, pricing?.InputPerMillion);
-        Add("Output", job.OutputTokens, pricing?.OutputPerMillion);
-        Add("Cache Read", job.CacheReadTokens, pricing?.CacheReadPerMillion);
-        Add("Cache Write", job.CacheWriteTokens, pricing?.CacheWritePerMillion);
+        Add("Input", inputTokens, pricing?.InputPerMillion);
+        Add("Output", outputTokens, pricing?.OutputPerMillion);
+        Add("Cache Read", cacheReadTokens, pricing?.CacheReadPerMillion);
+        Add("Cache Write", cacheWriteTokens, pricing?.CacheWritePerMillion);
         // No reasoning rate exists in ModelPricing, so this row always renders "—" for rate/cost.
-        Add("Reasoning", job.ReasoningTokens, rate: null, countsTowardTotal: false);
+        Add("Reasoning", reasoningTokens, rate: null, countsTowardTotal: false);
 
         return buckets;
+    }
+
+    /// <summary>
+    ///     What the price list comes to for these buckets: only the buckets that count (so reasoning
+    ///     tokens stay out, having already been counted inside output by some providers), and only when
+    ///     at least one of them carries a rate.
+    ///     <para>
+    ///         Null rather than 0 for an unpriced model, which is the whole distinction the cost sheet
+    ///         and the estimated-cost tier both rest on: a model nobody has rates for must not read as
+    ///         a free run.
+    ///     </para>
+    /// </summary>
+    internal static decimal? ComputeCost(IReadOnlyList<JobCostBucket> buckets)
+    {
+        var counted = buckets.Where(b => b.CountsTowardTotal).ToList();
+        return counted.Any(b => b.RatePerMillion.HasValue)
+            ? counted.Sum(b => b.Tokens * (b.RatePerMillion ?? 0m) / 1_000_000m)
+            : null;
     }
 
     /// <summary>

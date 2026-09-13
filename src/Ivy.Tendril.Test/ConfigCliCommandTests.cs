@@ -40,6 +40,18 @@ public class ConfigCliCommandTests : IDisposable
     }
 
     [Fact]
+    public void Set_ChatTimeout_Persists()
+    {
+        var config = CreateConfig();
+        ConfigSetCommand.ApplyField(config.Settings, "chatTimeout", "60");
+        config.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal(60, reloaded.Settings.ChatTimeout);
+        Assert.Equal("60", ConfigGetCommand.ReadField(reloaded.Settings, "chatTimeout"));
+    }
+
+    [Fact]
     public void Set_CodingAgent_Persists()
     {
         var config = CreateConfig();
@@ -130,6 +142,8 @@ public class ConfigCliCommandTests : IDisposable
     [Theory]
     [InlineData("jobTimeout", "999")]
     [InlineData("jobTimeout", "0")]
+    [InlineData("chatTimeout", "481")]
+    [InlineData("chatTimeout", "-1")]
     [InlineData("gitTimeout", "31")]
     [InlineData("staleOutputTimeout", "0")]
     [InlineData("maxConcurrentJobs", "513")]

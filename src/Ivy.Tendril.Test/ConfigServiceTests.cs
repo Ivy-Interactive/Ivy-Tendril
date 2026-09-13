@@ -2220,5 +2220,42 @@ projects:
         Assert.Equal("InheritGeneral", project.SandboxMode);
         Assert.Equal("AutoImplementPlans", project.AutoImplementPlans);
     }
+
+    [Fact]
+    public void InboxConfig_DefaultValues_AreCorrect()
+    {
+        var config = new InboxConfig();
+        Assert.False(config.AutoAcceptAssignedIssues);
+        Assert.Equal(15, config.CheckIntervalMinutes);
+
+        var settings = new TendrilSettings();
+        Assert.NotNull(settings.Inbox);
+        Assert.False(settings.Inbox.AutoAcceptAssignedIssues);
+        Assert.Equal(15, settings.Inbox.CheckIntervalMinutes);
+    }
+
+    [Fact]
+    public void InboxConfig_RoundTripsThroughYaml()
+    {
+        var settings = new TendrilSettings
+        {
+            Inbox = new InboxConfig
+            {
+                AutoAcceptAssignedIssues = true,
+                CheckIntervalMinutes = 30
+            }
+        };
+
+        var yaml = YamlHelper.Serializer.Serialize(settings);
+        Assert.Contains("inbox:", yaml);
+        Assert.Contains("autoAcceptAssignedIssues: true", yaml);
+        Assert.Contains("checkIntervalMinutes: 30", yaml);
+
+        var deserialized = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml);
+        Assert.NotNull(deserialized);
+        Assert.NotNull(deserialized.Inbox);
+        Assert.True(deserialized.Inbox.AutoAcceptAssignedIssues);
+        Assert.Equal(30, deserialized.Inbox.CheckIntervalMinutes);
+    }
 }
 

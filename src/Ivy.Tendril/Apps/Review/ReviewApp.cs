@@ -1,5 +1,6 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.AppShell;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -43,14 +44,28 @@ public class ReviewApp : ViewBase
         var configService = UseService<IConfigService>();
         var gitService = UseService<IGitService>();
         var args = UseArgs<ReviewAppArgs>();
+        var previousPlans = UseRef(new List<PlanFile>());
+        var selectedFolderRef = UseRef<string?>(() =>
+        {
+            if (!string.IsNullOrEmpty(args?.PlanId))
+            {
+                return args.PlanId;
+            }
+            return null;
+        });
         var selectedPlanState = UseState<PlanFile?>(() =>
         {
             if (!string.IsNullOrEmpty(args?.PlanId))
             {
-                return planService.GetPlans().FirstOrDefault(x =>
+                var p = planService.GetPlans().FirstOrDefault(x =>
                     x.FolderName.Equals(args.PlanId, StringComparison.OrdinalIgnoreCase) ||
                     x.Id.ToString() == args.PlanId ||
                     x.FolderName.StartsWith(args.PlanId + "-", StringComparison.OrdinalIgnoreCase));
+                if (p != null)
+                {
+                    selectedFolderRef.Value = p.FolderName;
+                    return p;
+                }
             }
             return null;
         });
@@ -69,13 +84,17 @@ public class ReviewApp : ViewBase
                     x.FolderName.StartsWith(args.PlanId + "-", StringComparison.OrdinalIgnoreCase));
                 if (p != null && p.FolderName != selectedPlanState.Value?.FolderName)
                 {
+                    selectedFolderRef.Value = p.FolderName;
                     selectedPlanState.Set(p);
                 }
             }
             return Disposable.Empty;
         });
 
-        var previousPlans = UseRef(new List<PlanFile>());
+        if (selectedPlanState.Value != null)
+        {
+            selectedFolderRef.Value = selectedPlanState.Value.FolderName;
+        }
 
         var activePlanFolders = jobService.GetJobs()
             .Where(j => j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
@@ -89,25 +108,18 @@ public class ReviewApp : ViewBase
             .OrderByDescending(p => p.Id)
             .ToList();
 
-        // Only auto-select first plan if we didn't navigate here with specific args
-        if (selectedPlanState.Value == null && plans.Count > 0 && string.IsNullOrEmpty(args?.PlanId))
-        {
-            selectedPlanState.Set(plans[0]);
-        }
+        var (resolvedPlan, resolvedFolder) = PlanSelectionHelper.ResolveSelection(
+            selectedPlanState.Value,
+            selectedFolderRef.Value,
+            plans,
+            previousPlans.Value,
+            args?.PlanId);
 
-        if (selectedPlanState.Value is { } selected && plans.All(p => p.FolderName != selected.FolderName))
+        if (!ReferenceEquals(resolvedPlan, selectedPlanState.Value))
         {
-            var oldIndex = previousPlans.Value.FindIndex(p => p.FolderName == selected.FolderName);
-            if (plans.Count > 0 && oldIndex >= 0)
-            {
-                var newIndex = Math.Min(oldIndex, plans.Count - 1);
-                selectedPlanState.Set(plans[newIndex]);
-            }
-            else
-            {
-                selectedPlanState.Set(null);
-            }
+            selectedPlanState.Set(resolvedPlan);
         }
+        selectedFolderRef.Value = resolvedFolder;
 
         previousPlans.Value = plans;
 

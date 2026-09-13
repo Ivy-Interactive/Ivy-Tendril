@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Ivy.Core.Apps;
+using Ivy.Tendril.Apps.Agent;
 
 namespace Ivy.Tendril.AppShell;
 
@@ -87,6 +88,22 @@ internal class AppShellRouter
 
         if (appDescriptor?.AllowDuplicateTabs == true)
         {
+            // A terminal session's pane is keyed by its chat session id; reopening the same
+            // session reveals the existing pane instead of spawning a second agent.
+            if (navigateArgs.AppArgs is AgentAppArgs { SessionId: { Length: > 0 } sessionId })
+            {
+                var existingIndex = FindTabIndex(sessionTabs, sessionId);
+                if (existingIndex >= 0)
+                {
+                    return new RouteResult
+                    {
+                        Action = RouteAction.SwitchToExistingTab,
+                        TabIndex = existingIndex,
+                        TabId = sessionId
+                    };
+                }
+            }
+
             return new RouteResult
             {
                 Action = RouteAction.CreateNewTab,

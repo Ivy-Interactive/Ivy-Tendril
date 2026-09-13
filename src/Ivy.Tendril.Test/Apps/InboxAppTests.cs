@@ -1,0 +1,606 @@
+using Ivy;
+using Ivy.Tendril.Apps.Inbox;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.Inbox;
+using Ivy.Tendril.Services.Jobs;
+using Ivy.Tendril.Test.Helpers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Ivy.Tendril.Test.Apps;
+
+public class InboxAppTests
+{
+    [Fact]
+    public void SanitizeFileName_RemovesSpecialCharactersAndLimitsLength()
+    {
+        var title = "Fix: [Bug #123] Can't connect to server! (Critical & Urgent) <v2>";
+        var sanitized = InboxApp.SanitizeFileName(title);
+
+        Assert.Equal("fix-bug-123-cant-connect-to-server-critical-urgent-v2", sanitized);
+
+        var longTitle = "This is an extremely long issue title that exceeds the maximum sixty character filename length limit significantly";
+        var longSanitized = InboxApp.SanitizeFileName(longTitle);
+
+        Assert.True(longSanitized.Length <= 60);
+        Assert.False(longSanitized.EndsWith('-'));
+        Assert.False(longSanitized.StartsWith('-'));
+    }
+
+    [Fact]
+    public void SanitizeFileName_HandlesWhitespaceAndHyphens()
+    {
+        var input = "   Multiple   Spaces   and-Hyphens   ";
+        var sanitized = InboxApp.SanitizeFileName(input);
+
+        Assert.Equal("multiple-spaces-and-hyphens", sanitized);
+    }
+
+    [Theory]
+    [InlineData(null, "")]
+    [InlineData("", "")]
+    [InlineData("   ", "")]
+    [InlineData("Short body text", "Short body text")]
+    public void TruncateBody_HandlesEmptyAndShortText(string? body, string expected)
+    {
+        var result = InboxApp.TruncateBody(body);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void TruncateBody_TruncatesLongTextWithEllipsis()
+    {
+        var longText = new string('a', 600);
+        var result = InboxApp.TruncateBody(longText, maxLength: 500);
+
+        Assert.Equal(501, result.Length); // 500 chars + 1 char for ellipsis
+        Assert.EndsWith("\u2026", result);
+        Assert.StartsWith(new string('a', 500), result);
+    }
+
+    [Fact]
+    public void FormatGroupHeader_FormatsCorrectlyWithAndWithoutAssignee()
+    {
+        var singleIssueAssignee = InboxApp.FormatGroupHeader("octocat", 1, 0);
+        Assert.Equal("Found 1 issue for octocat · 0 selected", singleIssueAssignee);
+
+        var multipleIssuesAssignee = InboxApp.FormatGroupHeader("octocat", 5, 3);
+        Assert.Equal("Found 5 issues for octocat · 3 selected", multipleIssuesAssignee);
+
+        var singleIssueNoAssignee = InboxApp.FormatGroupHeader((string?)null, 1, 1);
+        Assert.Equal("Found 1 issue · 1 selected", singleIssueNoAssignee);
+
+        var multipleIssuesNoAssignee = InboxApp.FormatGroupHeader((string?)null, 10, 4);
+        Assert.Equal("Found 10 issues · 4 selected", multipleIssuesNoAssignee);
+
+        var group = new FetchedIssueGroup("john", [
+            new GitHubIssue(1, "Test 1", null, [], ["john"]),
+            new GitHubIssue(2, "Test 2", null, [], ["john"])
+        ]);
+        var groupFormatted = InboxApp.FormatGroupHeader(group, 2);
+        Assert.Equal("Found 2 issues for john · 2 selected", groupFormatted);
+    }
+
+    [Fact]
+    public void GetProjectForRepo_ResolvesMatchingProjectName()
+    {
+        var project = new ProjectConfig { Name = "IvyFramework" };
+        var stubService = new StubGithubService(project);
+
+        var projectName = InboxApp.GetProjectForRepo(stubService, "ivy-interactive", "ivy-framework");
+
+        Assert.Equal("IvyFramework", projectName);
+    }
+
+    [Fact]
+    public void GetProjectForRepo_ReturnsAutoWhenNoMatchingProject()
+    {
+        var stubService = new StubGithubService(null);
+
+        var projectName = InboxApp.GetProjectForRepo(stubService, "unknown-owner", "unknown-repo");
+
+        Assert.Equal("Auto", projectName);
+    }
+
+    [Fact]
+    public void CreateProjectIssueRequest_Uses_DefaultIssueLimit_Without_100_Cap()
+    {
+        var request = InboxApp.CreateProjectIssueRequest("owner", "repo");
+
+        Assert.Equal("owner", request.Owner);
+        Assert.Equal("repo", request.Repo);
+        Assert.Equal(GithubService.DefaultIssueLimit, request.Limit);
+        Assert.Equal(1000, request.Limit);
+        Assert.True(request.Limit > 100);
+    }
+
+    [Fact]
+    public void ParseIssuesFromJson_ParsesRepositoryAndUrl()
+    {
+        var json = """
+                   [
+                     {
+                       "number": 101,
+                       "title": "Test Issue",
+                       "body": "Issue description",
+                       "labels": [{"name": "bug"}],
+                       "assignees": [{"login": "alice"}],
+                       "repository": {"nameWithOwner": "owner/repo"},
+                       "url": "https://github.com/owner/repo/issues/101",
+                       "updatedAt": "2026-09-01T12:00:00Z"
+                     }
+                   ]
+                   """;
+
+        var issues = GithubService.ParseIssuesFromJson(json);
+
+        Assert.Single(issues);
+        var issue = issues[0];
+        Assert.Equal(101, issue.Number);
+        Assert.Equal("Test Issue", issue.Title);
+        Assert.Equal("owner/repo", issue.Repository);
+        Assert.Equal("https://github.com/owner/repo/issues/101", issue.Url);
+        Assert.Single(issue.Labels);
+        Assert.Equal("bug", issue.Labels[0]);
+        Assert.Single(issue.Assignees);
+        Assert.Equal("alice", issue.Assignees[0]);
+    }
+
+    [Fact]
+    public void ParseReviewsFromJson_ParsesPrDetailsAndBranch()
+    {
+        var json = """
+                   [
+                     {
+                       "number": 202,
+                       "title": "Test PR",
+                       "body": "PR description",
+                       "labels": [],
+                       "assignees": [],
+                       "repository": {"nameWithOwner": "owner/repo"},
+                       "url": "https://github.com/owner/repo/pull/202",
+                       "headRefName": "feature/awesome",
+                       "updatedAt": "2026-09-02T12:00:00Z"
+                     }
+                   ]
+                   """;
+
+        var reviews = GithubService.ParseReviewsFromJson(json);
+
+        Assert.Single(reviews);
+        var pr = reviews[0];
+        Assert.Equal(202, pr.Number);
+        Assert.Equal("Test PR", pr.Title);
+        Assert.Equal("owner/repo", pr.Repository);
+        Assert.Equal("feature/awesome", pr.Branch);
+        Assert.Equal("https://github.com/owner/repo/pull/202", pr.Url);
+    }
+
+    [Fact]
+    public void ParseReviewsFromJson_HandlesMissingHeadRefName()
+    {
+        var json = """
+                   [
+                     {
+                       "number": 303,
+                       "title": "Review Request without HeadRefName",
+                       "body": null,
+                       "labels": [],
+                       "assignees": [],
+                       "repository": {"nameWithOwner": "owner/repo"},
+                       "url": "https://github.com/owner/repo/pull/303",
+                       "updatedAt": "2026-09-05T10:00:00Z"
+                     }
+                   ]
+                   """;
+
+        var reviews = GithubService.ParseReviewsFromJson(json);
+
+        Assert.Single(reviews);
+        var pr = reviews[0];
+        Assert.Equal(303, pr.Number);
+        Assert.Equal("Review Request without HeadRefName", pr.Title);
+        Assert.Null(pr.Branch);
+    }
+
+    [Fact]
+    public async Task InboxApp_SingleFlight_CollapsesConcurrentFetches_And_OnRefresh_BypassesTtl()
+    {
+        var services = new ServiceCollection();
+        var stubGithub = new StubGithubService();
+        var configService = new ConfigService(new TendrilSettings());
+        var queryService = new QueryService(NullLogger<QueryService>.Instance);
+
+        services.AddSingleton<IGithubService>(stubGithub);
+        services.AddSingleton<IConfigService>(configService);
+        services.AddSingleton<IQueryService>(queryService);
+        services.AddSingleton<IClientProvider>(new DummyClientProvider());
+        services.AddLogging();
+        services.AddSingleton<ILogger<InboxApp>>(NullLogger<InboxApp>.Instance);
+        var autoImportService = new AssignedIssuesAutoImportService(
+            configService,
+            stubGithub,
+            new FakePlanReaderService(),
+            new DummyJobService(),
+            NullLogger<AssignedIssuesAutoImportService>.Instance,
+            queryService);
+        services.AddSingleton(autoImportService);
+
+        var appContext = (Ivy.AppContext)Activator.CreateInstance(
+            typeof(Ivy.AppContext),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            null,
+            new object?[] { "conn1", "mach1", "inbox", "inbox", null, "http", "localhost", null },
+            null)!;
+        services.AddSingleton(appContext);
+
+        var sp = services.BuildServiceProvider();
+
+        int refreshCount = 0;
+        var ctx = new Ivy.Core.Hooks.ViewContext(() => { refreshCount++; }, null, sp);
+
+        var app = new InboxApp();
+        app.BeforeBuild(ctx);
+        var built = app.Build();
+        app.AfterBuild();
+
+        Assert.NotNull(built);
+
+        var layout = Assert.IsType<SidebarLayout>(built);
+        var mainContentSlot = Assert.IsType<Slot>(layout.Children[0]);
+        var contentView = Assert.IsType<ContentView>(mainContentSlot.Children[0]);
+
+        var initialCompleted = RetryHelper.WaitUntil(() =>
+            stubGithub.MyAssignedIssuesCallCount == 1 &&
+            stubGithub.ReviewRequestsCallCount == 1,
+            timeout: TimeSpan.FromSeconds(5));
+
+        Assert.True(initialCompleted, "Initial queries did not complete within timeout.");
+        Assert.Equal(1, stubGithub.MyAssignedIssuesCallCount);
+        Assert.Equal(1, stubGithub.ReviewRequestsCallCount);
+
+        // Invoke the onRefresh callback passed to ContentView while selectedCategory is MyIssues
+        // and assert the counter increments by exactly one immediately, bypassing the 60-second Expiration.
+        await contentView.RefreshHandler();
+
+        var refreshCompleted = RetryHelper.WaitUntil(() =>
+            stubGithub.MyAssignedIssuesCallCount == 2,
+            timeout: TimeSpan.FromSeconds(5));
+
+        Assert.True(refreshCompleted, "OnRefresh did not trigger revalidation within timeout.");
+        Assert.Equal(2, stubGithub.MyAssignedIssuesCallCount);
+        Assert.Equal(1, stubGithub.ReviewRequestsCallCount);
+    }
+
+    [Fact]
+    public void CreateSelectedCellUpdate_FormsCorrectPayload()
+    {
+        var updateTrue = ContentView.CreateSelectedCellUpdate(123, true);
+        Assert.Equal("123", updateTrue.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), updateTrue.ColumnName);
+        Assert.Equal(true, updateTrue.Value);
+
+        var updateFalse = ContentView.CreateSelectedCellUpdate(456, false);
+        Assert.Equal("456", updateFalse.RowId);
+        Assert.Equal("Selected", updateFalse.ColumnName);
+        Assert.Equal(false, updateFalse.Value);
+
+        var updateStringId = ContentView.CreateSelectedCellUpdate("789", true);
+        Assert.Equal("789", updateStringId.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), updateStringId.ColumnName);
+        Assert.Equal(true, updateStringId.Value);
+    }
+
+    [Fact]
+    public void ToggleIssueSelection_UpdatesSelectionState_AndFormsUpdatePayload()
+    {
+        var initial = new HashSet<int> { 1, 2 };
+
+        // Select issue 3 (was not in initial set)
+        var isSelected = ContentView.ToggleIssueSelection(initial, 3, out var nextAfterSelect, out var selectUpdate);
+        Assert.True(isSelected);
+        Assert.Equal(new HashSet<int> { 1, 2, 3 }, nextAfterSelect);
+        Assert.Equal("3", selectUpdate.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), selectUpdate.ColumnName);
+        Assert.Equal(true, selectUpdate.Value);
+
+        // Deselect issue 2 (was in nextAfterSelect set)
+        var isDeselected = ContentView.ToggleIssueSelection(nextAfterSelect, 2, out var nextAfterDeselect, out var deselectUpdate);
+        Assert.False(isDeselected);
+        Assert.Equal(new HashSet<int> { 1, 3 }, nextAfterDeselect);
+        Assert.Equal("2", deselectUpdate.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), deselectUpdate.ColumnName);
+        Assert.Equal(false, deselectUpdate.Value);
+    }
+
+    [Fact]
+    public void SelectAllIssues_UpdatesSelectionState_AndEmitsOnlyUnselectedItems()
+    {
+        var issues = new List<GitHubIssue>
+        {
+            new(101, "Issue 1", null, [], []),
+            new(102, "Issue 2", null, [], []),
+            new(103, "Issue 3", null, [], [])
+        };
+
+        var initial = new HashSet<int> { 102 };
+
+        var updates = ContentView.SelectAllIssues(initial, issues, out var nextSelected);
+
+        Assert.Equal(new HashSet<int> { 101, 102, 103 }, nextSelected);
+        Assert.Equal(2, updates.Count);
+        Assert.Contains(updates, u => (string?)u.RowId == "101" && (bool)u.Value! && u.ColumnName == "Selected");
+        Assert.Contains(updates, u => (string?)u.RowId == "103" && (bool)u.Value! && u.ColumnName == "Selected");
+    }
+
+    [Fact]
+    public void DeselectAllIssues_UpdatesSelectionState_AndEmitsOnlySelectedItems()
+    {
+        var issues = new List<GitHubIssue>
+        {
+            new(101, "Issue 1", null, [], []),
+            new(102, "Issue 2", null, [], []),
+            new(103, "Issue 3", null, [], [])
+        };
+
+        var initial = new HashSet<int> { 101, 103 };
+
+        var updates = ContentView.DeselectAllIssues(initial, issues, out var nextSelected);
+
+        Assert.Empty(nextSelected);
+        Assert.Equal(2, updates.Count);
+        Assert.Contains(updates, u => (string?)u.RowId == "101" && !(bool)u.Value! && u.ColumnName == "Selected");
+        Assert.Contains(updates, u => (string?)u.RowId == "103" && !(bool)u.Value! && u.ColumnName == "Selected");
+    }
+
+    [Fact]
+    public void SelectionOperations_DoNotTriggerRefreshTokenRefresh()
+    {
+        var tokenState = new Ivy.Core.Hooks.State<(Guid, object?, bool)>((Guid.NewGuid(), null, false));
+        var refreshToken = new RefreshToken(tokenState);
+        var initialToken = refreshToken.Token;
+
+        var issues = new List<GitHubIssue>
+        {
+            new(1, "Test 1", null, [], []),
+            new(2, "Test 2", null, [], [])
+        };
+
+        var selected = new HashSet<int>();
+
+        ContentView.ToggleIssueSelection(selected, 1, out selected, out _);
+        Assert.Equal(initialToken, refreshToken.Token);
+
+        ContentView.SelectAllIssues(selected, issues, out selected);
+        Assert.Equal(initialToken, refreshToken.Token);
+
+        ContentView.DeselectAllIssues(selected, issues, out selected);
+        Assert.Equal(initialToken, refreshToken.Token);
+    }
+
+    [Fact]
+    public void IssueUrlDerivation_LivesOnlyInResolveIssueUrl()
+    {
+        var repoRoot = FindRepoRoot();
+        var productionDir = Path.Combine(repoRoot, "src", "Ivy.Tendril");
+
+        // This test file lives under src/Ivy.Tendril.Test, which is a sibling of the scanned
+        // directory, so the needles below cannot match the guard itself.
+        const string interpolatedGithubPrefix = "$\"https://github.com/{";
+        const string issuePathSegment = "/issues/{";
+
+        var hits = new List<string>();
+
+        var csFiles = Directory.EnumerateFiles(productionDir, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
+                        !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar));
+
+        foreach (var file in csFiles)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains(interpolatedGithubPrefix, StringComparison.Ordinal) &&
+                    lines[i].Contains(issuePathSegment, StringComparison.Ordinal))
+                {
+                    hits.Add($"{Path.GetRelativePath(repoRoot, file)}:{i + 1}");
+                }
+            }
+        }
+
+        var expectedFile = Path.Combine("src", "Ivy.Tendril", "Apps", "Inbox", "InboxApp.cs");
+
+        Assert.True(
+            hits.Count == 1,
+            $"Expected exactly one inline GitHub issue url derivation in {expectedFile} (the body of " +
+            $"InboxApp.ResolveIssueUrl), but found {hits.Count}: {string.Join(", ", hits)}. Call " +
+            "InboxApp.ResolveIssueUrl(issue) instead of spelling out the issue.Url fallback inline.");
+
+        Assert.True(
+            hits[0].StartsWith(expectedFile + ":", StringComparison.Ordinal),
+            $"The single inline GitHub issue url derivation should be the body of " +
+            $"InboxApp.ResolveIssueUrl in {expectedFile}, but it was found at {hits[0]}.");
+    }
+
+    [Fact]
+    public void BuildInboxFileContent_LinksTheIssueWhenAUrlResolves()
+    {
+        var issue = new GitHubIssue(101, "Fix login bug", "Login fails", [], [], "owner/repo", "https://github.com/owner/repo/issues/101");
+
+        var content = InboxApp.BuildInboxFileContent(issue, "Auto");
+
+        Assert.Equal(
+            "---\n" +
+            "project: Auto\n" +
+            "---\n" +
+            "[GitHub Issue #101](https://github.com/owner/repo/issues/101)\n" +
+            "\n" +
+            "Login fails",
+            content);
+    }
+
+    [Fact]
+    public void BuildInboxFileContent_DerivesTheUrlFromTheRepository()
+    {
+        var issue = new GitHubIssue(101, "Fix login bug", "Login fails", [], [], "acme/widgets");
+
+        var content = InboxApp.BuildInboxFileContent(issue, "Auto");
+
+        Assert.Equal(
+            "---\n" +
+            "project: Auto\n" +
+            "---\n" +
+            "[GitHub Issue #101](https://github.com/acme/widgets/issues/101)\n" +
+            "\n" +
+            "Login fails",
+            content);
+    }
+
+    [Fact]
+    public void BuildInboxFileContent_FallsBackToAPlainHeadingWhenNoUrlResolves()
+    {
+        var issue = new GitHubIssue(12, "Fix login bug", "Login fails", [], [], Repository: null, Url: null);
+
+        var content = InboxApp.BuildInboxFileContent(issue, "Tendril");
+
+        Assert.Equal(
+            "---\n" +
+            "project: Tendril\n" +
+            "---\n" +
+            "# Issue #12: Fix login bug\n" +
+            "\n" +
+            "Login fails",
+            content);
+        Assert.DoesNotContain("](", content);
+    }
+
+    [Fact]
+    public void InboxFileContentTemplate_LivesOnlyInBuildInboxFileContent()
+    {
+        var repoRoot = FindRepoRoot();
+        var productionDir = Path.Combine(repoRoot, "src", "Ivy.Tendril");
+
+        // This test file lives under src/Ivy.Tendril.Test, which is a sibling of the scanned
+        // directory, so the needle below cannot match the guard itself.
+        const string issueLinkTemplate = "[GitHub Issue #{issue.Number}](";
+
+        var hits = new List<string>();
+
+        var csFiles = Directory.EnumerateFiles(productionDir, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
+                        !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar));
+
+        foreach (var file in csFiles)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains(issueLinkTemplate, StringComparison.Ordinal))
+                {
+                    hits.Add($"{Path.GetRelativePath(repoRoot, file)}:{i + 1}");
+                }
+            }
+        }
+
+        var expectedFile = Path.Combine("src", "Ivy.Tendril", "Apps", "Inbox", "InboxApp.cs");
+
+        Assert.True(
+            hits.Count == 1,
+            $"Expected exactly one inline inbox issue-link template in {expectedFile} (the body of " +
+            $"InboxApp.BuildInboxFileContent), but found {hits.Count}: {string.Join(", ", hits)}. Call " +
+            "InboxApp.BuildInboxFileContent(issue, targetProject) instead of spelling out the inbox " +
+            "file template inline.");
+
+        Assert.True(
+            hits[0].StartsWith(expectedFile + ":", StringComparison.Ordinal),
+            $"The single inline inbox issue-link template should be the body of " +
+            $"InboxApp.BuildInboxFileContent in {expectedFile}, but it was found at {hits[0]}.");
+    }
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "src", "Ivy.Tendril", "Ivy.Tendril.slnx")))
+            {
+                return dir.FullName;
+            }
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root from the test base directory.");
+    }
+
+    private sealed class StubGithubService(ProjectConfig? projectToReturn = null) : IGithubService
+    {
+        public int MyAssignedIssuesCallCount { get; private set; }
+        public int ReviewRequestsCallCount { get; private set; }
+
+        public List<RepoConfig> GetRepos() => [];
+        public RepoConfig? GetRepoConfigFromPathCached(string repoPath) => null;
+        public ProjectConfig? FindProjectForGithubRepo(string ownerRepo) => projectToReturn;
+        public IReadOnlyList<string> GetResolvedGithubRepos(ProjectConfig project) => [];
+        public Task<(List<string> assignees, string? error)> GetAssigneesAsync(string owner, string repo) =>
+            Task.FromResult((new List<string>(), (string?)null));
+        public Task<(List<string> labels, string? error)> GetLabelsAsync(string owner, string repo) =>
+            Task.FromResult((new List<string>(), (string?)null));
+        public Task<(Dictionary<string, PrInfo> statuses, string? error)> GetPrStatusesAsync(string owner, string repo) =>
+            Task.FromResult((new Dictionary<string, PrInfo>(), (string?)null));
+        public Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(IssueSearchRequest request) =>
+            Task.FromResult((new List<GitHubIssue>(), (string?)null));
+        public Task<(List<GitHubIssue> issues, string? error)> GetMyAssignedIssuesAsync()
+        {
+            MyAssignedIssuesCallCount++;
+            return Task.FromResult((new List<GitHubIssue>(), (string?)null));
+        }
+        public Task<(List<GitHubReviewItem> prs, string? error)> GetReviewRequestsAsync()
+        {
+            ReviewRequestsCallCount++;
+            return Task.FromResult((new List<GitHubReviewItem>(), (string?)null));
+        }
+    }
+
+    private sealed class DummyClientProvider : IClientProvider
+    {
+        public IClientSender Sender { get; set; } = new DummyClientSender();
+    }
+
+    private sealed class DummyClientSender : IClientSender
+    {
+        public void Send(string method, object? data) { }
+    }
+
+    private sealed class DummyJobService : IJobService
+    {
+#pragma warning disable CS0067
+        public event Action? JobsChanged;
+        public event Action? JobsStructureChanged;
+        public event Action? JobPropertyChanged;
+        public event Action<JobNotification>? NotificationReady;
+        public event Action<JobItem>? JobFinished;
+#pragma warning restore CS0067
+
+        public string StartJob(JobArgsBase args, string? inboxFilePath = null) => "job-1";
+        public void ForceStartJob(string id) { }
+        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
+        public void StopJob(string id) { }
+        public int StopAllJobs() => 0;
+        public void DeleteJob(string id) { }
+        public void ClearCompletedJobs() { }
+        public void ClearFailedJobs() { }
+        public void ClearAllJobs() { }
+        public int StopQueuedJobs() => 0;
+        public List<JobItem> GetJobs() => [];
+        public List<JobItem> GetJobsForPlan(string planFile) => [];
+        public JobItem? GetJob(string id) => null;
+        public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => true;
+        public void SetChatSessionId(string id, string chatSessionId) { }
+        public bool ReportJobFailure(string id, string message) => true;
+        public bool IsInboxFileTracked(string filePath) => false;
+        public void Dispose() { }
+    }
+}

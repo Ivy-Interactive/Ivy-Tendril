@@ -224,8 +224,10 @@ public class PlanCreateDuplicateCandidatesTests : IDisposable
         Assert.Contains("DuplicateCandidates:", stderr);
         Assert.Contains($"00063-AddTheMissingCargoFmtPreCommitGuardFromPlan00042|{Title00063}|Completed", stderr);
 
-        // The plan must never match itself.
-        Assert.DoesNotContain("00065-DeliverTheBlockedCargoFmtPreCommitHook", stderr);
+        // The plan must never match itself. Scoped to the candidate block, because stderr also carries
+        // the plan-edit report, which names the plan being edited.
+        var candidateBlock = stderr[stderr.IndexOf("DuplicateCandidates:", StringComparison.Ordinal)..];
+        Assert.DoesNotContain("00065-DeliverTheBlockedCargoFmtPreCommitHook", candidateBlock);
     }
 
     [Fact]
@@ -241,7 +243,7 @@ public class PlanCreateDuplicateCandidatesTests : IDisposable
 
         Assert.Equal(0, exit);
         Assert.DoesNotContain("DuplicateCandidates", stderr);
-        Assert.DoesNotContain("warning:", stderr);
+        Assert.DoesNotContain("possible duplicate plan(s) found", stderr);
     }
 
     [Fact]

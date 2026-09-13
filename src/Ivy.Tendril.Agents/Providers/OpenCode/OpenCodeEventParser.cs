@@ -8,6 +8,9 @@ namespace Ivy.Tendril.Agents.Providers.OpenCode;
 
 public sealed class OpenCodeEventParser : IEventParser
 {
+    public const string OutputTruncatedCode = "output_truncated";
+    public const string UnhandledStopReasonCode = "unhandled_stop_reason";
+
     public string AgentId => Abstractions.AgentId.OpenCode;
 
     private static readonly IReadOnlyList<AgentEvent> Empty = Array.Empty<AgentEvent>();
@@ -203,17 +206,20 @@ public sealed class OpenCodeEventParser : IEventParser
         if (part.TryGetProperty("cost", out var cProp))
             _accumulatedCost += cProp.GetDecimal();
 
+        var stepOutputTokens = 0;
         if (part.TryGetProperty("tokens", out var tokens))
         {
             _accumulatedInputTokens += tokens.TryGetProperty("input", out var it) ? it.GetInt32() : 0;
-            _accumulatedOutputTokens += tokens.TryGetProperty("output", out var ot) ? ot.GetInt32() : 0;
+            stepOutputTokens = tokens.TryGetProperty("output", out var ot) ? ot.GetInt32() : 0;
+            _accumulatedOutputTokens += stepOutputTokens;
         }
 
         var reason = part.TryGetProperty("reason", out var rProp) ? rProp.GetString() : null;
 
-        // Intermediate steps (reason == "tool-calls") are not terminal — suppress them
-        // to avoid the UI rendering each step as an error.
-        if (reason is not ("stop" or "error"))
+        // Only "tool-calls" is an intermediate step - suppress it to avoid the UI
+        // rendering each step as an error. Every other reason really did end
+        // generation, including ones we don't have an explicit case for.
+        if (reason == "tool-calls")
             return Empty;
 
         AgentUsage? usage = (_accumulatedInputTokens > 0 || _accumulatedOutputTokens > 0 || _accumulatedCost > 0)
@@ -225,13 +231,43 @@ public sealed class OpenCodeEventParser : IEventParser
             }
             : null;
 
-        return [new ResultEvent
+        if (reason is "stop" or "error")
         {
-            Kind = AgentEventKind.Result,
-            IsSuccess = reason == "stop",
-            Usage = usage,
-            RawLine = rawLine,
-        }];
+            return [new ResultEvent
+            {
+                Kind = AgentEventKind.Result,
+                IsSuccess = reason == "stop",
+                Usage = usage,
+                RawLine = rawLine,
+            }];
+        }
+
+        _hasError = true;
+
+        var (code, message) = reason == "length"
+            ? (OutputTruncatedCode,
+               $"Model output truncated at the max output token limit ({stepOutputTokens} output tokens in the final step); any pending tool call was aborted.")
+            : (UnhandledStopReasonCode,
+               $"Agent stopped with an unhandled reason '{reason}'; treating as a failure.");
+
+        return [
+            new ErrorEvent
+            {
+                Kind = AgentEventKind.Error,
+                Message = message,
+                Code = code,
+                IsRetryable = true,
+                RawLine = rawLine,
+            },
+            new ResultEvent
+            {
+                Kind = AgentEventKind.Result,
+                IsSuccess = false,
+                Error = message,
+                Usage = usage,
+                RawLine = rawLine,
+            },
+        ];
     }
 
     private IReadOnlyList<AgentEvent> ParseError(JsonElement root, string rawLine)

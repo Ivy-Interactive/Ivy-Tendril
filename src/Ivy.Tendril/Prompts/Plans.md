@@ -34,7 +34,7 @@ Plans live under `planFolder` from `config.yaml`.
 `{ID:D5}-{SafeTitle}` — e.g. `01098-MakeAnEmptyAppCalledReview`
 
 - **ID**: 5-digit value from `.counter`
-- **SafeTitle**: Title-cased, first 60 chars of description, alphanumeric only, no spaces (e.g. `"Fix login bug"` – `FixLoginBug`)
+- **SafeTitle**: Title-cased, first 24 chars of description, alphanumeric only, no spaces (e.g. `"Fix login bug"` – `FixLoginBug`). The 24-character cap keeps worktree paths within the Windows process creation budget (MAX_PATH limit).
 
 **SafeTitle is for the folder name only.** It is derived automatically from the title by the CLI — do not pass it anywhere. The plan's `title` field is a separate, **human-readable** string (Title Case *with spaces*). Never reuse the PascalCase SafeTitle form as the `title`.
 
@@ -98,6 +98,10 @@ tendril plan remove-repo <plan-id> <repo-path>
 
 # Track PRs and commits
 tendril plan add-pr <plan-id> <pr-url>
+tendril plan remove-pr <plan-id> <pr-url>
+# Matches on owner/repo#number, so a URL recorded with a /files suffix can be removed by its base
+# form. Use it to unpick a PR that was recorded against the wrong plan; `tendril plan doctor --prs`
+# finds those and prints the command for each one.
 tendril plan add-commit <plan-id> <sha>
 
 # Verifications
@@ -119,6 +123,14 @@ tendril plan rec decline <plan-id> <title> [--reason=<text>]
 tendril plan rec set <plan-id> <title> <field> <value>
 tendril plan rec remove <plan-id> <title>
 tendril plan rec list <plan-id> [--state=Pending|Accepted|Declined]
+
+# Environment files and dynamic ports
+tendril plan env materialize <plan-id> [--repo=<repo>]
+# Allocates a free port for each of the project's named `ports` (retaining any already recorded in
+# `allocatedPorts`) and writes the project's configured `envFiles` into the plan's worktree. Run by
+# `tendril plan add-worktree` automatically; use it directly to refresh a worktree in place.
+tendril plan env get <plan-id>
+# Prints the plan's allocated ports and the environment variables each configured env file resolves to.
 
 # Validate plan health
 tendril plan validate <plan-id>
@@ -202,6 +214,9 @@ verifications:
 relatedPlans: []
 dependsOn: []
 priority: 0
+allocatedPorts:
+  backend: 3001
+  frontend: 3000
 ```
 
 ### Fields
@@ -226,6 +241,7 @@ priority: 0
 | `dependsOn`    | Plan folder names this plan depends on (e.g. `- 01478-WorktreeIsolation`). ExecutePlan will block until all dependencies are `Completed` and their PRs are merged. |
 | `priority`     | Integer priority (0 = normal). Higher values are executed first. Set by CreatePlan launcher, not by agents. |
 | `executionProfile` | (Optional) Recommended execution profile for ExecutePlan: `deep` or `balanced`. If set, overrides config.yaml default. CreatePlan sets this based on task complexity analysis. |
+| `allocatedPorts` | (Optional) Mapping of the project's named service ports (from the `ports` entry in `config.yaml`) to the TCP port assigned to this plan, e.g. `backend: 3001`. Written by `tendril plan add-worktree` / `tendril plan env materialize` and reused on re-execution so a review session keeps the same URLs. Managed by the CLI — do not hand-edit. |
 
 **Do NOT add fields beyond those listed above.** Unknown fields (e.g. `tags`, `category`) will be stripped by the normalizer and may cause parse errors.
 
@@ -296,7 +312,6 @@ questions:                    # 1-4 items
     header:      string       # optional, <=12 char label shown as an eyebrow above the title
     description: markdown     # optional, block markdown shown under the question
     multiple:    bool         # optional, default false; true = multi-select
-    other:       bool         # optional, default true; user may type a free value
     optional:    bool         # optional, default false; true = answering is not expected
     options:                  # 2-4 items; omit entirely for a pure free-text question
       - title:       string   # required, 1-5 words
@@ -373,21 +388,22 @@ questions:
 `````
 
 Use a `|` block scalar for any description spanning more than one line, so blank lines and
-indentation survive YAML parsing intact.
+indentation survive YAML parsing intact. Always quote `title`, `header`, and `description` values when they contain colons (`:`), quotes, or code snippets (e.g. `title: "Option: SQLite"` or `description: "Uses `key: val` syntax"`).
 
-Three shapes fall out of `multiple` / `other` / the presence of `options`:
+A question with options always renders an Other field for a typed answer.
+
+Three shapes fall out of `multiple` and the presence of `options`:
 
 | Shape | How |
 |---|---|
-| Single-select, fixed set | `other: false` plus options |
-| Multi-select, open set | `multiple: true` plus options |
+| Single-select | options |
+| Multi-select | `multiple: true` plus options |
 | Pure free text | no options at all |
 
 ### Answer semantics
 
 - An entry that matches an option's `value` is that option.
-- An entry that matches nothing is the user's own text. Legal when `other` is true, or when there are
-  no options.
+- An entry that matches nothing is the user's own text.
 - `multiple: true` means `answer` is always a list, even with one selection.
 - `answer` absent means not yet answered. UpdatePlan carries the block forward unchanged.
 - There is no third state. `answer` is either absent or a value — **never `null`**. A question that
@@ -422,11 +438,9 @@ revision does not consume a revision number. Fix the reported lines and retry.
 | Every question has a non-empty `id` | `question N: id is required` |
 | `id` unique across the whole revision, blocks included | `question N: duplicate question id '<id>'` |
 | At most one `recommended: true` per question | `question N: more than one option is recommended` |
-| No hand-authored option titled "Other", "Something else", "Custom" | `question N: option '<title>' duplicates what other: true provides` |
-| `other: false` with no options | `question N: other: false with no options is unanswerable` |
+| No hand-authored option titled "Other", "Something else", "Custom" | `question N: option '<title>' duplicates the Other option every question offers` |
 | `answer` is a list iff `multiple: true` | `question N: multiple: true requires a list answer` / `question N: answer must be a scalar when multiple is false` |
 | `value` unique within a question | `question N: duplicate option value '<value>'` |
-| `other: false` and an answer entry matches no option value | `question N: answer '<entry>' matches no option and other is false` |
 | `answer` is present but null | `question N: answer: null is not a state; omit the key, or mark the question optional` |
 
 Schema bounds are enforced too: 1-4 questions, a required `id` and `title`, a `header` of at most 12

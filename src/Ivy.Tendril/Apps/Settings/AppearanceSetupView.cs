@@ -1,4 +1,8 @@
+using System;
+using System.Linq;
+using System.Reactive.Disposables;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Vault;
 using Ivy.Tendril.Themes;
 
 namespace Ivy.Tendril.Apps.Settings;
@@ -8,10 +12,25 @@ public class AppearanceSetupView : ViewBase
     public override object Build()
     {
         var config = UseService<IConfigService>();
+        var vaultService = UseService<IVaultService>();
         var client = UseService<IClientProvider>();
+        var refreshToken = UseRefreshToken();
+
         var themeMode = UseState(() => config.Settings.ThemeMode ?? "system");
         var selectedTheme = UseState(() => config.Settings.Theme ?? "default");
         var lastAppliedTheme = UseState(() => config.Settings.Theme ?? "default");
+
+        UseEffect(() =>
+        {
+            void OnVaultChanged()
+            {
+                refreshToken.Refresh();
+            }
+            vaultService.VaultChanged += OnVaultChanged;
+            return Disposable.Create(() => vaultService.VaultChanged -= OnVaultChanged);
+        });
+
+        _ = refreshToken.Token;
 
         UseEffect(() =>
         {
@@ -29,12 +48,16 @@ public class AppearanceSetupView : ViewBase
         }, selectedTheme);
 
         var themeOptions = TendrilThemes.All
-            .Select(t => new Option<string>(t.Name, t.Id))
+            .Select(t => new Option<string>(
+                t.IsVaultTheme
+                    ? $"{t.Name} (Vault: {(!string.IsNullOrWhiteSpace(t.VaultName) ? t.VaultName : "Team")})"
+                    : t.Name,
+                t.Id))
             .ToArray<IAnyOption>();
 
         var activeTheme = TendrilThemes.GetTheme(selectedTheme.Value);
         var swatches = Layout.Horizontal()
-            | activeTheme.PreviewColors.Select(color =>
+            | (activeTheme.PreviewColors ?? []).Select(color =>
                 new Svg($"<svg width='20' height='20' viewBox='0 0 20 20'><circle cx='10' cy='10' r='9' fill='{color}' stroke='rgba(128,128,128,0.3)' stroke-width='1.5'/></svg>")
                     .Width(Size.Px(20))
                     .Height(Size.Px(20))
@@ -42,9 +65,19 @@ public class AppearanceSetupView : ViewBase
 
         var themeSelector = Layout.Vertical()
             | selectedTheme.ToSelectInput(themeOptions)
-            | swatches;
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | swatches
+                | (activeTheme.IsVaultTheme ? new Badge("Team Vault").Variant(BadgeVariant.Secondary).Small() : null));
 
         var isSidebarOpen = config.Settings.SidebarOpen;
+        var usesTerminal = ChatModes.IsTerminal(config.Settings.ChatMode);
+
+        void SetChatMode(string mode, string label)
+        {
+            config.Settings.ChatMode = mode;
+            config.SaveSettings();
+            client.Toast($"Chat opens as {label}", "Saved");
+        }
 
         return Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Appearance").Bold()
@@ -87,7 +120,7 @@ public class AppearanceSetupView : ViewBase
                | Text.Muted("Choose a color scheme preset for Tendril.").Small()
                | themeSelector
                | Text.Block("Main Sidebar").Bold()
-               | Text.Muted("Choose the default state for the main sidebar on startup.").Small()
+               | Text.Muted("Choose the default state for the main sidebar for new client sessions.").Small()
                | (Layout.Horizontal()
                   | new Button("Expanded")
                       .Variant(isSidebarOpen ? ButtonVariant.Primary : ButtonVariant.Outline)
@@ -106,6 +139,17 @@ public class AppearanceSetupView : ViewBase
                           config.Settings.SidebarOpen = false;
                           config.SaveSettings();
                           client.Toast("Sidebar set to collapsed by default", "Saved");
-                      }));
+                      }))
+               | Text.Block("Chat").Bold()
+               | Text.Muted("Choose how the Chat button talks to your coding agent: the chat view, or the agent's own terminal.").Small()
+               | (Layout.Horizontal()
+                  | new Button("Chat")
+                      .Variant(!usesTerminal ? ButtonVariant.Primary : ButtonVariant.Outline)
+                      .Icon(Icons.MessageCircle)
+                      .OnClick(() => SetChatMode(ChatModes.Chat, "chat"))
+                  | new Button("Terminal")
+                      .Variant(usesTerminal ? ButtonVariant.Primary : ButtonVariant.Outline)
+                      .Icon(Icons.Terminal)
+                      .OnClick(() => SetChatMode(ChatModes.Terminal, "terminal")));
     }
 }

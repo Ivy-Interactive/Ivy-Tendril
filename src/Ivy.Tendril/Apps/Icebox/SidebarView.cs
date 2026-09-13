@@ -14,16 +14,34 @@ public class SidebarView(
     IState<bool> filtersOpen,
     IConfigService config) : ViewBase
 {
-    private object BuildHeader()
+    internal static LayoutView BuildRowBadges(PlanFile plan, IConfigService config)
+    {
+        var badges = Layout.Horizontal().Gap(1);
+
+        foreach (var projectBadge in ProjectHelper.BuildBadges(plan.Project, config))
+            badges |= projectBadge.Small();
+
+        return badges
+               | new Badge(plan.Level).Color(config.GetLevelColor(plan.Level) ?? Colors.Gray).Small();
+    }
+
+    internal static IAnyOption[] BuildProjectOptions(IEnumerable<PlanFile> plans, string? levelFilter)
     {
         var levelFilteredPlans = plans.AsEnumerable();
-        if (levelFilter.Value is { } level)
-            levelFilteredPlans = levelFilteredPlans.Where(p => p.Level == level);
-        var projectCounts = levelFilteredPlans
-            .GroupBy(p => p.Project)
+        if (levelFilter != null)
+            levelFilteredPlans = levelFilteredPlans.Where(p => p.Level == levelFilter);
+
+        return levelFilteredPlans
+            .SelectMany(p => ProjectHelper.ParseProjects(p.Project))
+            .GroupBy(name => name)
             .OrderByDescending(g => g.Count())
             .Select(g => new Option<string>($"{g.Key} ({g.Count()})", g.Key))
             .ToArray<IAnyOption>();
+    }
+
+    private object BuildHeader()
+    {
+        var projectCounts = BuildProjectOptions(plans, levelFilter.Value);
         var levelOptions = config.LevelNames;
 
         var searchInput = textFilter.ToSearchInput()
@@ -65,10 +83,7 @@ public class SidebarView(
         var content = new List(filteredList.Select(plan =>
         {
             var clickablePlan = plan;
-            var badges = Layout.Horizontal().Gap(1)
-                | new Badge(plan.Project).Variant(BadgeVariant.Outline).Small()
-                    .WithProjectColor(config, plan.Project)
-                | new Badge(plan.Level).Color(config.GetLevelColor(plan.Level) ?? Colors.Gray).Small();
+            var badges = BuildRowBadges(plan, config);
 
             return SidebarListRow.Build($"#{plan.Id} {plan.Title}", badges, () => selectedPlanState.Set(clickablePlan),
                 plan.FolderName == selectedPlanState.Value?.FolderName);

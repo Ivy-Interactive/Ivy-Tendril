@@ -44,7 +44,9 @@ public partial class TendrilProcessFixture : IAsyncLifetime
             {
                 ["TENDRIL_HOME"] = TendrilHome,
                 ["TENDRIL_PLANS"] = TendrilPlans,
-                ["TENDRIL_E2E"] = "1"
+                ["TENDRIL_E2E"] = "1",
+                ["TENDRIL_TEST"] = "1",
+                ["TENDRIL_NO_PERSIST_SHELL"] = "1"
             }
         };
 

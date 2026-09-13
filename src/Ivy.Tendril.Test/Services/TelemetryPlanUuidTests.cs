@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Models;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Telemetry;
 using Xunit;
 

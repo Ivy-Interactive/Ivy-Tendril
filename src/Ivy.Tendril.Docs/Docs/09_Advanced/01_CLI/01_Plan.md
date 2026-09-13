@@ -214,7 +214,6 @@ questions:                    # 1-4 items
     header:      string       # optional, <=12 char chip label
     description: markdown     # optional, context shown under the question
     multiple:    bool         # optional, default false; true = multi-select
-    other:       bool         # optional, default true; user may type a free value
     options:                  # 2-4 items; omit entirely for a pure free-text question
       - title:       string   # required, 1-5 words
         description: markdown # optional

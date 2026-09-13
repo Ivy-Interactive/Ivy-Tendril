@@ -7,6 +7,7 @@ using Ivy.Tendril.Agents.Providers.Codex;
 using Ivy.Tendril.Agents.Providers.Gemini;
 using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Agents.Providers.OpenCode;
+using Ivy.Tendril.Agents.Runtime;
 
 namespace Ivy.Tendril.Agents.Providers.OpenAiProxy;
 
@@ -281,8 +282,7 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
                     Capabilities = ModelCapabilities.CodeGeneration | ModelCapabilities.ToolUse | ModelCapabilities.Streaming,
                     SupportedEfforts = EffortLevels.OpenCode,
                     Provider = "berget",
-                    ContextWindow = 128000,
-                }
+                }.WithSpec()
             ];
         }
 

@@ -20,6 +20,7 @@ public record RepoRef
 {
     public string Path { get; set; } = "";
     public string? BaseBranch { get; set; }
+    public string? Subdirectory { get; set; }
 }
 
 public record ProjectMcpServerRef
@@ -52,9 +53,40 @@ public record NetworkAccessRuleConfig
     public string Mode { get; set; } = "Allow"; // Allow, Deny
 }
 
+/// <summary>
+///     A named service port the project's processes listen on (e.g. <c>frontend</c>, <c>backend</c>).
+///     <see cref="DefaultPort"/> is the preferred port; plan worktrees and review sessions fall back
+///     to a free port in the ephemeral range when it is already taken, so two concurrent reviews of
+///     the same project do not collide (see <c>PortAllocationHelper</c>).
+/// </summary>
+public record ProjectPortConfig
+{
+    public int DefaultPort { get; set; }
+    public string Description { get; set; } = "";
+}
+
+/// <summary>
+///     An environment file to materialize into a plan's worktree. Git worktrees start without the
+///     untracked <c>.env</c> files that exist in the original checkout, so services and migrations
+///     cannot boot until the file is recreated from <see cref="Template"/> plus
+///     <see cref="Overrides"/> (see <c>EnvironmentMaterializationHelper</c>).
+/// </summary>
+public record ProjectEnvFileConfig
+{
+    /// <summary>Target path, relative to the worktree root (e.g. <c>apps/web/.env</c>).</summary>
+    public string Path { get; set; } = "";
+
+    /// <summary>Optional source file, relative to the worktree root (e.g. <c>.env.example</c>).</summary>
+    public string? Template { get; set; }
+
+    /// <summary>Keys written on top of the template. Values support placeholder expansion.</summary>
+    public Dictionary<string, string> Overrides { get; set; } = new();
+}
+
 public record ProjectConfig
 {
     public string Name { get; set; } = "";
+    public string? Subdirectory { get; set; }
     public string Color { get; set; } = "";
     public Dictionary<string, object> Meta { get; set; } = new();
     public List<RepoRef> Repos { get; set; } = new();
@@ -66,6 +98,12 @@ public record ProjectConfig
     public List<string> BuildDependencies { get; set; } = new();
     public List<ProjectMcpServerRef> McpServers { get; set; } = new();
     public List<ProjectSkillRef> Skills { get; set; } = new();
+
+    /// <summary>Named service ports, keyed by logical service name (e.g. <c>backend</c>).</summary>
+    public Dictionary<string, ProjectPortConfig> Ports { get; set; } = new();
+
+    /// <summary>Environment files to recreate inside each plan worktree.</summary>
+    public List<ProjectEnvFileConfig> EnvFiles { get; set; } = new();
 
     public string SecurityPreset { get; set; } = "Custom";
     public string OutsideFileAccessPolicy { get; set; } = "Allow";
@@ -79,6 +117,9 @@ public record ProjectConfig
 
     [YamlIgnore]
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
+
+    [YamlIgnore]
+    public bool IsAdHoc => Meta.TryGetValue("adhoc", out var v) && (v is true || string.Equals(v?.ToString(), "true", StringComparison.OrdinalIgnoreCase));
 
     public string? GetMeta(string key)
     {
@@ -201,10 +242,37 @@ public record ApiSettings
     public string? ApiKey { get; set; }
 }
 
+public class InboxConfig
+{
+    public bool AutoAcceptAssignedIssues { get; set; } = false;
+    public int CheckIntervalMinutes { get; set; } = 15;
+}
+
+public class SecuritySettings
+{
+    public List<string>? AllowedHosts { get; set; }
+
+    /// <summary>Extra directories GET /ivy/local-file may serve from, on top of the Tendril home,
+    /// the plans folder and configured project repos.</summary>
+    public List<string>? LocalFileRoots { get; set; }
+}
+
+public static class ChatModes
+{
+    public const string Chat = "chat";
+    public const string Terminal = "terminal";
+
+    public static string Normalize(string? mode) =>
+        string.Equals(mode, Terminal, StringComparison.OrdinalIgnoreCase) ? Terminal : Chat;
+
+    public static bool IsTerminal(string? mode) => Normalize(mode) == Terminal;
+}
+
 public class TendrilSettings
 {
     public string CodingAgent { get; set; } = "claude";
     public int JobTimeout { get; set; } = 30;
+    public int ChatTimeout { get; set; } = 0;
     public int StaleOutputTimeout { get; set; } = 10;
     public int GitTimeout { get; set; } = 10;
     public int MaxConcurrentJobs { get; set; } = 20;
@@ -216,6 +284,13 @@ public class TendrilSettings
     public LlmConfig? Llm { get; set; }
     public AuthConfig? Auth { get; set; }
     public ApiSettings? Api { get; set; }
+    public SecuritySettings? Security { get; set; }
+    private InboxConfig _inbox = new();
+    public InboxConfig Inbox
+    {
+        get => _inbox;
+        set => _inbox = value ?? new InboxConfig();
+    }
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
     public Tunnel.TunnelConfig? Tunnel { get; set; }
@@ -227,8 +302,12 @@ public class TendrilSettings
     public bool SidebarOpen { get; set; } = true;
     public string Theme { get; set; } = "default";
     public string ThemeMode { get; set; } = "system";
+    public string ChatMode { get; set; } = ChatModes.Chat;
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
+    public string? LastChatModel { get; set; }
+    public string? LastChatAgent { get; set; }
+    public string? LastChatEffort { get; set; }
 
     public List<LevelConfig> Levels { get; set; } = new()
     {
@@ -428,6 +507,10 @@ public class ConfigService : IConfigService, IDisposable
         {
             Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
         }
+        else
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", null);
+        }
     }
 
     /// <summary>
@@ -523,6 +606,14 @@ public class ConfigService : IConfigService, IDisposable
             Settings.JobTimeout = 30;
         }
 
+        // ChatTimeout: 0-480 minutes (0 = use JobTimeout)
+        if (Settings.ChatTimeout < 0 || Settings.ChatTimeout > 480)
+        {
+            _logger.LogWarning("ChatTimeout {Value} is out of bounds (0-480 minutes). Using default 0.",
+                Settings.ChatTimeout);
+            Settings.ChatTimeout = 0;
+        }
+
         // StaleOutputTimeout: 1-60 minutes
         if (Settings.StaleOutputTimeout < 1 || Settings.StaleOutputTimeout > 60)
         {
@@ -569,6 +660,8 @@ public class ConfigService : IConfigService, IDisposable
         {
             Settings.ThemeMode = Settings.ThemeMode.ToLowerInvariant();
         }
+
+        Settings.ChatMode = ChatModes.Normalize(Settings.ChatMode);
     }
 
     public TendrilSettings Settings { get; private set; }
@@ -673,6 +766,7 @@ public class ConfigService : IConfigService, IDisposable
         _suppressNextReload = true;
         FileHelper.WriteAllText(ConfigPath, yaml);
         CreateConfigBackup();
+        SyncBetaFromSettings();
     }
 
     public void ReloadSettings()

@@ -157,7 +157,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan list` | List plans (supports filters) |
 | `tendril plan create <title>` | Low-level create of the plan folder/yaml — **edit-only primitive, not for creating a plan from a chat request** (start a `CreatePlan` job instead) |
 | `tendril plan update <plan-id>` | Update plan from a file or stdin (--file/--stdin) |
-| `tendril plan set <plan-id> <field> <value>` | Set a plan field |
+| `tendril plan set <plan-id> <field> <value>` | Set a plan field (takes `--reason`, see below) |
 | `tendril plan get <plan-id> [field]` | Get plan data |
 | `tendril plan validate <plan-id>` | Validate plan health |
 | `tendril plan doctor` | Check all plans health |
@@ -169,10 +169,25 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan remove-related-plan <plan-id> <folder>` | Remove related plan |
 | `tendril plan add-depends-on <plan-id> <folder>` | Add dependency |
 | `tendril plan remove-depends-on <plan-id> <folder>` | Remove dependency |
-| `tendril plan write-revision <plan-id>` | Write revision from a file or stdin (--file/--stdin) — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead) |
+| `tendril plan write-revision <plan-id>` | Write revision from a file or stdin (--file/--stdin) — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead). Takes `--reason`, see below |
 | `tendril plan get-revision <plan-id> [--number <n>]` | Print revision content (latest by default, or a specific numbered revision) |
 | `tendril plan cleanup <plan-id>` | Remove worktrees |
-| `tendril plan set-verification <plan-id> <name> <status>` | Set verification status |
+| `tendril plan set-verification <plan-id> <name> <status>` | Set verification status (takes `--reason`, see below) |
+
+#### Say Why You Edited A Plan
+
+A plan can have more than one chat session open on it — the panel beside the plan and the general
+chat. When you edit a plan directly with `write-revision`, `set` or `set-verification`, the other
+sessions are told what changed, as a `[System Event]` in their history. Pass `--reason` so they are
+told *why* as well:
+
+```bash
+tendril plan write-revision 00123 --stdin --reason "user asked to drop the CLI flag from scope"
+```
+
+Without it the other agents see the diff and have to guess the intent, and you get a warning on
+stderr. `--chat-session <id>` names the session making the edit so it is not notified about its own
+change; inside a chat this defaults to `TENDRIL_CHAT_SESSION_ID`, so you rarely need to pass it.
 
 ### Plan Recommendation Commands
 
@@ -265,7 +280,7 @@ These commands are for internal use by other promptwares (e.g., a verification s
 | `tendril config get <key>` | Print a top-level config value |
 | `tendril config set <key> <value>` | Set a top-level config value (use `--file`/`--stdin` for multiline values) |
 
-Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`, `theme`. Example: `tendril config get planTemplate` prints the configured Plan Template.
+Valid keys: `codingAgent`, `jobTimeout`, `chatTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`, `theme`. Example: `tendril config get planTemplate` prints the configured Plan Template.
 
 ## Adding & Configuring Projects
 
@@ -300,6 +315,41 @@ When the user asks you to create a plan in an interactive session (or after disc
    ```
    The CreatePlan promptware then researches, detects duplicates, and writes the full plan. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
 
+## Tracking Spawned Jobs & Guiding the User
+
+When you start jobs in a chat session using `tendril job start`, they are automatically tracked for this chat session. Always pass `--chat-session <sessionId>` with your current chat session ID when invoking `tendril job start` (e.g. `tendril job start CreatePlan --project="..." --description="..." --chat-session <sessionId>`).
+- Once spawned jobs have executed and completed, **proactively guide the user through the completed plans/code**:
+  - Ask the user if they would like you to review the plan changes, inspect the diffs, check verification test outputs, or create a PR.
+  - Help the user review decisions, or guide them through reviewing the implementation themselves.
+  - If a job fails, diagnose the failure reason from the logs (`Logs/Jobs/`) and offer to retry with `tendril job start RetryPlan <plan-id> --change-request="..."`.
+
+## Asking Questions with Question Blocks
+
+When you need decisions, clarification, preferences, or input from the human operator before proceeding (for example: choosing an architectural approach, selecting a database or library, deciding scope, confirming an action, or providing configuration):
+Use a fenced `questions` block in your response. The chat UI automatically renders this as an interactive form with selectable option cards, radio/checkbox inputs, and a **Submit Response** button.
+
+````markdown
+```questions
+questions:
+  - id: choice-id              # required, stable unique slug
+    title: What is the question? # required
+    header: Optional Eyebrow   # optional <=12 char label
+    description: Optional explanation of why you're asking
+    multiple: false            # true for multi-select, false for single-select
+    options:                   # 2-4 selectable options
+      - title: Option Title
+        description: Markdown details explaining this option
+        value: option-slug
+        recommended: true      # optional recommendation badge
+```
+````
+
+Once the user selects their option and clicks **Submit Response**, their answer will be submitted directly to the chat session in the next turn so you can proceed with their chosen direction.
+
+**Formatting rules for question blocks:**
+- Always quote `title`, `header`, and `description` values when they contain colons (`:`), quotes, or code snippets (e.g. `title: "Option: SQLite"` or `description: "Uses `key: val` syntax"`).
+- Use `|` block scalar syntax for any multiline descriptions or code blocks.
+
 ## Important Notes
 
 - **Never directly modify, create, or delete repository files during chat sessions.** All code changes must be planned and executed via Tendril plans (`tendril job start CreatePlan`).
@@ -309,4 +359,5 @@ When the user asks you to create a plan in an interactive session (or after disc
 - Plan states: `Draft`, `Creating`, `Updating`, `Executing`, `Review`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
 - To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description="<description>" --project="<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from scratch.
 - **Do NOT start a `CreatePlan` job to retry or fix an existing plan.** `CreatePlan` is strictly for creating brand new plans for new tasks. To retry an existing plan with reviewer feedback or changes, use `tendril job start RetryPlan <plan-id> --change-request="<feedback>"`.
+
 

@@ -1,6 +1,6 @@
 using Ivy;
 using Ivy.Tendril.Widgets;
-using DraftMarkdownWidget = Ivy.Tendril.Widgets.DraftMarkdown;
+using DraftMarkdownWidget = Ivy.Tendril.Widgets.PlanMarkdown;
 
 namespace WidgetSamples.Apps.DraftMarkdown;
 

@@ -1,0 +1,321 @@
+using System.Reactive.Linq;
+using Ivy.Core.Hooks;
+using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Hooks;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
+using Microsoft.Reactive.Testing;
+
+namespace Ivy.Tendril.Test.Apps.Jobs;
+
+public class JobsAppRefreshGatingTests
+{
+    /// <summary>
+    ///     Every column <see cref="JobsApp.BuildDataTableUpdates" /> streams per candidate job. Adding a
+    ///     streamed cell is a one-line change here; the test name deliberately does not carry the count.
+    /// </summary>
+    private static readonly string[] StreamedColumns =
+    [
+        nameof(JobItemRow.Timer),
+        nameof(JobItemRow.Cost),
+        nameof(JobItemRow.Tokens),
+        nameof(JobItemRow.AgentOutput),
+        nameof(JobItemRow.Status),
+        nameof(JobItemRow.StatusMessage)
+    ];
+
+    private static (RefreshToken Token, Func<int> RefreshCount) CreateRefreshToken()
+    {
+        var state = new State<(Guid, object?, bool)>((Guid.NewGuid(), null, false));
+        var count = 0;
+        state.Skip(1).Subscribe(_ => count++);
+        return (new RefreshToken(state), () => count);
+    }
+    private static JobItem MakeJob(string id, JobStatus status, DateTime? completedAt = null) => new()
+    {
+        Id = id,
+        Type = "ExecutePlan",
+        PlanFile = $"{id}-Plan",
+        Project = "Test",
+        Status = status,
+        CompletedAt = completedAt
+    };
+
+    [Fact]
+    public void ComputeStructuralSignature_StableWhenCostTokensOrStartedAtChangeOnRunningJob()
+    {
+        var job = MakeJob("job-1", JobStatus.Running);
+        var jobs = new List<JobItem> { job };
+        var before = JobsApp.ComputeStructuralSignature(jobs);
+
+        job.Cost = 1.23m;
+        job.Tokens = 500;
+        job.StartedAt = DateTime.UtcNow;
+        var after = JobsApp.ComputeStructuralSignature(jobs);
+
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public void ComputeStructuralSignature_ChangesWhenJobAdded()
+    {
+        var jobs = new List<JobItem> { MakeJob("job-1", JobStatus.Running) };
+        var before = JobsApp.ComputeStructuralSignature(jobs);
+
+        jobs.Add(MakeJob("job-2", JobStatus.Running));
+        var after = JobsApp.ComputeStructuralSignature(jobs);
+
+        Assert.NotEqual(before, after);
+    }
+
+    [Fact]
+    public void ComputeStructuralSignature_ChangesWhenJobRemoved()
+    {
+        var jobs = new List<JobItem> { MakeJob("job-1", JobStatus.Running), MakeJob("job-2", JobStatus.Running) };
+        var before = JobsApp.ComputeStructuralSignature(jobs);
+
+        jobs.RemoveAt(1);
+        var after = JobsApp.ComputeStructuralSignature(jobs);
+
+        Assert.NotEqual(before, after);
+    }
+
+    [Fact]
+    public void ComputeStructuralSignature_ChangesWhenStatusTransitionsRunningToCompleted()
+    {
+        var job = MakeJob("job-1", JobStatus.Running);
+        var jobs = new List<JobItem> { job };
+        var before = JobsApp.ComputeStructuralSignature(jobs);
+
+        job.Status = JobStatus.Completed;
+        var after = JobsApp.ComputeStructuralSignature(jobs);
+
+        Assert.NotEqual(before, after);
+    }
+
+    [Fact]
+    public void BuildDataTableUpdates_FirstCall_ReturnsEveryStreamedCell()
+    {
+        var jobService = new FakeJobService();
+        jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
+        var cache = new Dictionary<(string, string), string>();
+
+        var updates = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        Assert.Equal(StreamedColumns, updates.Select(u => u.ColumnName).ToArray());
+    }
+
+    [Fact]
+    public void BuildDataTableUpdates_SecondCallWithUnchangedState_ReturnsEmpty()
+    {
+        var jobService = new FakeJobService();
+        jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
+        var cache = new Dictionary<(string, string), string>();
+
+        JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+        var second = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        Assert.Empty(second);
+    }
+
+    [Fact]
+    public void BuildDataTableUpdates_OnlyChangedCellReturned_AfterCostUpdated()
+    {
+        var jobService = new FakeJobService();
+        var job = MakeJob("job-1", JobStatus.Running);
+        jobService.Jobs.Add(job);
+        var cache = new Dictionary<(string, string), string>();
+        JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        job.Cost = 4.56m;
+        var updates = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        var update = Assert.Single(updates);
+        Assert.Equal(nameof(JobItemRow.Cost), update.ColumnName);
+    }
+
+    [Fact]
+    public void BuildDataTableUpdates_EmitsUpdateWhenBlockedJobStatusMessageChanges()
+    {
+        var jobService = new FakeJobService();
+        var job = MakeJob("job-1", JobStatus.Blocked);
+        job.StatusMessage = "Waiting for Dep A";
+        jobService.Jobs.Add(job);
+        var cache = new Dictionary<(string, string), string>();
+
+        JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        job.StatusMessage = "Waiting for Dep B";
+        var updates = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        var update = Assert.Single(updates);
+        Assert.Equal(nameof(JobItemRow.StatusMessage), update.ColumnName);
+        Assert.Equal("Waiting for Dep B", update.Value);
+    }
+
+    [Fact]
+    public void BuildDataTableUpdates_PrunesCacheKeysForJobsNoLongerReturned()
+    {
+        var jobService = new FakeJobService();
+        jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
+        var cache = new Dictionary<(string, string), string>();
+        JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+        Assert.NotEmpty(cache);
+
+        jobService.Jobs.Clear();
+        JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        Assert.Empty(cache);
+    }
+
+    /// <summary>
+    ///     What the (RowId, ColumnName) key buys over a "{rowId} {columnName}" string: the pruning
+    ///     predicate compares the job id itself, not the text before the first space. Under the joined key
+    ///     a *live* job whose id contains a space had its "job 1 x Timer" key split back to "job", which
+    ///     matches no live job id, so every one of its entries was pruned on every tick - silently
+    ///     defeating the cache and re-sending all six cells each second. Pruning a job that really is gone
+    ///     is unaffected either way and is covered by the test above.
+    /// </summary>
+    [Fact]
+    public void BuildDataTableUpdates_KeepsCacheForLiveJobWhoseIdContainsASpace()
+    {
+        var jobService = new FakeJobService();
+        jobService.Jobs.Add(MakeJob("job 1 x", JobStatus.Running));
+        var cache = new Dictionary<(string, string), string>();
+
+        JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+        var second = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        Assert.Empty(second);
+        Assert.Equal(StreamedColumns.Length, cache.Count);
+    }
+
+    [Fact]
+    public void JobChangeHookDisposable_SubscribesOnlyToJobsStructureChanged()
+    {
+        var scheduler = new TestScheduler();
+        var jobService = new FakeJobService();
+        var (token, refreshCount) = CreateRefreshToken();
+        using var coalescer = new RefreshCoalescer(token, JobsApp.JobRefreshWindow, scheduler);
+
+        using var hook = JobsApp.JobChangeHookDisposable(jobService, coalescer);
+
+        // JobPropertyChanged should not trigger a refresh
+        jobService.FireJobPropertyChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+        Assert.Equal(0, refreshCount());
+
+        // JobsStructureChanged should trigger a refresh
+        jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+        Assert.Equal(1, refreshCount());
+
+        // Structure changes in a later window refresh again
+        jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+        Assert.Equal(2, refreshCount());
+    }
+
+    [Fact]
+    public void JobChangeHookDisposable_Dispose_UnhooksJobsStructureChanged()
+    {
+        var scheduler = new TestScheduler();
+        var jobService = new FakeJobService();
+        var (token, refreshCount) = CreateRefreshToken();
+        using var coalescer = new RefreshCoalescer(token, JobsApp.JobRefreshWindow, scheduler);
+
+        var hook = JobsApp.JobChangeHookDisposable(jobService, coalescer);
+        jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+        Assert.Equal(1, refreshCount());
+
+        hook.Dispose();
+        jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+        Assert.Equal(1, refreshCount());
+    }
+
+    [Fact]
+    public void JobChangeHookDisposable_UnchangedSignature_DoesNotRefresh()
+    {
+        var scheduler = new TestScheduler();
+        var jobService = new FakeJobService();
+        jobService.Jobs.Add(MakeJob("job-1", JobStatus.Running));
+        var (token, refreshCount) = CreateRefreshToken();
+        using var coalescer = new RefreshCoalescer(token, JobsApp.JobRefreshWindow, scheduler);
+
+        // What the view has on screen already matches the job list.
+        var rendered = JobsApp.ComputeStructuralSignature(jobService.GetJobs());
+        using var hook = JobsApp.JobChangeHookDisposable(jobService, coalescer, () => rendered);
+
+        // JobsStructureChanged also fires for changes the table does not show (a cost or token update
+        // lands through the cell update stream instead), and those must not rebuild the view.
+        jobService.Jobs[0].Cost = 1.23m;
+        jobService.FireJobsStructureChanged();
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+
+        Assert.Equal(0, refreshCount());
+    }
+
+    [Fact]
+    public void JobChangeHookDisposable_BurstOfStructuralChanges_RefreshesOnce()
+    {
+        var scheduler = new TestScheduler();
+        var jobService = new FakeJobService();
+        var (token, refreshCount) = CreateRefreshToken();
+        using var coalescer = new RefreshCoalescer(token, JobsApp.JobRefreshWindow, scheduler);
+
+        var rendered = JobsApp.ComputeStructuralSignature(jobService.GetJobs());
+        using var hook = JobsApp.JobChangeHookDisposable(jobService, coalescer, () => rendered);
+
+        // Ten jobs exiting at once: ten events, one rebuild. This is the fan-out that froze the
+        // workspace when every event rebuilt the table (#2571).
+        for (var i = 0; i < 10; i++)
+        {
+            jobService.Jobs.Add(MakeJob($"job-{i}", JobStatus.Completed, DateTime.UtcNow));
+            jobService.FireJobsStructureChanged();
+            scheduler.AdvanceBy(TimeSpan.FromMilliseconds(10).Ticks);
+        }
+
+        scheduler.AdvanceBy(JobsApp.JobRefreshWindow.Ticks);
+
+        Assert.Equal(1, refreshCount());
+    }
+
+    private class FakeJobService : IJobService
+    {
+        public List<JobItem> Jobs { get; } = new();
+
+        public void FireJobsStructureChanged() => JobsStructureChanged?.Invoke();
+        public void FireJobPropertyChanged() => JobPropertyChanged?.Invoke();
+
+        public string StartJob(JobArgsBase args, string? inboxFilePath = null) => throw new NotSupportedException();
+        public void ForceStartJob(string id) => throw new NotSupportedException();
+        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) => throw new NotSupportedException();
+        public void StopJob(string id) => throw new NotSupportedException();
+        public int StopAllJobs() => throw new NotSupportedException();
+        public int StopQueuedJobs() => throw new NotSupportedException();
+        public void DeleteJob(string id) => throw new NotSupportedException();
+        public void ClearCompletedJobs() => throw new NotSupportedException();
+        public void ClearFailedJobs() => throw new NotSupportedException();
+        public void ClearAllJobs() => throw new NotSupportedException();
+        public List<JobItem> GetJobs() => Jobs;
+        public List<JobItem> GetJobsForPlan(string planFile) => throw new NotSupportedException();
+        public JobItem? GetJob(string id) => Jobs.FirstOrDefault(j => j.Id == id);
+        public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => throw new NotSupportedException();
+        public void SetChatSessionId(string id, string chatSessionId) { }
+        public bool ReportJobFailure(string id, string message) => throw new NotSupportedException();
+        public bool IsInboxFileTracked(string filePath) => false;
+        public void Dispose()
+        {
+        }
+
+#pragma warning disable CS0067
+        public event Action? JobsChanged;
+        public event Action? JobsStructureChanged;
+        public event Action? JobPropertyChanged;
+        public event Action<JobNotification>? NotificationReady;
+        public event Action<JobItem>? JobFinished;
+#pragma warning restore CS0067
+    }
+}

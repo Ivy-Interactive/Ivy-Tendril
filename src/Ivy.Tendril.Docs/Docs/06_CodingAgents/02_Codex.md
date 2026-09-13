@@ -41,3 +41,7 @@ Tendril maps effort levels to Codex models:
 | `quick` | gpt-5.6-luna | low | Simple fixes and small edits |
 
 The profile is selected automatically based on the plan's complexity level, or can be configured per promptware in `config.yaml`.
+
+### Supported Models
+
+In addition to the default profile models, the Codex catalog supports models such as `gpt-6-astra` for manual selection or custom configuration in `config.yaml`.

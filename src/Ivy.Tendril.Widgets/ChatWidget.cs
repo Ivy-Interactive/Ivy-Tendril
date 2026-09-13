@@ -13,7 +13,18 @@ public record ChatMessageDto(
     string? AgentId = null,
     string? ModelId = null,
     string? RawStream = null,
-    string? Effort = null
+    string? Effort = null,
+    string? CompletedAt = null
+);
+
+public record ChatJobDto(
+    string Id,
+    string Type,
+    string Status,
+    string? PlanId = null,
+    string? PlanTitle = null,
+    string? StatusMessage = null,
+    string? TypeColor = null
 );
 
 public record ChatSessionDto(
@@ -25,12 +36,27 @@ public record ChatSessionDto(
     string UpdatedAt,
     List<ChatMessageDto> Messages,
     string Status = "done",
-    string? Effort = null
+    string? Effort = null,
+    List<ChatJobDto>? SpawnedJobs = null
 );
 
-public record AgentOptionDto(string Id, string Label);
 public record ModelOptionDto(string Id, string DisplayName);
+
 public record EffortOptionDto(string Id, string DisplayName);
+
+/// <param name="Icon">The <c>Icons</c> enum name of the agent's brand mark, e.g. <c>ClaudeCode</c>.</param>
+/// <param name="Models">The agent's catalog, so the picker can offer a model before the agent is selected.</param>
+/// <param name="SelectedModel">The model remembered for this agent; it applies whenever the agent is selected.</param>
+/// <param name="Efforts">The efforts the remembered model supports, "default" first.</param>
+public record AgentOptionDto(
+    string Id,
+    string Label,
+    string? Icon = null,
+    List<ModelOptionDto>? Models = null,
+    bool SupportsEffort = false,
+    string? SelectedModel = null,
+    string? SelectedEffort = null,
+    List<EffortOptionDto>? Efforts = null);
 
 public record ChatAttachmentDto(
     string Name,
@@ -47,10 +73,22 @@ public record ChatQueuedMessageDto(
     List<ChatAttachmentDto>? Attachments = null
 );
 
+/// <param name="Label">The short chip text, 2 to 6 words.</param>
+/// <param name="Prompt">The complete sentence used when the chip is clicked.</param>
+public record ChatSamplePromptDto(string Label, string Prompt);
+
 public record ChatSendMessageDto(
     string Prompt,
     List<ChatAttachmentDto>? Attachments = null,
-    string? SessionId = null
+    string? SessionId = null,
+    bool ForceSend = false
+);
+
+public record ChatQuestionAnswerDto(
+    string SessionId,
+    string MessageId,
+    Dictionary<string, string[]> Answers,
+    string ResponseText
 );
 
 [ExternalWidget(
@@ -64,6 +102,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public string? ActiveSessionId { get; init; }
     [Prop] public string? StreamingSessionId { get; init; }
     [Prop] public string? UploadUrl { get; init; }
+    [Prop] public string TranscriptionUrl { get; init; } = "wss://tendril-api.ivy.app/transcribe/ws";
     [Prop] public List<ChatSessionDto> Sessions { get; init; } = new();
     [Prop] public List<AgentOptionDto> Agents { get; init; } = new();
     [Prop] public List<ModelOptionDto> Models { get; init; } = new();
@@ -74,8 +113,15 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public bool SupportsEffort { get; init; } = true;
     [Prop] public bool IsStreaming { get; init; } = false;
     [Prop] public string? StreamingText { get; init; }
-    [Prop] public IWriteStream<string>? StreamingStream { get; init; }
+    [Prop] public string? StreamingMessageId { get; init; }
     [Prop] public List<ChatQueuedMessageDto> QueuedMessages { get; init; } = new();
+    [Prop] public List<ChatJobDto>? RunningJobs { get; init; }
+    [Prop] public string? Greeting { get; init; }
+    [Prop] public string? Headline { get; init; }
+    [Prop] public List<ChatSamplePromptDto> SamplePrompts { get; init; } = new();
+
+    /// <summary>Hosted inside another page (the plan chat panel): no title bar, a tighter composer.</summary>
+    [Prop] public bool Embedded { get; init; }
 
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSelectSession { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteSession { get; init; }
@@ -84,9 +130,11 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Event] public Func<Event<ChatWidget, ChatSendMessageDto>, ValueTask>? OnSendMessage { get; init; }
     [Event] public Func<Event<ChatWidget, object>, ValueTask>? OnCancelStream { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnAgentChanged { get; init; }
-    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnModelChanged { get; init; }
-    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnEffortChanged { get; init; }
+    [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnModelChanged { get; init; }
+    [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnEffortChanged { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteQueuedMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnUpdateQueuedMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSendQueuedNow { get; init; }
+    [Event] public Func<Event<ChatWidget, ChatQuestionAnswerDto>, ValueTask>? OnAnswerQuestion { get; init; }
+    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnOpenPlan { get; init; }
 }

@@ -3,6 +3,27 @@ import { ShellContext } from "./ShellContext";
 import { ShellWidgetProps, isModKey } from "./types";
 import "./shell.css";
 
+export const SIDEBAR_COLLAPSED_STORAGE_KEY = "tendril.shell.sidebarCollapsed";
+
+const readStoredCollapsed = (): boolean | null => {
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredCollapsed = (collapsed: boolean) => {
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed));
+  } catch {
+    /* storage unavailable (private mode, sandboxed host): the state just doesn't persist */
+  }
+};
+
 interface TendrilShellProps extends ShellWidgetProps {
   collapsed?: boolean;
   activeSessionIndex?: number | null;
@@ -23,8 +44,8 @@ interface TendrilShellProps extends ShellWidgetProps {
  * bordered container holding the white content surface with the session tab
  * strip inside its bottom edge. Collapse is client-side for a smooth
  * animation; the server is notified through OnCollapsedChanged so the state
- * can be persisted. Session panes all stay mounted — only the active one is
- * visible — so agent terminals keep their buffers when switching tabs. The
+ * can be persisted in session. Session panes all stay mounted - only the active one is
+ * visible - so agent terminals keep their buffers when switching tabs. The
  * Hidden slot hosts zero-size utility widgets (shortcut ghosts, chunk
  * warm-ups) without letting them paint.
  */
@@ -37,7 +58,10 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
   hasTabs = false,
   slots,
 }) => {
-  const [collapsed, setCollapsed] = useState(collapsedProp);
+  const [collapsed, setCollapsed] = useState(() => {
+    const stored = readStoredCollapsed();
+    return stored != null ? stored : collapsedProp;
+  });
   const prevPropRef = useRef(collapsedProp);
   if (collapsedProp !== prevPropRef.current) {
     prevPropRef.current = collapsedProp;
@@ -47,6 +71,7 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
   const toggle = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev;
+      writeStoredCollapsed(next);
       if (events.includes("OnCollapsedChanged")) {
         eventHandler("OnCollapsedChanged", id, [next]);
       }
@@ -70,13 +95,15 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
     activeSessionIndex != null && activeSessionIndex >= 0 && activeSessionIndex < sessionPanes.length;
 
   return (
-    <ShellContext.Provider value={{ collapsed, toggle }}>
-      <div className="tsh-root remove-parent-padding" data-collapsed={collapsed}>
+    <div className="tsh-root remove-parent-padding" data-collapsed={collapsed}>
+      <ShellContext.Provider value={{ collapsed, toggle }}>
         <div className="tsh-sidebar">
           <div className="tsh-sidebar-header">{slots?.SidebarHeader}</div>
           <div className="tsh-sidebar-body">{slots?.SidebarBody}</div>
           <div className="tsh-sidebar-footer">{slots?.SidebarFooter}</div>
         </div>
+      </ShellContext.Provider>
+      <ShellContext.Provider value={{ collapsed: false, toggle }}>
         <div className="tsh-main">
           <div className="tsh-container">
             <div className="tsh-frame" data-has-tabs={hasTabs}>
@@ -96,8 +123,8 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
             {hasTabs && slots?.Tabs && <div className="tsh-tabs-row">{slots.Tabs}</div>}
           </div>
         </div>
-        {slots?.Hidden && <div style={{ display: "none" }}>{slots.Hidden}</div>}
-      </div>
-    </ShellContext.Provider>
+      </ShellContext.Provider>
+      {slots?.Hidden && <div style={{ display: "none" }}>{slots.Hidden}</div>}
+    </div>
   );
 };

@@ -32,6 +32,7 @@ Get and set top-level Tendril settings stored in `config.yaml` — the same valu
 |-----|------|--------|
 | `codingAgent` | string | — |
 | `jobTimeout` | int (minutes) | 1–480 |
+| `chatTimeout` | int (minutes) | 0–480 |
 | `staleOutputTimeout` | int (minutes) | 1–60 |
 | `gitTimeout` | int (minutes) | 1–30 |
 | `maxConcurrentJobs` | int | 1–100 |

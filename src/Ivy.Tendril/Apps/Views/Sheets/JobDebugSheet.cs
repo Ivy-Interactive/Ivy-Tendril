@@ -1,6 +1,7 @@
 using System.Globalization;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Helpers;
@@ -48,7 +49,7 @@ public class JobDebugSheet(
                 if (!string.IsNullOrEmpty(focus))
                     prompt += $"In particular, focus on: {focus}\n\n";
                 prompt += details;
-                nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                ChatLauncher.Open(nav, config, prompt);
                 closeSheet();
             });
         });

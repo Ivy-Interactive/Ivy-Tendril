@@ -8,6 +8,58 @@ public class ModelPricingProviderTests
     private readonly ModelPricingProvider _provider = new();
 
     [Fact]
+    public void GetPricing_ClaudeFable5_ReturnsPricingAndCacheRates()
+    {
+        var pricing = _provider.GetPricing("claude-fable-5");
+
+        Assert.NotNull(pricing);
+        Assert.Equal("claude-fable-5", pricing.Model);
+        Assert.Equal(10.00m, pricing.InputPerMillion);
+        Assert.Equal(50.00m, pricing.OutputPerMillion);
+        Assert.Equal(1.00m, pricing.CacheReadPerMillion);
+        Assert.Equal(12.50m, pricing.CacheWritePerMillion);
+    }
+
+    [Fact]
+    public void GetPricing_ClaudeOpus51_ReturnsPricingAndCacheRates()
+    {
+        var pricing = _provider.GetPricing("claude-opus-5-1");
+
+        Assert.NotNull(pricing);
+        Assert.Equal("claude-opus-5-1", pricing.Model);
+        Assert.Equal(5.00m, pricing.InputPerMillion);
+        Assert.Equal(25.00m, pricing.OutputPerMillion);
+        Assert.Equal(0.50m, pricing.CacheReadPerMillion);
+        Assert.Equal(6.25m, pricing.CacheWritePerMillion);
+    }
+
+    [Fact]
+    public void GetPricing_Claude51_ReturnsPricingAndCacheRates()
+    {
+        var pricing = _provider.GetPricing("claude-5.1");
+
+        Assert.NotNull(pricing);
+        Assert.Equal("claude-5.1", pricing.Model);
+        Assert.Equal(3.00m, pricing.InputPerMillion);
+        Assert.Equal(15.00m, pricing.OutputPerMillion);
+        Assert.Equal(0.30m, pricing.CacheReadPerMillion);
+        Assert.Equal(3.75m, pricing.CacheWritePerMillion);
+    }
+
+    [Fact]
+    public void GetPricing_Gpt6Astra_ReturnsPricingAndCacheRates()
+    {
+        var pricing = _provider.GetPricing("gpt-6-astra");
+
+        Assert.NotNull(pricing);
+        Assert.Equal("gpt-6-astra", pricing.Model);
+        Assert.Equal(10.00m, pricing.InputPerMillion);
+        Assert.Equal(40.00m, pricing.OutputPerMillion);
+        Assert.Equal(2.50m, pricing.CacheReadPerMillion);
+        Assert.Equal(12.50m, pricing.CacheWritePerMillion);
+    }
+
+    [Fact]
     public void GetPricing_KnownModel_ReturnsPricing()
     {
         var pricing = _provider.GetPricing("opus");
@@ -21,11 +73,13 @@ public class ModelPricingProviderTests
     [Fact]
     public void GetPricing_Sonnet_ReturnsPricing()
     {
+        // The alias is priced like the model it resolves to, claude-sonnet-5, rather than carrying its
+        // own stale 2/10 rate.
         var pricing = _provider.GetPricing("sonnet");
 
         Assert.NotNull(pricing);
-        Assert.Equal(2m, pricing.InputPerMillion);
-        Assert.Equal(10m, pricing.OutputPerMillion);
+        Assert.Equal(3m, pricing.InputPerMillion);
+        Assert.Equal(15m, pricing.OutputPerMillion);
     }
 
     [Fact]
@@ -34,8 +88,8 @@ public class ModelPricingProviderTests
         var pricing = _provider.GetPricing("claude-sonnet-4");
 
         Assert.NotNull(pricing);
-        Assert.Equal(2m, pricing.InputPerMillion);
-        Assert.Equal(10m, pricing.OutputPerMillion);
+        Assert.Equal(3m, pricing.InputPerMillion);
+        Assert.Equal(15m, pricing.OutputPerMillion);
     }
 
     [Fact]
@@ -113,7 +167,7 @@ public class ModelPricingProviderTests
             inputTokens: 1000,
             outputTokens: 500);
 
-        var expected = (1000m * 2m / 1_000_000m) + (500m * 10m / 1_000_000m);
+        var expected = (1000m * 3m / 1_000_000m) + (500m * 15m / 1_000_000m);
         Assert.Equal(expected, cost);
     }
 

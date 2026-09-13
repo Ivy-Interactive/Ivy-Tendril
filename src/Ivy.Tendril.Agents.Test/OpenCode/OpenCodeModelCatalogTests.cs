@@ -58,4 +58,55 @@ public class OpenCodeModelCatalogTests
             "gpt-4.1",
         ], ids);
     }
+
+    [Fact]
+    public void GetStaticModels_DeclaresOutputLimits()
+    {
+        var models = _catalog.GetStaticModels();
+
+        foreach (var model in models.Where(m => m.Id != "default"))
+        {
+            Assert.True(model.MaxOutputTokens.HasValue, $"{model.Id} is missing MaxOutputTokens");
+            Assert.True(model.ContextWindow.HasValue, $"{model.Id} is missing ContextWindow");
+        }
+
+        Assert.Equal(128_000, models.Single(m => m.Id == "claude-opus-5").MaxOutputTokens);
+    }
+
+    [Fact]
+    public async Task ParseModelsListAsync_PopulatesMaxOutputTokens()
+    {
+        var models = await OpenCodeModelCatalog.ParseModelsListAsync("claude-opus-5");
+
+        Assert.NotNull(models);
+        var model = Assert.Single(models);
+        Assert.Equal(128_000, model.MaxOutputTokens);
+    }
+
+    [Fact]
+    public void GetStaticModels_KimiK3_HasBergetLimits()
+    {
+        var model = _catalog.GetStaticModels().Single(m => m.Id == "moonshotai/Kimi-K3");
+
+        Assert.Equal(327_680, model.ContextWindow);
+        Assert.Equal(32_768, model.MaxOutputTokens);
+    }
+
+    [Fact]
+    public void TryGetLimits_KimiK3_ReturnsBergetLimits()
+    {
+        var limits = OpenCodeModelCatalog.TryGetLimits("moonshotai/Kimi-K3");
+
+        Assert.Equal((327_680, 32_768), limits);
+    }
+
+    [Fact]
+    public void GetStaticModels_NoUnservedMoonshotOrDeepSeekEntries()
+    {
+        var ids = _catalog.GetStaticModels().Select(m => m.Id);
+
+        Assert.DoesNotContain("kimi-k2", ids);
+        Assert.DoesNotContain("deepseek-v3", ids);
+        Assert.DoesNotContain("deepseek-r1", ids);
+    }
 }

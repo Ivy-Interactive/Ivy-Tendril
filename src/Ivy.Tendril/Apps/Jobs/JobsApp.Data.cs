@@ -1,6 +1,7 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Jobs;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
@@ -9,35 +10,48 @@ public partial class JobsApp
     private Dictionary<string, string> BuildProjectColorMapping(IConfigService config) =>
         ProjectHelper.BuildColorMapping(config);
 
-    private List<JobItemRow> BuildJobRows(List<JobItem> jobs, IPlanReaderService planService)
+    internal static List<JobItemRow> BuildJobRows(List<JobItem> jobs, IPlanReaderService planService)
     {
         return jobs.Select(j =>
         {
-            var planId = JobsApp.ExtractPlanId(j.PlanFile);
+            var planId = ExtractPlanId(j.PlanFile);
             if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(j.ReportedPlanId))
                 planId = j.ReportedPlanId;
 
             return new JobItemRow
             {
                 Id = j.Id,
-                Status = JobsApp.FormatStatusBadge(j.Status),
+                Status = j.Status.ToString(),
                 PlanId = planId,
-                Plan = JobsApp.GetPromptDisplay(j, planService),
+                Prompt = GetPromptDisplay(j, planService),
                 Type = j.Type,
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
-                Timer = JobsApp.FormatTimer(j),
-                Cost = j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : "",
+                Timer = FormatTimer(j),
+                Timestamp = FormatTimestamp(j),
+                Cost = FormatJobCost(j),
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
-                AgentOutput = JobsApp.FormatAgentOutput(j),
-                LastOutputTimestamp = j.LastOutputAt,
-                StatusMessage = JobsApp.GetStatusMessage(j),
+                AgentOutput = FormatAgentOutput(j),
+                StatusMessage = GetStatusMessage(j),
                 ErrorContext = j.Status is JobStatus.Failed or JobStatus.Timeout
-                    ? JobsApp.GetErrorContext(j)
+                    ? GetErrorContext(j)
                     : null
             };
         })
             .OrderByDescending(r => ExtractJobNumber(r.Id))
             .ToList();
+    }
+
+    /// <summary>
+    ///     The Cost cell. An estimate derived from tokens times the price list is prefixed with "~" so
+    ///     the column never presents a figure nobody was actually charged as a charge; see
+    ///     <see cref="JobCostSources.Estimated" />.
+    /// </summary>
+    internal static string FormatJobCost(JobItem job)
+    {
+        if (job.Cost is not { } cost) return "";
+
+        var formatted = FormatHelper.FormatCost(cost);
+        return job.CostSource == JobCostSources.Estimated ? "~" + formatted : formatted;
     }
 
     internal static int ExtractJobNumber(string jobId)
@@ -63,50 +77,11 @@ public partial class JobsApp
         var statusSegments = statusGroups
             .Select(g => new ProgressSegment(
                 g.Count,
-                JobsApp.GetStatusColor(g.Status),
+                GetStatusColor(g.Status),
                 g.Status.ToString()
             ))
             .ToArray();
 
         return new StackedProgress(statusSegments).ShowLabels();
-    }
-
-    /// <summary>
-    /// Builds the candidate cell set exactly as before, then keeps only cells whose value actually
-    /// changed since the previous tick, per <paramref name="lastSent"/> (keyed by "{jobId} {columnName}",
-    /// owned by the caller so it survives across ticks). Keys for jobs no longer returned by the
-    /// service are pruned so the cache cannot grow without bound as jobs are evicted.
-    /// </summary>
-    internal static IEnumerable<DataTableCellUpdate> BuildDataTableUpdates(
-        IJobService jobService, Dictionary<string, string> lastSent)
-    {
-        var currentJobs = jobService.GetJobs();
-        var currentJobIds = currentJobs.Select(j => j.Id).ToHashSet(StringComparer.Ordinal);
-        foreach (var staleKey in lastSent.Keys.Where(k => !currentJobIds.Contains(k.Split(' ')[0])).ToList())
-            lastSent.Remove(staleKey);
-
-        var candidates = currentJobs
-            .Where(j => j.Status == JobStatus.Running ||
-                        ((j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed)
-                         && j.CompletedAt.HasValue
-                         && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
-            .SelectMany(j => new[]
-            {
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), JobsApp.FormatTimer(j)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : ""),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Tokens), j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), JobsApp.FormatAgentOutput(j)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), JobsApp.FormatStatusBadge(j.Status)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), JobsApp.GetStatusMessage(j))
-            });
-
-        foreach (var update in candidates)
-        {
-            var key = $"{update.RowId} {update.ColumnName}";
-            var value = update.Value as string ?? update.Value?.ToString() ?? "";
-            if (lastSent.TryGetValue(key, out var previous) && previous == value) continue;
-            lastSent[key] = value;
-            yield return update;
-        }
     }
 }

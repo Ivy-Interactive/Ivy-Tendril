@@ -185,6 +185,15 @@ verifications:
     2. Review all commits made by this execution
     3. Compare the plan's Problem and Solution sections against the actual changes
     4. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`
+- name: Screenshots
+  prompt: >
+    Capture UI screenshots into the plan's Artifacts folder so the Review tab has visual evidence of the change.
+    1. Run `tendril project get "<project>"` and pick the first review action whose condition holds. Review action commands are relative to <TendrilPlanFolder>, so run them from the plan folder, not from the worktree.
+    2. If the project has no review action that starts a UI, write <TendrilPlanFolder>/Verification/Screenshots.md with `result: Skipped` plus the reason, and stop.
+    3. Start the app in the background with that command. Take the listening URL from its stdout, or fall back to `tendril plan env get <plan-id>` for the plan's allocated ports. Allow at most 120 seconds for the port to accept connections.
+    4. Capture one PNG per page into <TendrilPlanFolder>/Artifacts/screenshots/, named <NN>-<page>.png: the entry route, plus each route the plan's changes touch. Use the repo's own browser tooling if it has any, otherwise `npx --yes playwright screenshot --full-page --wait-for-timeout=2000 <url> <file>`.
+    5. Stop the app process you started.
+    6. Write <TendrilPlanFolder>/Verification/Screenshots.md with `result: Pass` and the list of captured files. If the tooling is unavailable (no Node, no browser download, offline), record `result: Skipped` with the reason instead. Never report Fail for missing tooling, and never spend more than 5 minutes in this verification.
 
 # Stack-specific verification examples (uncomment and customize for your stack):
 

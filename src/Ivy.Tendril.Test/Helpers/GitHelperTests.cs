@@ -110,6 +110,64 @@ public class GitHelperTests : IDisposable
     }
 
     [Fact]
+    public void ResolveGitRoot_WhenDirectoryInsideGitRepo_ReturnsRepoRoot()
+    {
+        var repoDir = Path.Combine(_tempDir, "git-repo");
+        Directory.CreateDirectory(repoDir);
+        var gitDir = Path.Combine(repoDir, ".git");
+        Directory.CreateDirectory(gitDir);
+
+        var subDir = Path.Combine(repoDir, "src", "Nested", "Folder");
+        Directory.CreateDirectory(subDir);
+
+        var resultFromSub = GitHelper.ResolveGitRoot(subDir);
+        Assert.Equal(Path.GetFullPath(repoDir), resultFromSub);
+
+        var resultFromRoot = GitHelper.ResolveGitRoot(repoDir);
+        Assert.Equal(Path.GetFullPath(repoDir), resultFromRoot);
+    }
+
+    [Fact]
+    public void ResolveGitRoot_WhenDirectoryInWorktree_ReturnsWorktreeRoot()
+    {
+        var wtDir = Path.Combine(_tempDir, "worktree-root");
+        Directory.CreateDirectory(wtDir);
+        File.WriteAllText(Path.Combine(wtDir, ".git"), "gitdir: /some/path/.git/worktrees/wt");
+
+        var subDir = Path.Combine(wtDir, "sub", "dir");
+        Directory.CreateDirectory(subDir);
+
+        var result = GitHelper.ResolveGitRoot(subDir);
+        Assert.Equal(Path.GetFullPath(wtDir), result);
+    }
+
+    [Fact]
+    public void ResolveGitRoot_WhenDirectoryOutsideGitRepo_ReturnsNull()
+    {
+        var standaloneDir = Path.Combine(_tempDir, "standalone");
+        Directory.CreateDirectory(standaloneDir);
+
+        var result = GitHelper.ResolveGitRoot(standaloneDir);
+        Assert.Null(result);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ResolveGitRoot_WhenNullOrWhitespace_ReturnsNull(string? path)
+    {
+        Assert.Null(GitHelper.ResolveGitRoot(path));
+    }
+
+    [Fact]
+    public void ResolveGitRoot_WhenDirectoryDoesNotExist_ReturnsNull()
+    {
+        var nonExistent = Path.Combine(_tempDir, "nonexistent-" + Guid.NewGuid().ToString("N"));
+        Assert.Null(GitHelper.ResolveGitRoot(nonExistent));
+    }
+
+    [Fact]
     public async Task IsValidBranchAsync_InvalidArgs_ReturnsFalse()
     {
         Assert.False(await GitHelper.IsValidBranchAsync("", "main"));

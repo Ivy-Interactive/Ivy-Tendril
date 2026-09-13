@@ -11,6 +11,7 @@ public interface IPlanReaderService
     void RecoverStuckPlans();
     List<PlanFile> GetPlans(PlanStatus? statusFilter = null);
     PlanFile? GetPlanByFolder(string folderPath);
+    PlanFile? GetPlanById(int planId) => GetPlans().FirstOrDefault(p => p.Id == planId);
     List<PlanFile> GetIceboxPlans();
     void TransitionState(string folderName, PlanStatus newState);
 
@@ -34,6 +35,9 @@ public interface IPlanReaderService
     void ResetToDraft(string folderName);
     void ResetVerificationsForRetry(string folderName);
     void SetVerificationStatus(string folderName, string name, VerificationStatus status);
+
+    /// <summary>Records the chat session that belongs to the plan, so jobs started for it report back there.</summary>
+    void SetChatSessionId(string folderName, string chatSessionId) { }
     void SaveRevision(string folderName, string content);
     void RevertRevision(string folderName);
     string ReadLatestRevision(string folderName);
@@ -45,6 +49,10 @@ public interface IPlanReaderService
     DashboardModels GetDashboardData(string? projectFilter);
     DashboardActivityStats GetDashboardActivity(int monthsBack = 24);
     List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days);
+    List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60) => [];
+    List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) => [];
+    List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) => [];
+    List<DashboardAgentCost> GetAgentCostBreakdown(int days) => [];
     decimal GetPlanTotalCost(string folderPath);
     int GetPlanTotalTokens(string folderPath);
     List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null);

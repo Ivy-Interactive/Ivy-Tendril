@@ -7,6 +7,7 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Plans;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Jobs;
@@ -16,12 +17,19 @@ internal class JobCompletionHandler
     private readonly IConfigService? _configService;
     private readonly ILogger _logger;
     private readonly ModelPricingService? _modelPricingService;
+    private readonly IModelPricingProvider? _pricingProvider;
     private readonly IPlanReaderService? _planReaderService;
     private readonly IPlanWatcherService? _planWatcherService;
+    private readonly IPlanDatabaseService? _database;
     private readonly ITelemetryService? _telemetryService;
     private readonly string _promptsRoot;
     private readonly PlanArtifactSyncer _artifactSyncer;
     private readonly DependencyChecker _dependencyChecker;
+
+    // Guards for the pwsh processes a hook spawns. Settable so a test can exercise the kill path
+    // without paying the real guard in wall clock time, matching JobService.JobTimeout.
+    internal TimeSpan HookConditionTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    internal TimeSpan HookActionTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     internal JobCompletionHandler(
         IConfigService? configService,
@@ -30,17 +38,24 @@ internal class JobCompletionHandler
         IPlanReaderService? planReaderService,
         ITelemetryService? telemetryService,
         IPlanWatcherService? planWatcherService,
-        string promptsRoot)
+        string promptsRoot,
+        IModelPricingProvider? pricingProvider = null,
+        IPlanDatabaseService? database = null)
     {
         _configService = configService;
         _logger = logger;
         _modelPricingService = modelPricingService;
+        // Taken separately from _modelPricingService rather than off it: the estimated-cost tier has
+        // to work on the telemetry-off path below, where there is no pricing service at all but the
+        // agent still reported tokens.
+        _pricingProvider = pricingProvider;
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _planWatcherService = planWatcherService;
         _promptsRoot = promptsRoot;
         _artifactSyncer = new PlanArtifactSyncer(configService, logger, planWatcherService);
         _dependencyChecker = new DependencyChecker(planReaderService);
+        _database = database;
     }
 
     internal void HandleCompletion(
@@ -71,7 +86,7 @@ internal class JobCompletionHandler
         HandleWaitForJobsDependents(job, jobs, raiseNotification, startJobSkipDepCheck, persistJob, deleteJob);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-            _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob);
+            _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob, persistJob);
 
         if (isSuccess && job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs or CreateIssueArgs)
         {
@@ -142,6 +157,10 @@ internal class JobCompletionHandler
         // A cancelled job that the completion path won the race for is handled here too.
         if (job.Status is JobStatus.Failed or JobStatus.Timeout || job.CancellationRequested)
         {
+            if (job.TypedArgs is CreatePlanArgs || job.Type == Constants.JobTypes.CreatePlan)
+            {
+                CleanupEmptyCreatePlan(job);
+            }
             RevertPlanStateToPrevious(job);
             return;
         }
@@ -261,9 +280,10 @@ internal class JobCompletionHandler
 
         if (_modelPricingService == null)
         {
-            // No pricing service to derive cost from: still surface the tokens we have (cost stays
-            // null rather than a misleading $0.0000).
-            var inlineOnly = ResolveJobCost(inlineUsage, priced: null);
+            // No session parse to derive cost from, but the inline tokens can still be priced against
+            // the local price list, which is the only figure a subscription plan ever yields. Cost
+            // stays null when even that finds no rates, rather than a misleading $0.0000.
+            var inlineOnly = ResolveJobCost(inlineUsage, priced: null, _pricingProvider);
             if (inlineOnly.Tokens > 0)
                 ApplyCost(job, persistJob, raisePropertyChanged, inlineOnly);
             return;
@@ -282,7 +302,7 @@ internal class JobCompletionHandler
             try
             {
                 var costCalc = _modelPricingService.CalculateSessionCost(sessionId, provider);
-                var usage = ResolveJobCost(inlineUsage, costCalc);
+                var usage = ResolveJobCost(inlineUsage, costCalc, _pricingProvider);
                 if (usage.Tokens > 0 || usage.Cost is > 0)
                 {
                     if (jobs.TryGetValue(jobId, out var j))
@@ -293,7 +313,7 @@ internal class JobCompletionHandler
                     }
 
                     if (jobPlanFolder != null)
-                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, (double)(usage.Cost ?? 0m));
+                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, usage.Cost, usage.Model, usage.CostSource, provider);
                 }
             }
             catch (Exception ex)
@@ -306,11 +326,17 @@ internal class JobCompletionHandler
     /// <summary>
     /// Reconciles the agent-reported inline usage with the pricing-derived session cost.
     /// Prefers any positive cost (inline first, then priced) and records which of the two it came
-    /// from; carries the best available token count and per-bucket breakdown; leaves cost null when
-    /// neither source has a positive cost so the UI shows nothing instead of a misleading $0.0000
-    /// next to a positive token count.
+    /// from; carries the best available token count and per-bucket breakdown; and, when neither
+    /// source charged anything, falls back to pricing this job's own token buckets against
+    /// <paramref name="pricing" /> under <see cref="JobCostSources.Estimated" />, which is what a
+    /// subscription plan like Claude Max needs, since it reports tokens and no charge at all.
+    /// Cost stays null when even that yields nothing, so the UI shows nothing instead of a
+    /// misleading $0.0000 next to a positive token count.
     /// </summary>
-    internal static JobUsageSnapshot ResolveJobCost(AgentUsage? inline, CostCalculation? priced)
+    internal static JobUsageSnapshot ResolveJobCost(
+        AgentUsage? inline,
+        CostCalculation? priced,
+        IModelPricingProvider? pricing = null)
     {
         var inlineTokens = inline is not null ? inline.InputTokens + inline.OutputTokens : 0;
         var inlineCost = inline?.CostUsd ?? 0m;
@@ -336,19 +362,43 @@ internal class JobCompletionHandler
                                (priced.InputTokens > 0 || priced.OutputTokens > 0 ||
                                 priced.CacheReadTokens > 0 || priced.CacheWriteTokens > 0);
 
+        var model = priced?.Model ?? inline?.Model;
+        var inputTokens = pricedHasBuckets ? priced!.InputTokens : inline?.InputTokens;
+        var outputTokens = pricedHasBuckets ? priced!.OutputTokens : inline?.OutputTokens;
+        var cacheReadTokens = pricedHasBuckets ? priced!.CacheReadTokens : inline?.CacheReadTokens;
+        var cacheWriteTokens = pricedHasBuckets ? priced!.CacheWriteTokens : inline?.CacheWriteTokens;
+        // Only the inline ResultEvent carries reasoning tokens; SessionCostResult has no such
+        // bucket, so this is never sourced from the priced path.
+        var reasoningTokens = inline?.ReasoningTokens;
+
+        // Last resort. The buckets priced here are the ones this snapshot is about to write to the
+        // job, so an estimate can never disagree with the token numbers shown beside it. Reasoning
+        // tokens are excluded by BuildBuckets/ComputeCost, and an unpriced model yields null rather
+        // than 0, so an unknown model stays unknown instead of reading as a free run.
+        if (cost is null && pricing is not null && !string.IsNullOrWhiteSpace(model))
+        {
+            var estimated = JobCostModelBuilder.ComputeCost(JobCostModelBuilder.BuildBuckets(
+                inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, reasoningTokens,
+                pricing.GetPricing(model)));
+
+            if (estimated is > 0)
+            {
+                cost = estimated;
+                costSource = JobCostSources.Estimated;
+            }
+        }
+
         return new JobUsageSnapshot
         {
             Tokens = tokens,
             Cost = cost,
             CostSource = costSource,
-            Model = priced?.Model ?? inline?.Model,
-            InputTokens = pricedHasBuckets ? priced!.InputTokens : inline?.InputTokens,
-            OutputTokens = pricedHasBuckets ? priced!.OutputTokens : inline?.OutputTokens,
-            CacheReadTokens = pricedHasBuckets ? priced!.CacheReadTokens : inline?.CacheReadTokens,
-            CacheWriteTokens = pricedHasBuckets ? priced!.CacheWriteTokens : inline?.CacheWriteTokens,
-            // Only the inline ResultEvent carries reasoning tokens; SessionCostResult has no such
-            // bucket, so this is never sourced from the priced path.
-            ReasoningTokens = inline?.ReasoningTokens,
+            Model = model,
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            CacheReadTokens = cacheReadTokens,
+            CacheWriteTokens = cacheWriteTokens,
+            ReasoningTokens = reasoningTokens,
         };
     }
 
@@ -364,7 +414,7 @@ internal class JobCompletionHandler
 
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
         if (jobPlanFolder != null)
-            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, (double)(usage.Cost ?? 0m));
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, usage.Cost, usage.Model, usage.CostSource, job.Provider);
     }
 
     /// <summary>
@@ -419,7 +469,7 @@ internal class JobCompletionHandler
         }
     }
 
-    private static bool EvaluateHookCondition(PromptwareHookConfig hook, string planFolder, JobItem job)
+    private bool EvaluateHookCondition(PromptwareHookConfig hook, string planFolder, JobItem job)
     {
         if (string.IsNullOrWhiteSpace(hook.Condition))
             return true;
@@ -449,13 +499,13 @@ internal class JobCompletionHandler
         // class). The reads complete when the pipes close on exit or kill.
         var condOutTask = condProc.StandardOutput.ReadToEndAsync();
         var condErrTask = condProc.StandardError.ReadToEndAsync();
-        var condExitedNormally = condProc.WaitForExitOrKill(10000);
+        var condExitedNormally = condProc.WaitForExitOrKill((int)HookConditionTimeout.TotalMilliseconds);
         var condOutput = HarvestHookStream(condOutTask);
         _ = HarvestHookStream(condErrTask); // drain to prevent a full stderr pipe from wedging the read
 
         if (!condExitedNormally)
         {
-            job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition timed out after 10s and was terminated, skipping");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition timed out after {HookConditionTimeout.TotalSeconds:0.##}s and was terminated, skipping");
             return false;
         }
 
@@ -516,7 +566,7 @@ internal class JobCompletionHandler
         // class). The reads complete when the pipes close on exit or kill.
         var outTask = actionProc.StandardOutput.ReadToEndAsync();
         var errTask = actionProc.StandardError.ReadToEndAsync();
-        var exitedNormally = actionProc.WaitForExitOrKill(30000);
+        var exitedNormally = actionProc.WaitForExitOrKill((int)HookActionTimeout.TotalMilliseconds);
         var output = HarvestHookStream(outTask);
         var stderr = HarvestHookStream(errTask);
 
@@ -526,7 +576,7 @@ internal class JobCompletionHandler
             job.EnqueueSystemOutput($"[hook:{hook.Name}] [stderr] {stderr}");
 
         if (!exitedNormally)
-            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook timed out after 30s and was terminated");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook timed out after {HookActionTimeout.TotalSeconds:0.##}s and was terminated");
         else if (actionProc.ExitCode != 0)
             job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc.ExitCode}");
     }
@@ -595,18 +645,76 @@ internal class JobCompletionHandler
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
+    ///     <see cref="GitHubPrUrlPattern" /> anchored to a whole line, so it only matches a PR URL that
+    ///     stands alone: what `gh pr create` prints, and never a URL cited inside prose, a markdown
+    ///     link or a heredoc. A trailing slash and a trailing `#fragment` are tolerated in the
+    ///     lookahead so the match value stays the canonical base URL.
+    /// </summary>
+    internal static readonly Regex BarePrUrlPattern = new(
+        @"^https?://github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+)/pull/(?<number>\d+)(?=/?(?:#\S*)?$)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    internal static readonly Regex DuplicateMarkerPattern = new(
+        @"identified as duplicate:\s*(?<target>[^\s]+)",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Anchored to a whole (trimmed) line, same rationale as <see cref="BarePrUrlPattern" />:
+    ///     rejects a `read`/`grep` result quoting the marker (line-number gutter, `path:line:`
+    ///     prefix) and the job-log form `- **PlanId:** 00075` (see JobLogWriter), leaving only what
+    ///     `tendril plan create` itself prints.
+    /// </summary>
+    internal static readonly Regex BarePlanIdPattern = new(
+        @"^PlanId:\s*(?<id>[\w-]+)$",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Matches a <see cref="ToolCallEvent" />'s <c>ToolName</c>/<c>InputJson</c> that invoked plan
+    ///     creation, so a correlated <see cref="ToolResultEvent" /> can be trusted even though the
+    ///     wire carries other tool calls too. Covers both the CLI (`tendril plan create ...` inside a
+    ///     Bash command) and the MCP tool (`mcp__tendril__plan_create`) — no leading `\b`, because
+    ///     the underscore joining `tendril__plan_create` is a word character on both sides, so a
+    ///     leading boundary would never match the MCP tool name at all.
+    /// </summary>
+    internal static readonly Regex PlanCreateInvocationPattern = new(
+        @"plan[_ \t-]+create\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
     ///     Safety net for CreatePr. The agent is supposed to record each PR URL via
     ///     `tendril plan add-pr` and set the plan to Completed (Program.md step 6), but a rushed or
-    ///     weak provider can stop after opening the PR and skip that closeout — leaving the PR
+    ///     weak provider can stop after opening the PR and skip that closeout, leaving the PR
     ///     invisible in the Pull Requests app (which filters on Prs.Count > 0) and the plan stuck in
     ///     Drafts. Here we parse PR URLs from the job output, record the ones missing from plan.yaml,
     ///     and mark the plan Completed. A plan that has a PR is Completed regardless of PrMerge; merge
     ///     is tracked separately as PR status.
     ///
-    ///     Only PR URLs whose repo matches one of this plan's repos are trusted — a foreign or
-    ///     SourceUrl PR merely echoed in the transcript must not be recorded or force-complete the
-    ///     plan. Plans with no repos (e.g. direct-to-main scaffolding, which opens no PR) are left
-    ///     untouched. No-ops cleanly when the agent already did the closeout.
+    ///     A URL is only trusted when all of these hold, because <c>OutputLines</c> is the whole
+    ///     eventwire (thinking, prose and tool inputs included), not command output:
+    ///     <list type="number">
+    ///         <item>
+    ///             It arrived in a <see cref="ToolResultEvent" /> and occupies a line of that output on
+    ///             its own (<see cref="BarePrUrlPattern" />). Agents routinely cite a sibling plan's PR
+    ///             in the PR body they build, and issue #2336 is 12 plans that had a cited URL recorded
+    ///             as their own because the old scan read every event kind as if it were output.
+    ///         </item>
+    ///         <item>
+    ///             The plan has no PR recorded yet for that repo. The net exists for an agent that
+    ///             recorded nothing, so it has no business appending a second PR to a repo that already
+    ///             has one. Scoping per repo keeps multi-repo plans reconcilable.
+    ///         </item>
+    ///         <item>
+    ///             The repo segment matches one of this plan's repos, and the canonical
+    ///             owner/repo#number is not already recorded in another form.
+    ///         </item>
+    ///     </list>
+    ///     Plans with no repos (e.g. direct-to-main scaffolding, which opens no PR) are left untouched.
+    ///     No-ops cleanly when the agent already did the closeout.
+    ///
+    ///     The regression risk is narrower reconciliation: if a future prompt captures the URL into a
+    ///     variable instead of letting `gh pr create` print it, the net misses it and the plan stays in
+    ///     Review for a human to complete. That is the behaviour from before the net existed, and it is
+    ///     strictly better than writing a foreign PR into a plan's history.
     /// </summary>
     internal void ReconcileCreatePrResult(JobItem job)
     {
@@ -632,19 +740,39 @@ internal class JobCompletionHandler
                 .Select(CanonicalPrKey)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            // Scan the output line-by-line (no whole-transcript allocation), keeping the canonical
-            // base URL for each in-scope, not-yet-recorded PR.
+            // Repos that already have a PR recorded, so the net stays out of their way.
+            var reposWithPr = plan.Prs
+                .Select(p => GitHubPrUrlPattern.Match(p))
+                .Where(m => m.Success)
+                .Select(m => m.Groups["repo"].Value)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Scan the eventwire entry by entry (no whole-transcript allocation), keeping the
+            // canonical base URL for each in-scope, not-yet-recorded PR.
             var added = new List<string>();
             if (planRepoNames.Count > 0)
             {
                 var seen = new HashSet<string>(recordedKeys, StringComparer.OrdinalIgnoreCase);
-                foreach (var line in job.OutputLines)
-                    foreach (Match m in GitHubPrUrlPattern.Matches(line))
+                var serializer = new JsonEventSerializer();
+                foreach (var entry in job.OutputLines)
+                {
+                    // Only a tool result is command output. Newlines live as escapes inside the
+                    // serialized entry, so the split has to happen after deserialization.
+                    if (serializer.Deserialize(entry) is not ToolResultEvent { Output: { } output }) continue;
+
+                    foreach (var outputLine in output.Replace("\r", "").Split('\n'))
                     {
-                        if (!planRepoNames.Contains(m.Groups["repo"].Value)) continue;
+                        var m = BarePrUrlPattern.Match(outputLine.Trim());
+                        if (!m.Success) continue;
+
+                        var repo = m.Groups["repo"].Value;
+                        if (!planRepoNames.Contains(repo)) continue;
+                        if (reposWithPr.Contains(repo)) continue;
                         if (!seen.Add(CanonicalPrKey(m))) continue;
+
                         added.Add(m.Value);
                     }
+                }
             }
 
             // Nothing to record and no PR on the plan → leave state to whatever the agent set.
@@ -682,22 +810,75 @@ internal class JobCompletionHandler
     private static string CanonicalPrKey(Match m) =>
         $"{m.Groups["owner"].Value}/{m.Groups["repo"].Value}#{m.Groups["number"].Value}".ToLowerInvariant();
 
-    private void VerifyCreatePlanResult(JobItem job)
+    internal void VerifyCreatePlanResult(JobItem job)
     {
         try
         {
-            var plansDir = _planReaderService?.PlansDirectory;
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
             if (plansDir == null || !Directory.Exists(plansDir)) return;
 
+            string? planFolder = null;
             if (TryVerifyByReportedId(job, plansDir) ||
                 TryVerifyByOutputRegex(job, plansDir) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
-                MoveAttachmentsToPlanFolder(job);
-                return;
+                planFolder = !string.IsNullOrEmpty(job.PlanFile)
+                    ? (Path.IsPathRooted(job.PlanFile) ? job.PlanFile : Path.Combine(plansDir, job.PlanFile))
+                    : null;
             }
 
-            if (IsDuplicatePlan(job)) return;
+            if (planFolder != null && Directory.Exists(planFolder))
+            {
+                if (GetPlanRevisionCount(planFolder) > 0)
+                {
+                    if (!string.IsNullOrEmpty(job.ChatSessionId) && !string.IsNullOrEmpty(job.PlanFile))
+                    {
+                        if (!PlanYamlHelper.UpdatePlanYamlFields(planFolder, ("chatSessionId", job.ChatSessionId)))
+                            _logger.LogWarning("Failed to update chatSessionId in plan.yaml for job {JobId} at {PlanFolder}", job.Id, planFolder);
+                        _planWatcherService?.NotifyChanged(planFolder);
+                        if (_planReaderService is PlanReaderService prs)
+                        {
+                            var plan = prs.ParseSinglePlanFolder(planFolder);
+                            if (plan != null)
+                            {
+                                (_database ?? prs.Database)?.UpsertPlan(plan);
+                            }
+                        }
+                        else if (_database != null)
+                        {
+                            var plan = _planReaderService?.GetPlanByFolder(planFolder);
+                            if (plan != null)
+                            {
+                                _database.UpsertPlan(plan);
+                            }
+                        }
+                    }
+
+                    MoveAttachmentsToPlanFolder(job);
+                    return;
+                }
+                else
+                {
+                    CleanupPlanFolderAndDatabase(planFolder);
+                    job.PlanFile = "";
+                }
+            }
+
+            if (IsDuplicatePlan(job, plansDir)) return;
+
+            if (!string.IsNullOrEmpty(job.AllocatedPlanId))
+            {
+                var allocatedFolder = PlanYamlHelper.FindPlanFolderById(plansDir, job.AllocatedPlanId);
+                if (allocatedFolder != null)
+                {
+                    var fullAllocated = Path.IsPathRooted(allocatedFolder) ? allocatedFolder : Path.Combine(plansDir, allocatedFolder);
+                    if (GetPlanRevisionCount(fullAllocated) == 0)
+                    {
+                        CleanupPlanFolderAndDatabase(fullAllocated);
+                    }
+                }
+            }
 
             MarkCreatePlanFailed(job);
         }
@@ -826,11 +1007,81 @@ internal class JobCompletionHandler
                 TryVerifyByOutputRegex(job, plansDir) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
-                return true;
+                if (!string.IsNullOrEmpty(job.PlanFile))
+                {
+                    var fullPath = Path.IsPathRooted(job.PlanFile) ? job.PlanFile : Path.Combine(plansDir, job.PlanFile);
+                    if (GetPlanRevisionCount(fullPath) > 0)
+                        return true;
+                }
             }
         }
 
-        return IsDuplicatePlan(job);
+        return IsDuplicatePlan(job, plansDir);
+    }
+
+    internal static int GetPlanRevisionCount(string planFolder)
+    {
+        var revisionsDir = Path.Combine(planFolder, "Revisions");
+        if (!Directory.Exists(revisionsDir))
+        {
+            revisionsDir = Path.Combine(planFolder, "revisions");
+        }
+        return Directory.Exists(revisionsDir)
+            ? Directory.GetFiles(revisionsDir, "*.md").Length
+            : 0;
+    }
+
+    internal void CleanupPlanFolderAndDatabase(string planFolder)
+    {
+        try
+        {
+            var folderName = Path.GetFileName(planFolder);
+            var match = Regex.Match(folderName, @"^(\d{5})-");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var planId))
+            {
+                var db = _database ?? (_planReaderService as PlanReaderService)?.Database;
+                db?.DeletePlan(planId);
+            }
+
+            if (Directory.Exists(planFolder))
+            {
+                Directory.Delete(planFolder, recursive: true);
+            }
+            _planWatcherService?.NotifyChanged(planFolder);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up empty plan folder {Folder}", planFolder);
+        }
+    }
+
+    private void CleanupEmptyCreatePlan(JobItem job)
+    {
+        try
+        {
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+            if (plansDir == null || !Directory.Exists(plansDir)) return;
+
+            var planId = job.ReportedPlanId ?? job.AllocatedPlanId ?? ExtractReportedPlanId(job.OutputLines);
+
+            if (!string.IsNullOrEmpty(planId))
+            {
+                var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+                if (folder != null)
+                {
+                    var fullPath = Path.IsPathRooted(folder) ? folder : Path.Combine(plansDir, folder);
+                    if (GetPlanRevisionCount(fullPath) == 0)
+                    {
+                        CleanupPlanFolderAndDatabase(fullPath);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up empty CreatePlan on job failure for job {JobId}", job.Id);
+        }
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)
@@ -855,26 +1106,113 @@ internal class JobCompletionHandler
         // PlanCreateCommand.Execute), but it always prints `PlanId: <id>` — resolve that ID to
         // its folder the same way TryVerifyByReportedId does, so this fallback still works
         // independently of the agent calling `tendril job status --plan-id`.
-        var outputText = string.Join("\n", job.OutputLines);
-        var planIdMatch = Regex.Match(outputText, @"PlanId:\s*([\w-]+)");
-        if (!planIdMatch.Success) return false;
+        var planId = ExtractReportedPlanId(job.OutputLines);
+        if (planId == null) return false;
 
-        var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planIdMatch.Groups[1].Value);
+        var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
         if (folder == null) return false;
 
         job.PlanFile = folder;
         return true;
     }
 
-    // CreatePlan signals a deliberate duplicate rejection by ending its final message with
-    // "identified as duplicate: <folder>". The negative lookahead skips the documented template
-    // form, whose placeholder is angle-bracketed, so an agent that reads or quotes Program.md
-    // mid-run cannot echo the marker and suppress a genuine "no plan produced" failure.
-    // OutputLines holds re-serialized JSON, so the '<' arrives escaped as < — match both.
-    private static bool IsDuplicatePlan(JobItem job)
+    // Same class of false positive as IsDuplicatePlan below: OutputLines is the whole eventwire, not
+    // command output, so a bare regex over the joined text lets a `read`/`grep` result or a tool-call
+    // heredoc that merely quotes `PlanId: <id>` outrank the id the agent actually created. Scoped the
+    // same way — deserialize each entry and only trust event kinds that can genuinely carry it: a
+    // tool result correlated to a plan-create invocation (or, if the wire has no tool calls at all,
+    // any tool result), ranked above the agent's own prose (TextEvent/ResultEvent.Response).
+    internal static string? ExtractReportedPlanId(IEnumerable<string> outputLines)
     {
-        var outputText = string.Join("\n", job.OutputLines);
-        return Regex.IsMatch(outputText, @"identified as duplicate:\s*(?!<|\\u003[Cc])\S");
+        var serializer = new JsonEventSerializer();
+        var planCreateToolUseIds = new HashSet<string>();
+        var sawAnyToolCall = false;
+        string? tier1 = null;
+        string? tier2 = null;
+
+        foreach (var entry in outputLines)
+        {
+            switch (serializer.Deserialize(entry))
+            {
+                case ToolCallEvent call:
+                    sawAnyToolCall = true;
+                    if (PlanCreateInvocationPattern.IsMatch(call.ToolName) ||
+                        (call.InputJson != null && PlanCreateInvocationPattern.IsMatch(call.InputJson)))
+                        planCreateToolUseIds.Add(call.ToolUseId);
+                    break;
+
+                case ToolResultEvent { IsError: false, Output: { } output } result
+                    when tier1 == null && (!sawAnyToolCall || planCreateToolUseIds.Contains(result.ToolUseId)):
+                    tier1 = FirstBarePlanId(output);
+                    break;
+
+                case TextEvent { Text: { } text }:
+                    tier2 ??= FirstBarePlanId(text);
+                    break;
+
+                case ResultEvent { Response: { } response }:
+                    tier2 ??= FirstBarePlanId(response);
+                    break;
+            }
+        }
+
+        return tier1 ?? tier2;
+    }
+
+    private static string? FirstBarePlanId(string text)
+    {
+        foreach (var line in text.Replace("\r", "").Split('\n'))
+        {
+            var m = BarePlanIdPattern.Match(line.Trim());
+            if (m.Success) return m.Groups["id"].Value;
+        }
+        return null;
+    }
+
+    // A duplicate rejection is a claim the agent makes about its own run, so only the agent's own
+    // text counts: OutputLines also carries every tool result, and a CreatePlan run that reads a
+    // file quoting the marker (AGENTS.md documents it) must not be able to suppress a real failure.
+    // The named folder has to resolve to a plan on disk as well, so prose that happens to contain the
+    // marker cannot pass either.
+    private static bool IsDuplicatePlan(JobItem job, string? plansDir)
+    {
+        if (string.IsNullOrEmpty(plansDir) || !Directory.Exists(plansDir)) return false;
+
+        var serializer = new JsonEventSerializer();
+        foreach (var entry in job.OutputLines)
+        {
+            var text = serializer.Deserialize(entry) switch
+            {
+                TextEvent t => t.Text,
+                ResultEvent { Response: { } response } => response,
+                _ => null
+            };
+            if (string.IsNullOrEmpty(text)) continue;
+
+            foreach (var m in DuplicateMarkerPattern.Matches(text).Cast<Match>())
+                if (ResolvesToPlanFolder(m.Groups["target"].Value, plansDir)) return true;
+        }
+        return false;
+    }
+
+    // FindPlanFolderById globs "{planId}-*", so passing it a full folder name never matches - that's
+    // why the first resolution step below checks the full form directly rather than delegating to it.
+    private static bool ResolvesToPlanFolder(string token, string plansDir)
+    {
+        token = token.Trim('`', '"', '\'', '.', ',', ';', ')', ']');
+        if (string.IsNullOrEmpty(token)) return false;
+
+        if (Directory.Exists(Path.Combine(plansDir, token))) return true;
+
+        var idMatch = Regex.Match(token, @"^(\d{5})");
+        if (idMatch.Success && PlanYamlHelper.FindPlanFolderById(plansDir, idMatch.Groups[1].Value) != null)
+            return true;
+
+        if (Regex.IsMatch(token, @"^\d+$") &&
+            PlanYamlHelper.FindPlanFolderById(plansDir, token.PadLeft(5, '0')) != null)
+            return true;
+
+        return false;
     }
 
     private static bool TryVerifyByFilesystem(JobItem job, string plansDir)
@@ -983,7 +1321,24 @@ internal class JobCompletionHandler
                                dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked);
 
                 if (stillPending)
+                {
+                    var remaining = waitingJob.WaitForJobIds!
+                        .Where(id => jobs.TryGetValue(id, out var dep) &&
+                                     dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+                        .Select(id => jobs[id])
+                        .ToList();
+                    if (remaining.Count > 0)
+                    {
+                        var waitingFor = string.Join(", ", remaining.Select(JobService.DescribeWaitDependency));
+                        var newStatus = $"Waiting for {waitingFor}";
+                        if (waitingJob.StatusMessage != newStatus)
+                        {
+                            waitingJob.StatusMessage = newStatus;
+                            persistJob?.Invoke(waitingJob);
+                        }
+                    }
                     continue;
+                }
 
                 jobs.TryRemove(waitingJob.Id, out _);
                 deleteJob?.Invoke(waitingJob.Id);
@@ -1017,8 +1372,9 @@ internal class JobCompletionHandler
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
         Func<JobArgsBase, string> startJobSkipDepCheck,
-        Action<string>? deleteJob = null)
-        => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob);
+        Action<string>? deleteJob = null,
+        Action<JobItem>? persistJob = null)
+        => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob, persistJob);
 
     internal void WriteJobLog(JobItem job)
     {

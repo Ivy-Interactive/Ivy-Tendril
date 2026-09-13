@@ -155,8 +155,8 @@ Another paragraph mentioning keyword multiple times: keyword and KEYWORD.
       fireEvent.change(searchInput, { target: { value: "keyword" } });
     });
 
-    const nextBtn = screen.getByTitle("Next match (Enter)");
-    const prevBtn = screen.getByTitle("Previous match (Shift+Enter)");
+    const nextBtn = screen.getByRole("button", { name: "Next match" });
+    const prevBtn = screen.getByRole("button", { name: "Previous match" });
 
     // Click Next button
     act(() => {
@@ -216,7 +216,7 @@ Another paragraph mentioning keyword multiple times: keyword and KEYWORD.
 
     expect(container.querySelectorAll(".pmv-search-highlight").length).toBe(5);
 
-    const closeBtn = screen.getByTitle("Close (Escape)");
+    const closeBtn = screen.getByRole("button", { name: "Close search" });
     act(() => {
       fireEvent.click(closeBtn);
     });

@@ -35,7 +35,8 @@ public class ReviewActionsBarView(
             var btn = BuildActionButton(
                 action,
                 conditionMet,
-                () => nav.Navigate<ReviewActionApp>(new ReviewActionAppArgs(selectedPlan.FolderName, actionCapture.Name)));
+                () => nav.Navigate<ReviewActionApp>(new ReviewActionAppArgs(selectedPlan.FolderName, actionCapture.Name)),
+                selectedPlan.AllocatedPorts);
 
             actionsBar |= btn;
         }
@@ -43,7 +44,12 @@ public class ReviewActionsBarView(
         return actionsBar;
     }
 
-    internal static string GetTooltip(ReviewActionConfig action, bool conditionMet)
+    /// <summary>
+    ///     The button's tooltip. When the plan has ports allocated they are appended to the command, so a
+    ///     reviewer can see which URLs the action will serve on without opening the terminal first.
+    /// </summary>
+    internal static string GetTooltip(
+        ReviewActionConfig action, bool conditionMet, IReadOnlyDictionary<string, int>? allocatedPorts = null)
     {
         if (!conditionMet)
         {
@@ -52,15 +58,21 @@ public class ReviewActionsBarView(
                 : "Disabled: Condition not met";
         }
 
+        var ports = allocatedPorts is { Count: > 0 }
+            ? $" (ports: {string.Join(", ", allocatedPorts.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}: {p.Value}"))})"
+            : "";
+
         return !string.IsNullOrWhiteSpace(action.Command)
-            ? $"Run: {action.Command}"
-            : $"Run {action.Name}";
+            ? $"Run: {action.Command}{ports}"
+            : $"Run {action.Name}{ports}";
     }
 
-    internal static Button BuildActionButton(ReviewActionConfig action, bool conditionMet, Action? onNavigate = null)
+    internal static Button BuildActionButton(
+        ReviewActionConfig action, bool conditionMet, Action? onNavigate = null,
+        IReadOnlyDictionary<string, int>? allocatedPorts = null)
     {
         var btn = new Button(action.Name).Icon(Icons.Play).Outline();
-        var tooltip = GetTooltip(action, conditionMet);
+        var tooltip = GetTooltip(action, conditionMet, allocatedPorts);
 
         if (!conditionMet)
         {

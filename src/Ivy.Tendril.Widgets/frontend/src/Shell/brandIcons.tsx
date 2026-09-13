@@ -2,7 +2,7 @@
 // (ClaudeCode, Antigravity, OpenCode, IvyCorner) and Simple Icons (OpenAI, Gemini,
 // Copilot, Anthropic) so the shell bundle does not depend on react-icons.
 import React from "react";
-import { ChevronUp, Terminal } from "lucide-react";
+import { ChevronUp, MessageCircle, Terminal } from "lucide-react";
 
 interface BrandIconProps {
   size?: number;
@@ -64,6 +64,10 @@ const TerminalIcon = ({ size = 16, className }: BrandIconProps) => (
   <Terminal size={size} className={className} />
 );
 
+const MessageCircleIcon = ({ size = 16, className }: BrandIconProps) => (
+  <MessageCircle size={size} className={className} />
+);
+
 /** Maps the C# Icons enum name (from AgentBranding.IconFor) to a component. */
 const brandIcons: Record<string, React.FC<BrandIconProps>> = {
   ClaudeCode: ClaudeCodeIcon,
@@ -76,6 +80,7 @@ const brandIcons: Record<string, React.FC<BrandIconProps>> = {
   Anthropic: AnthropicIcon,
   ChevronUp: ChevronUpIcon,
   Terminal: TerminalIcon,
+  MessageCircle: MessageCircleIcon,
 };
 
 export const BrandIcon: React.FC<{ name?: string; size?: number; className?: string }> = ({

@@ -1,6 +1,6 @@
 using Ivy;
 using Ivy.Tendril.Widgets;
-using DraftMarkdownWidget = Ivy.Tendril.Widgets.DraftMarkdown;
+using DraftMarkdownWidget = Ivy.Tendril.Widgets.PlanMarkdown;
 
 namespace WidgetSamples.Apps.DraftMarkdown;
 
@@ -34,7 +34,6 @@ class QuestionsEditingApp : ViewBase
           - id: retry-scope
             title: Should the retry budget be per-request or per-session?
             header: Retry scope
-            other: false
             options:
               - title: Per request
                 value: per-request

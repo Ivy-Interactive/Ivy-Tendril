@@ -63,7 +63,7 @@ public sealed class CodexHealthCheck : IAgentHealthCheck
             ? (IReadOnlyList<string>)["exec", "--full-auto", "--json", "--skip-git-repo-check", "-"]
             : ["exec", "--full-auto", "--json", "--skip-git-repo-check", "--model", model, "-"];
 
-        var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
+        var (exitCode, stdout, stderr) = await HealthCheckRunner.RunAsync(
             "codex", args, TimeSpan.FromSeconds(5), ct);
 
         // Timeout means the process started successfully (model was accepted)
@@ -73,31 +73,35 @@ public sealed class CodexHealthCheck : IAgentHealthCheck
         if (exitCode == 0)
             return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
 
-        if (stderr.Contains("model", StringComparison.OrdinalIgnoreCase) &&
-            (stderr.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||
-             stderr.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
-             stderr.Contains("not supported", StringComparison.OrdinalIgnoreCase)))
+        var combined = $"{stdout}\n{stderr}";
+        var cleanError = CodexEventParser.ExtractErrorMessage(stdout);
+        var effectiveError = !string.IsNullOrWhiteSpace(cleanError) ? cleanError : stderr;
+
+        if (combined.Contains("model", StringComparison.OrdinalIgnoreCase) &&
+            (combined.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||
+             combined.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+             combined.Contains("not supported", StringComparison.OrdinalIgnoreCase)))
             return new ModelValidationResult
             {
                 Status = ModelValidationStatus.InvalidModel,
                 Model = model,
-                ErrorMessage = stderr,
+                ErrorMessage = effectiveError,
             };
 
-        if (stderr.Contains("auth", StringComparison.OrdinalIgnoreCase) ||
-            stderr.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
+        if (combined.Contains("auth", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
             return new ModelValidationResult
             {
                 Status = ModelValidationStatus.AuthError,
                 Model = model,
-                ErrorMessage = stderr,
+                ErrorMessage = effectiveError,
             };
 
         return new ModelValidationResult
         {
             Status = ModelValidationStatus.Unknown,
             Model = model,
-            ErrorMessage = stderr,
+            ErrorMessage = effectiveError,
         };
     }
 

@@ -108,7 +108,7 @@ public class OnboardingApp : ViewBase
 
         var header = Layout.Horizontal().AlignContent(Align.BottomLeft)
                      | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto())
-                     | Text.H2("Welcome to Ivy Tendril")
+                     | Text.H2($"Welcome to {AppBrand.AppName}")
             ;
 
         return Layout.TopCenter() |

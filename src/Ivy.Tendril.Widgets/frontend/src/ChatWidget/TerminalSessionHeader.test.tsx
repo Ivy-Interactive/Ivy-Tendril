@@ -1,0 +1,108 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import "@testing-library/jest-dom";
+
+import { TerminalSessionHeader } from "./TerminalSessionHeader";
+
+describe("TerminalSessionHeader", () => {
+  it("renames the session and emits OnRenameSession with one array argument", () => {
+    const handleEvent = vi.fn();
+    render(
+      <TerminalSessionHeader
+        id="term-header"
+        sessionId="sess-1"
+        title="My Session"
+        events={["OnRenameSession"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Chat options/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Edit name/i }));
+
+    const input = screen.getByRole("textbox", { name: /Chat name/i });
+    fireEvent.change(input, { target: { value: "Renamed Session" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(handleEvent).toHaveBeenCalledWith("OnRenameSession", "term-header", [["sess-1", "Renamed Session"]]);
+  });
+
+  it("deletes the session and emits OnDeleteSession", () => {
+    const handleEvent = vi.fn();
+    render(
+      <TerminalSessionHeader
+        id="term-header"
+        sessionId="sess-2"
+        title="My Session"
+        events={["OnDeleteSession"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Chat options/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Delete chat/i }));
+
+    expect(handleEvent).toHaveBeenCalledWith("OnDeleteSession", "term-header", ["sess-2"]);
+  });
+
+  it("emits OnCreateSession from the new chat button", () => {
+    const handleEvent = vi.fn();
+    render(
+      <TerminalSessionHeader
+        id="term-header"
+        sessionId="sess-3"
+        events={["OnCreateSession"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /New chat/i }));
+    expect(handleEvent).toHaveBeenCalledWith("OnCreateSession", "term-header", []);
+  });
+
+  it("emits OnOpenPlan when a spawned job that reported a plan is clicked", () => {
+    const handleEvent = vi.fn();
+    render(
+      <TerminalSessionHeader
+        id="term-header"
+        sessionId="sess-5"
+        jobs={[{ id: "00151", type: "ExecutePlan", status: "Completed", planId: "00151", planTitle: "Fix build" }]}
+        spawned
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /View running jobs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Fix build/ }));
+
+    expect(handleEvent).toHaveBeenCalledWith("OnOpenPlan", "term-header", ["00151"]);
+  });
+
+  it("renders a job item without a planId as non-clickable and does not emit OnOpenPlan", () => {
+    const handleEvent = vi.fn();
+    render(
+      <TerminalSessionHeader
+        id="term-header"
+        sessionId="sess-6"
+        jobs={[{ id: "00152", type: "Promptware", status: "Running" }]}
+        spawned
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /View running jobs/i }));
+    expect(screen.queryByRole("button", { name: /00152/ })).not.toBeInTheDocument();
+    expect(screen.getByText("00152")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("00152"));
+    expect(handleEvent).not.toHaveBeenCalledWith("OnOpenPlan", expect.anything(), expect.anything());
+  });
+
+  it("renders the terminal variant host and header classes", () => {
+    const { container } = render(<TerminalSessionHeader id="term-header" sessionId="sess-4" />);
+    expect(container.querySelector(".chat-header-host.chat-header-host--terminal")).toBeInTheDocument();
+    expect(container.querySelector(".chat-header.chat-header--terminal")).toBeInTheDocument();
+  });
+});

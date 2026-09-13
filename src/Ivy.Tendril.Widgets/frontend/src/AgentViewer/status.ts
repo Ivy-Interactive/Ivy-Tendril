@@ -8,23 +8,31 @@ function basename(p: string): string {
 export interface DerivedStatus {
   text: string;
   complete: boolean;
+  /** The label names a tool call that is still running, so it is worth holding on screen. */
+  tool?: boolean;
 }
 
 export function deriveStatus(events: PresentationEvent[]): DerivedStatus {
   if (events.length === 0) return { text: "Starting…", complete: false };
 
-  const last = events[events.length - 1];
-  if (last.kind === "result") {
-    return { text: last.wire.is_success ? "Completed" : "Failed", complete: true };
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.kind === "result") {
+      return { text: e.wire.is_success ? "Completed" : "Failed", complete: true };
+    }
+    if (e.kind === "error") {
+      return { text: "Failed", complete: true };
+    }
   }
 
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
     if (e.kind === "tool-use" && e.tool.result === undefined) {
-      return { text: labelForTool(e.tool.name, e.tool.input), complete: false };
+      return { text: labelForTool(e.tool.name, e.tool.input), complete: false, tool: true };
     }
   }
 
+  const last = events[events.length - 1];
   if (last.kind === "assistant-text") return { text: "Thinking…", complete: false };
   if (last.kind === "thinking") return { text: "Thinking…", complete: false };
   return { text: "Working…", complete: false };

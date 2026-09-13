@@ -60,7 +60,10 @@ public record PlanQuestion
     /// <summary>True when several options may be selected. Answers are then always a list.</summary>
     public bool Multiple { get; init; }
 
-    /// <summary>Whether the user may type a value of their own. Defaults to true, per the schema.</summary>
+    /// <summary>
+    ///     Retired. Accepted only so revisions written before retirement still deserialize.
+    ///     No behavior depends on it. Every question with options now offers a typed answer.
+    /// </summary>
     public bool Other { get; init; } = true;
 
     /// <summary>

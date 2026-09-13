@@ -1,7 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
+import { StatusDot } from "../ui/Badge";
+import { Kbd } from "../ui/Kbd";
+import { Tooltip } from "../ui/Tooltip";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
-import { VoiceRecorder, type VoiceStatus } from "./voice-recorder";
+import { VoiceRecorder, type VoiceStatus } from "../voice-recorder";
+import { debugLog } from "../debug-log";
+import { isImageFile, processImageFile } from "../imageUtils";
 import "./content-input.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
@@ -95,10 +100,7 @@ interface ContentInputProps {
   value?: string;
   transcriptionUrl?: string;
   uploadUrl?: string;
-  models?: string[];
   selectedModel?: string;
-  projects?: string[];
-  selectedProject?: string;
   attachedFiles?: AttachedFile[];
   submitLabel?: string;
   menuOptions?: string[];
@@ -135,22 +137,7 @@ const parseValue = (val: string) => {
   return { cleanText, filePaths };
 };
 
-const renderShortcut = (isMac: boolean) => {
-  if (isMac) {
-    return (
-      <>
-        <span>⌘</span>
-        <span className="civ-shortcut-enter">↵</span>
-      </>
-    );
-  }
-  return (
-    <>
-      <span>Ctrl</span>
-      <span className="civ-shortcut-enter">↵</span>
-    </>
-  );
-};
+const submitShortcutKeys = (isMac: boolean): string[] => (isMac ? ["⌘", "↵"] : ["Ctrl", "↵"]);
 
 export const ContentInput: React.FC<ContentInputProps> = ({
   id,
@@ -207,10 +194,22 @@ export const ContentInput: React.FC<ContentInputProps> = ({
     }
   }, [autoFocus]);
 
-  const isImageFile = (path: string) => {
-    const ext = path.split(".").pop()?.toLowerCase();
-    return ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext || "");
-  };
+  const previewsRef = useRef(previews);
+  useEffect(() => {
+    previewsRef.current = previews;
+  }, [previews]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(previewsRef.current).forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore
+        }
+      });
+    };
+  }, []);
 
   const isPdfFile = (path: string) => {
     const ext = path.split(".").pop()?.toLowerCase();
@@ -480,7 +479,6 @@ export const ContentInput: React.FC<ContentInputProps> = ({
       } catch (err) {
         console.error("[ContentInput] File upload failed:", err);
         setRecordError(`Failed to upload file: ${err instanceof Error ? err.message : err}`);
-        throw err;
       }
     } else {
       // Fallback to base64 WebSocket transfer
@@ -518,8 +516,21 @@ export const ContentInput: React.FC<ContentInputProps> = ({
 
   const handleFiles = async (filesList: FileList | File[]) => {
     const list = Array.from(filesList);
+    const processedList: File[] = [];
 
     for (const file of list) {
+      let processed = file;
+      if (isImageFile(file.name) || file.type.startsWith("image/")) {
+        try {
+          processed = await processImageFile(file);
+        } catch {
+          processed = file;
+        }
+      }
+      processedList.push(processed);
+    }
+
+    for (const file of processedList) {
       const sizeStr = formatSize(file.size);
       let lineCount: number | undefined;
 
@@ -546,28 +557,48 @@ export const ContentInput: React.FC<ContentInputProps> = ({
       }
     }
 
-    for (const file of list) {
+    const addedFileNames = processedList.map((f) => f.name);
+    setFiles((prev) => {
+      const combined = [...prev];
+      for (const name of addedFileNames) {
+        if (!combined.includes(name)) {
+          combined.push(name);
+        }
+      }
+      return combined;
+    });
+
+    for (const file of processedList) {
       await handleUploadFile(file);
     }
   };
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData.items;
+    const items = e.clipboardData?.items;
+    const files = e.clipboardData?.files;
     const pastedFiles: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].kind === "file") {
-        const itemFile = items[i].getAsFile();
-        if (itemFile) {
-          const mimeType = itemFile.type || "image/png";
-          const ext = mimeType.split("/")[1] || "png";
-          const fileName = itemFile.name && itemFile.name.trim() !== "" && itemFile.name !== "image.png" && itemFile.name !== "blob"
-            ? itemFile.name
-            : `screenshot_${Date.now()}_${i}.${ext}`;
-          const renamedFile = new File([itemFile], fileName, { type: mimeType });
-          pastedFiles.push(renamedFile);
+
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        pastedFiles.push(files[i]);
+      }
+    } else if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === "file") {
+          const itemFile = items[i].getAsFile();
+          if (itemFile) {
+            const mimeType = itemFile.type || "image/png";
+            const ext = mimeType.split("/")[1] || "png";
+            const fileName = itemFile.name && itemFile.name.trim() !== "" && itemFile.name !== "image.png" && itemFile.name !== "blob"
+              ? itemFile.name
+              : `screenshot_${Date.now()}_${i}.${ext}`;
+            const renamedFile = new File([itemFile], fileName, { type: mimeType });
+            pastedFiles.push(renamedFile);
+          }
         }
       }
     }
+
     if (pastedFiles.length > 0) {
       e.preventDefault();
       await handleFiles(pastedFiles);
@@ -642,14 +673,14 @@ export const ContentInput: React.FC<ContentInputProps> = ({
         endpoint: transcriptionUrl,
         onStatusChange: (status) => setVoiceStatus(status),
         onResult: (transcription) => {
-          console.log("[ContentInput] Transcription result received:", transcription);
+          debugLog("[ContentInput] Transcription result received:", transcription);
           if (transcription.trim() === "") {
             setRecordError("The transcription did not contain enough information to generate a prompt. Please try again and speak clearly.");
             return;
           }
           setText((prev) => {
             const next = prev ? `${prev} ${transcription}` : transcription;
-            console.log("[ContentInput] Next text state:", next);
+            debugLog("[ContentInput] Next text state (length):", next.length);
             if (dispatchEvent) {
               const fullText = next + filesRef.current.map((f) => ` [file: ${f}]`).join("");
               dispatchEvent("OnChange", id, [fullText]);
@@ -730,14 +761,16 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                   )}
 
                   {/* Overlaid Close Button */}
-                  <button
-                    className="civ-thumbnail-card-remove"
-                    onClick={() => handleRemoveFile(filePath)}
-                    type="button"
-                    title="Remove file"
-                  >
-                    ×
-                  </button>
+                  <Tooltip content="Remove file">
+                    <button
+                      className="civ-thumbnail-card-remove"
+                      onClick={() => handleRemoveFile(filePath)}
+                      type="button"
+                      aria-label="Remove file"
+                    >
+                      ×
+                    </button>
+                  </Tooltip>
 
                   {/* Overlaid File Metadata & Badge */}
                   <div className="civ-thumbnail-content">
@@ -800,16 +833,18 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                   }
                 }}
               />
-              <button
-                className="civ-plus-btn"
-                onClick={() => fileInputRef.current?.click()}
-                type="button"
-                title="Attach files"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
-              </button>
+              <Tooltip content="Attach files">
+                <button
+                  className="civ-plus-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                  aria-label="Attach files"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+              </Tooltip>
             </div>
 
             {slots?.ProjectPicker || slots?.LeftActions}
@@ -821,7 +856,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
             <div className={`civ-voice-container ${voiceStatus !== "idle" ? "active" : ""}`}>
               {voiceStatus !== "idle" && (
                 <div className="civ-recording-bar">
-                  <span className="civ-dot-pulse" />
+                  <StatusDot tone="danger" pulse className="civ-dot-pulse" />
                   <span className="civ-timer">{formatTime(duration)}</span>
                   <div className="civ-equalizer">
                     {bars.map((h, i) => (
@@ -830,32 +865,34 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                   </div>
                 </div>
               )}
-              <button
-                className={`civ-mic-btn civ-status-${voiceStatus}`}
-                onClick={toggleRecording}
-                type="button"
-                title="Voice input transcription"
-              >
-                {voiceStatus === "connecting" ? (
-                  <div className="civ-spinner" />
-                ) : voiceStatus === "processing" ? (
-                  <div className="civ-spinner processing" />
-                ) : voiceStatus === "recording" ? (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                    <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v3M8 22h8" />
-                  </svg>
-                )}
-              </button>
+              <Tooltip content="Voice input transcription">
+                <button
+                  className={`civ-mic-btn civ-status-${voiceStatus}`}
+                  onClick={toggleRecording}
+                  type="button"
+                  aria-label="Voice input transcription"
+                >
+                  {voiceStatus === "connecting" ? (
+                    <div className="civ-spinner" />
+                  ) : voiceStatus === "processing" ? (
+                    <div className="civ-spinner processing" />
+                  ) : voiceStatus === "recording" ? (
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                      <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v3M8 22h8" />
+                    </svg>
+                  )}
+                </button>
+              </Tooltip>
             </div>
 
             {/* Submit Button or Split Button */}
@@ -864,27 +901,31 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                 className={`civ-split-btn-container ${!canSubmit ? "disabled" : ""}`}
                 ref={menuRef}
               >
-                <button
-                  className="civ-submit-btn civ-submit-btn-labeled civ-split-btn-left"
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  type="button"
-                  title={submitLabel || "Send"}
-                >
-                  <span className="civ-submit-text">{submitLabel}</span>
-                  <kbd className="civ-submit-shortcut">{renderShortcut(isMac)}</kbd>
-                </button>
-                <button
-                  className="civ-split-btn-arrow"
-                  onClick={() => setMenuOpen(!menuOpen)}
-                  disabled={!canSubmit}
-                  type="button"
-                  title="More options"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
+                <Tooltip content={submitLabel || "Send"} wrapTrigger triggerDisabled={!canSubmit}>
+                  <button
+                    className="civ-submit-btn civ-submit-btn-labeled civ-split-btn-left"
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    type="button"
+                    aria-label={submitLabel || "Send"}
+                  >
+                    <span className="civ-submit-text">{submitLabel}</span>
+                    <Kbd keys={submitShortcutKeys(isMac)} className="civ-submit-shortcut" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="More options" wrapTrigger triggerDisabled={!canSubmit}>
+                  <button
+                    className="civ-split-btn-arrow"
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    disabled={!canSubmit}
+                    type="button"
+                    aria-label="More options"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                </Tooltip>
                 {menuOpen && (
                   <div className="civ-dropdown-menu">
                     {menuOptions.map((option, idx) => (
@@ -906,25 +947,27 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                 )}
               </div>
             ) : (
-              <button
-                className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                type="button"
-                title={submitLabel || "Send"}
-              >
-                {submitLabel ? (
-                  <>
-                    <span className="civ-submit-text">{submitLabel}</span>
-                    <kbd className="civ-submit-shortcut">{renderShortcut(isMac)}</kbd>
-                  </>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="12" y1="19" x2="12" y2="5" />
-                    <polyline points="5 12 12 5 19 12" />
-                  </svg>
-                )}
-              </button>
+              <Tooltip content={submitLabel || "Send"} wrapTrigger triggerDisabled={!canSubmit}>
+                <button
+                  className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  type="button"
+                  aria-label={submitLabel || "Send"}
+                >
+                  {submitLabel ? (
+                    <>
+                      <span className="civ-submit-text">{submitLabel}</span>
+                      <Kbd keys={submitShortcutKeys(isMac)} className="civ-submit-shortcut" />
+                    </>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="19" x2="12" y2="5" />
+                      <polyline points="5 12 12 5 19 12" />
+                    </svg>
+                  )}
+                </button>
+              </Tooltip>
             )}
           </div>
         </div>

@@ -1,6 +1,6 @@
 using Ivy;
 using Ivy.Tendril.Widgets;
-using DraftMarkdownWidget = Ivy.Tendril.Widgets.DraftMarkdown;
+using DraftMarkdownWidget = Ivy.Tendril.Widgets.PlanMarkdown;
 
 namespace WidgetSamples.Apps.DraftMarkdown;
 
@@ -56,7 +56,7 @@ class StickyContentApp : ViewBase
                         .Header(Text.H4("Navigation"))
                         .Content(BuildTableOfContents());
 
-                    return new DraftMarkdown(markdown)
+                    return new PlanMarkdown(markdown)
                         .Article()
                         .StickyContent(sidebar);
                 }

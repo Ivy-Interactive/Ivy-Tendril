@@ -60,4 +60,32 @@ public class PlanProjectRepoGuardTests
         Assert.Contains("Other", offendingSegment);
         Assert.DoesNotContain("Ivy-Tendril", offendingSegment);
     }
+
+    [Fact]
+    public void Allows_Repo_When_Project_Is_AdHoc()
+    {
+        var project = new ProjectConfig
+        {
+            Name = "AdHocProj",
+            Repos = [new RepoRef { Path = @"/some/path" }],
+            Meta = new Dictionary<string, object> { ["adhoc"] = true }
+        };
+
+        // No throw even for unrelated repo path.
+        PlanProjectRepoGuard.EnsureReposBelongToProject([@"/other/unrelated/repo"], project);
+    }
+
+    [Fact]
+    public void Allows_Unmanaged_Workspace_Path()
+    {
+        var project = new ProjectConfig
+        {
+            Name = "UnmanagedWorkspace",
+            Repos = [new RepoRef { Path = @"/unmanaged/workspace" }],
+            Meta = new Dictionary<string, object> { ["adhoc"] = true }
+        };
+
+        // No throw for unmanaged workspace path.
+        PlanProjectRepoGuard.EnsureReposBelongToProject([@"/unmanaged/workspace/subfolder"], project);
+    }
 }

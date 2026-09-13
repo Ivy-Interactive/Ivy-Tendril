@@ -92,6 +92,7 @@ Tendril ships with these built-in verification definitions. Wire them into proje
 | `Format` | Run the code formatter on changed files |
 | `Test` | Run tests scoped by the plan's test section |
 | `Lint` | Run the linter and fix any errors |
+| `Screenshots` | Capture UI screenshots into the plan's Artifacts folder |
 | `CheckResult` | Verify the implementation matches the plan |
 
 Stack-specific verifications (e.g. `DotnetBuild`, `NpmTest`) can be added as custom entries in `config.yaml`.

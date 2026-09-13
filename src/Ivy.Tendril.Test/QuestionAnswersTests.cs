@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Test;
 
 /// <summary>
 ///     <see cref="QuestionAnswers" /> is the host-side merge behind
-///     <c>DraftMarkdown.OnAnswersChange</c>. It lives in the widgets assembly, but it is tested here
+///     <c>PlanMarkdown.OnAnswersChange</c>. It lives in the widgets assembly, but it is tested here
 ///     because this is where <see cref="QuestionBlockParser" /> and
 ///     <see cref="QuestionValidationService" /> are — a merge whose output the validator rejects is a
 ///     bug, and several of these tests assert exactly that round trip.
@@ -25,7 +25,6 @@ public class QuestionAnswersTests
           - id: retry-scope
             title: Should the retry budget be per-request or per-session?
             header: Retry scope
-            other: false
             options:
               - title: Per request
                 value: per-request
@@ -56,6 +55,29 @@ public class QuestionAnswersTests
     // -------------------------------------------------------------------------------------------
     // Writing an answer
     // -------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void TryApply_TakesTheLastValueOfAKeyWrittenTwiceInOneQuestion()
+    {
+        const string markdown = """
+            ```questions
+            questions:
+              - id: approach
+                title: How should we proceed?
+                other: false
+                options:
+                  - title: Meta task
+                    value: meta
+                other: true
+            ```
+            """;
+
+        Assert.True(QuestionAnswers.TryApply(markdown, new QuestionAnswer("approach", ["meta"]), out var updated));
+
+        Assert.Contains("answer: meta", updated);
+        Assert.Contains("other: true", updated);
+        Assert.DoesNotContain("other: false", updated);
+    }
 
     [Fact]
     public void Apply_AddsScalarAnswerToSingleSelectQuestion()
@@ -812,5 +834,56 @@ public class QuestionAnswersTests
         Assert.Equal(0, block.Index);
         Assert.Equal(block.Body, Markdown[block.BodyStart..block.BodyEnd]);
         Assert.StartsWith("questions:", block.Body);
+    }
+
+    [Fact]
+    public void Read_AcceptsQuestionsWithUnquotedColons()
+    {
+        var markdown = """
+            ```questions
+            questions:
+              - id: db-choice
+                title: Which database: SQLite or Postgres?
+                header: DB: Select
+                options:
+                  - title: Option 1: SQLite
+                    value: sqlite
+                  - title: Option 2: Postgres
+                    value: postgres
+            ```
+            """;
+
+        var questions = QuestionAnswers.Read(markdown);
+
+        var q = Assert.Single(questions);
+        Assert.Equal("db-choice", q.Id);
+        Assert.Equal("Which database: SQLite or Postgres?", q.Title);
+        Assert.Equal("DB: Select", q.Header);
+    }
+
+    [Fact]
+    public void Apply_UpdatesQuestionsWithUnquotedColons()
+    {
+        var markdown = """
+            ```questions
+            questions:
+              - id: db-choice
+                title: Which database: SQLite or Postgres?
+                header: DB: Select
+                description: Fast embedded database: zero configuration.
+                options:
+                  - title: Option 1: SQLite
+                    description: Fast embedded: zero config
+                    value: sqlite
+                  - title: Option 2: Postgres
+                    value: postgres
+            ```
+            """;
+
+        var updated = QuestionAnswers.Apply(markdown, new QuestionAnswer("db-choice", ["sqlite"]));
+
+        Assert.Contains("answer: sqlite", updated);
+        var q = Question(updated, "db-choice");
+        Assert.Equal(["sqlite"], q.AnswerValues);
     }
 }

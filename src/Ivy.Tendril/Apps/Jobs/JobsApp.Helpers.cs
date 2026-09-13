@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps.Jobs;
@@ -76,17 +78,6 @@ public partial class JobsApp
         return AnimatedStatusValue.Idle("-");
     }
 
-    /// <summary>
-    /// Encodes a <see cref="JobStatus"/> for the animated badge renderer.
-    /// Running jobs shimmer; everything else is a static badge.
-    /// </summary>
-    private static string FormatStatusBadge(JobStatus status)
-    {
-        var text = status.ToString();
-        return status == JobStatus.Running
-            ? AnimatedStatusValue.Running(text)
-            : AnimatedStatusValue.Idle(text);
-    }
 
     private static string FormatTimer(JobItem job)
     {
@@ -101,6 +92,25 @@ public partial class JobsApp
 
         return "-";
     }
+
+    /// <summary>
+    ///     The Timestamp cell: when the job finished, as a clock rather than the duration
+    ///     <see cref="FormatTimer" /> reports. <see cref="JobItem.CompletedAt" /> is stamped only on a
+    ///     terminal transition and is UTC, so it is converted to the viewer's local time; a job that has
+    ///     not finished has nothing to show and gets "-", the same placeholder the Timer column uses.
+    /// </summary>
+    internal static string FormatTimestamp(JobItem job)
+    {
+        if (job.CompletedAt is not { } completedAt) return "-";
+
+        return completedAt.ToLocalTime().ToString(TimestampFormat, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    ///     One shape for every row, and it sorts correctly as a string within a calendar year, which
+    ///     outlives the 100 job window restored from SQLite on startup.
+    /// </summary>
+    internal const string TimestampFormat = "MM-dd HH:mm";
 
     private static string FormatTimeSpan(TimeSpan span)
     {
@@ -215,5 +225,25 @@ public partial class JobsApp
     private static Colors GetStatusColor(JobStatus status)
     {
         return Constants.JobStatusColors.GetValueOrDefault(status, Colors.Slate);
+    }
+
+    /// <summary>
+    /// Determines if a job can be rerun. Returns true for Failed/Timeout/Stopped
+    /// jobs (existing behavior), or for Completed jobs whose args type supports
+    /// corrective feedback (ExecutePlan/RetryPlan/UpdatePlan).
+    /// </summary>
+    internal static bool CanRerun(JobItem? job)
+    {
+        if (job == null) return false;
+
+        // Existing behavior: all failed-state jobs can be rerun regardless of type
+        if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
+            return true;
+
+        // New: Completed jobs can be rerun only when their args support feedback
+        if (job.Status is JobStatus.Completed)
+            return RerunJobDialog.SupportsFeedback(job.TypedArgs);
+
+        return false;
     }
 }

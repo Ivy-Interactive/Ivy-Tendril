@@ -97,4 +97,63 @@ public class AgentUsageTests
         Assert.Equal(0, entry.OutputTokens);
         Assert.Null(entry.CostUsd);
     }
+
+    [Fact]
+    public void AgentUsageWindow_ComputesRemainingPercent_FromUsedPercent()
+    {
+        var window = new AgentUsageWindow { WindowMinutes = 300, UsedPercent = 25.5 };
+
+        Assert.Equal(25.5, window.UsedPercent);
+        Assert.NotNull(window.RemainingPercent);
+        Assert.Equal(74.5, window.RemainingPercent.Value, precision: 4);
+    }
+
+    [Fact]
+    public void AgentUsageWindow_ComputesUsedPercent_FromRemainingPercent()
+    {
+        var window = new AgentUsageWindow { WindowMinutes = 300, RemainingPercent = 69.3 };
+
+        Assert.Equal(69.3, window.RemainingPercent);
+        Assert.NotNull(window.UsedPercent);
+        Assert.Equal(30.7, window.UsedPercent.Value, precision: 4);
+    }
+
+    [Fact]
+    public void AgentUsageWindow_WhenBothSet_PreservesBoth()
+    {
+        var window = new AgentUsageWindow
+        {
+            WindowMinutes = 300,
+            UsedPercent = 30.0,
+            RemainingPercent = 70.0,
+        };
+
+        Assert.Equal(30.0, window.UsedPercent);
+        Assert.Equal(70.0, window.RemainingPercent);
+    }
+
+    [Fact]
+    public void AgentUsageWindow_WhenNeitherSet_BothNull()
+    {
+        var window = new AgentUsageWindow { WindowMinutes = 300 };
+
+        Assert.Null(window.UsedPercent);
+        Assert.Null(window.RemainingPercent);
+    }
+
+    [Fact]
+    public void AgentUsageWindow_ClampsValues_BetweenZeroAndOneHundred()
+    {
+        var high = new AgentUsageWindow { WindowMinutes = 300, UsedPercent = 120.0 };
+        Assert.Equal(0.0, high.RemainingPercent);
+
+        var low = new AgentUsageWindow { WindowMinutes = 300, UsedPercent = -10.0 };
+        Assert.Equal(100.0, low.RemainingPercent);
+
+        var highRem = new AgentUsageWindow { WindowMinutes = 300, RemainingPercent = 150.0 };
+        Assert.Equal(0.0, highRem.UsedPercent);
+
+        var lowRem = new AgentUsageWindow { WindowMinutes = 300, RemainingPercent = -20.0 };
+        Assert.Equal(100.0, lowRem.UsedPercent);
+    }
 }

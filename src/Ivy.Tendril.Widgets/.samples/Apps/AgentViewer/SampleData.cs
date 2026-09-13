@@ -58,4 +58,10 @@ static class SampleData
         """{"kind":"text","timestamp":"2026-05-22T10:00:13Z","text":"Build passes but 2 tests are failing. The project has 8 verifications configured covering .NET build, tests, formatting, frontend lint, visual verification, and a new-widget checklist.","delta":false}""",
         """{"kind":"result","timestamp":"2026-05-22T10:00:13Z","response":"Listed project verifications and ran checks. Build succeeds but 2 tests are failing.","is_success":true,"duration_ms":13000,"turn_count":4,"usage":{"input_tokens":8200,"output_tokens":1800,"cache_read_tokens":5000,"cache_write_tokens":800,"reasoning_tokens":0,"cost_usd":0.0520}}"""
     );
+
+    public static string TimedOutSession => string.Join("\n",
+        """{"kind":"session_init","timestamp":"2026-05-22T10:00:00Z","session_id":"sess_04","model":"claude-opus-4-6-20250514","tools":["Read","Write","Edit","Bash"]}""",
+        """{"kind":"tool_call","timestamp":"2026-05-22T10:00:02Z","tool_use_id":"tu_30","tool_name":"Bash","input":{"command":"npm run build"}}""",
+        """{"kind":"result","is_success":false,"exit_code":-1,"error":"Agent timed out: no output received for 5 minutes (idle timeout threshold exceeded)."}"""
+    );
 }

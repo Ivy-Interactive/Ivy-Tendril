@@ -56,7 +56,10 @@ public class PlanWatcherServiceTests : IDisposable
     [Fact]
     public void SelfHeal_ReRaisesPlansChanged_AfterLateArrivingContent()
     {
-        using var watcher = new PlanWatcherService(_configService, null, new[] { 50, 150, 300 });
+        // Both delays fall inside the 500ms debounce window, so the whole ladder coalesces — that is
+        // the point of routing self-heal through ScheduleDebounce (#2571). What still has to hold is
+        // that a rescan lands after the content did.
+        using var watcher = new PlanWatcherService(_configService, null, new[] { 50, 150 });
 
         var changeCount = 0;
         var changesAfterContent = 0;
@@ -78,14 +81,62 @@ public class PlanWatcherServiceTests : IDisposable
         WritePlanContent(planDir);
         contentWritten.Set();
 
-        // The staggered self-heal burst must re-raise PlansChanged multiple times, with at least
-        // one rescan after the content landed. Poll for both outcomes rather than sampling at a
-        // single instant — under load the burst's timer callbacks arrive with arbitrary spacing.
+        // Poll rather than sampling at a single instant: under load the timer callbacks arrive with
+        // arbitrary spacing.
         Assert.True(
-            RetryHelper.WaitUntil(
-                () => Volatile.Read(ref changeCount) > 1 && Volatile.Read(ref changesAfterContent) >= 1,
-                TimeSpan.FromSeconds(15)),
-            "Expected multiple self-heal PlansChanged, including at least one after late-arriving content");
+            RetryHelper.WaitUntil(() => Volatile.Read(ref changesAfterContent) >= 1, TimeSpan.FromSeconds(15)),
+            "Expected a self-heal PlansChanged after late-arriving content");
+
+        // Let anything still queued arrive, then hold the ceiling: the ladder is no longer one
+        // uncoalesced fire per timer. Two delays inside one debounce window plus the folder event's
+        // own debounce cannot exceed the ladder length + 1.
+        Thread.Sleep(1000);
+        Assert.InRange(Volatile.Read(ref changeCount), 1, 3);
+    }
+
+    /// <summary>
+    ///     Two plan folders changing at the same moment — a burst of plan closes, or a job finishing while
+    ///     the user closes something else. The escalation to a full rescan is a read-modify-write of
+    ///     <c>_pendingPlanFolder</c>, so without a lock both callers could see it empty, each store their
+    ///     own folder, and the loser's plan would never be re-read. Repeated because it is a race.
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentNotifyChanged_ForDifferentFolders_EscalatesToOneFullRescan()
+    {
+        using var watcher = new PlanWatcherService(_configService, null, Array.Empty<int>());
+        var fired = new List<string?>();
+        watcher.PlansChanged += folder =>
+        {
+            lock (fired) fired.Add(folder);
+        };
+
+        for (var round = 0; round < 10; round++)
+        {
+            lock (fired) fired.Clear();
+
+            using var gate = new ManualResetEventSlim(false);
+            var callers = Enumerable.Range(0, 8).Select(i => Task.Run(() =>
+            {
+                gate.Wait();
+                watcher.NotifyChanged($"0170{i}-BurstPlan");
+            })).ToArray();
+
+            gate.Set();
+            await Task.WhenAll(callers);
+
+            Assert.True(
+                RetryHelper.WaitUntil(() =>
+                {
+                    lock (fired) return fired.Count >= 1;
+                }, TimeSpan.FromSeconds(5)),
+                $"Round {round}: expected the debounce to fire");
+
+            lock (fired)
+            {
+                Assert.Single(fired);
+                Assert.Null(fired[0]);
+            }
+        }
     }
 
     [Fact]

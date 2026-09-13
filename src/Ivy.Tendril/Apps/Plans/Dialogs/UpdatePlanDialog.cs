@@ -83,7 +83,7 @@ public class UpdatePlanDialog(
             new DialogHeader($"Update Plan #{_selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical()
-                | Text.P("Provide instructions for revising this draft plan.")
+                | Text.P("Provide instructions for revising this plan.")
                 | (hasActiveJob ? Text.P("⚠️ UpdatePlan is already running for this plan. Please wait...").Color(Colors.Warning) : null)
                 | new Ivy.Tendril.Widgets.ContentInput
                 {

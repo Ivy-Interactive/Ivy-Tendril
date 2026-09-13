@@ -23,12 +23,16 @@ public static class TendrilServer
     {
         PathHelper.AugmentPath(forceShellPath: true);
         var server = new Server();
+        // LocalFileGuardMiddleware enforces Host, Origin, Sec-Fetch-Site, file type and path root
+        // restrictions (see LocalFileRootPolicy). The framework's DangerouslyAllowLocalFiles(roots)
+        // overload would let the framework enforce roots too, but the referenced Ivy package
+        // (1.4.0) does not have it yet; revisit once Ivy is bumped to a version that does.
         server.DangerouslyAllowLocalFiles();
         server.UseCulture("en-US");
 #if DEBUG
         server.UseHotReload();
 #endif
-        server.SetMetaTitle("Ivy Tendril");
+        server.SetMetaTitle(AppBrand.AppName);
 
         // A review action turns into a WebViewer once the app it started prints its URL
         // (Apps/ReviewAction), and that widget proxies the app through this origin. Its
@@ -98,6 +102,7 @@ public static class TendrilServer
                 });
             }
 
+            app.UseMiddleware<LocalFileGuardMiddleware>();
             app.UseMiddleware<ApiKeyAuthMiddleware>();
 
             if (!configService.NeedsOnboarding)
@@ -142,28 +147,7 @@ public static class TendrilServer
         });
 
         var assembly = typeof(TendrilServer).Assembly;
-        server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
-            .Select(app => app.Type == typeof(Ivy.Tendril.Apps.Chat.ChatApp) ? new AppDescriptor
-            {
-                Id = app.Id,
-                Title = app.Title,
-                Icon = app.Icon,
-                Description = app.Description,
-                Type = app.Type,
-                Group = app.Group,
-                Order = app.Order,
-                ViewFactory = app.ViewFactory,
-                ViewFunc = app.ViewFunc,
-                IsVisible = isBeta,
-                IsIndex = app.IsIndex,
-                GroupExpanded = app.GroupExpanded,
-                Next = app.Next,
-                Previous = app.Previous,
-                DocumentSource = app.DocumentSource,
-                SearchHints = app.SearchHints,
-                AllowDuplicateTabs = app.AllowDuplicateTabs,
-            } : app)
-            .ToArray());
+        server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly).ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
 
         // Eagerly register Ivy.Tendril.Widgets and framework widgets assemblies to ensure widgets
@@ -189,7 +173,7 @@ public static class TendrilServer
                 Layout.Horizontal(
                     new Image("/tendril/assets/Tendril.svg").Width(Size.Px(32)).Height(Size.Px(32)),
                     Layout.Vertical(
-                        Text.Block("Ivy Tendril").NoWrap(),
+                        Text.Block(AppBrand.AppName).NoWrap(),
                         Text.Muted($"v{versionString}").NoWrap()
                     ).Gap(0)
                 ).Gap(2).Padding(2).AlignContent(Align.Left)

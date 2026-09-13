@@ -659,6 +659,49 @@ public class PlanControllerTests : IDisposable
         Assert.Contains("002.md", json);
     }
 
+    // --- ReportPlanEdit ---
+
+    /// <summary>
+    /// The CLI posts here after every direct plan edit. It has no chat execution service wired in the
+    /// desktop-less case, and the edit is already on disk by then, so the endpoint must still answer
+    /// 200 rather than making the CLI print a warning about a working system (plan 00400).
+    /// </summary>
+    [Fact]
+    public async Task ReportPlanEdit_WithNoChatExecutionWired_ReturnsOk()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+
+        var result = await controller.ReportPlanEdit("00001",
+            new PlanEditEventRequest("Solution changed (+2/-0 lines)", "narrowed the scope"));
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Contains("00001-TestPlan", JsonSerializer.Serialize(ok.Value));
+    }
+
+    [Fact]
+    public async Task ReportPlanEdit_ForUnknownPlan_Returns404()
+    {
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "Plans"));
+        var controller = CreateController();
+
+        var result = await controller.ReportPlanEdit("99999", new PlanEditEventRequest("Tests added"));
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task ReportPlanEdit_WithoutASummary_Returns400()
+    {
+        CreateTestPlan();
+        var controller = CreateController();
+
+        var result = await controller.ReportPlanEdit("00001", new PlanEditEventRequest("   "));
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("summary is required", JsonSerializer.Serialize(badRequest.Value));
+    }
+
     // --- AddRelatedPlan ---
 
     [Fact]

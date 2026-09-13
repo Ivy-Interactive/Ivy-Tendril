@@ -38,6 +38,8 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
   }
 
   const hasResponse = Boolean(wire.response && wire.response.trim().length > 0);
+  const errorText = wire.error?.trim();
+  const hasError = Boolean(errorText);
 
   const plugins = getMarkdownPlugins(wire.response ?? "");
 
@@ -51,6 +53,11 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
       {isError && (
         <div className="aov-result-header">
           <span className="aov-result-title">❌ Error</span>
+        </div>
+      )}
+      {isError && (hasError || !hasResponse) && (
+        <div className="aov-result-body aov-result-error">
+          {hasError ? errorText : `Agent process was terminated or timed out (exit code ${wire.exit_code ?? "unknown"}).`}
         </div>
       )}
       {hasResponse && (

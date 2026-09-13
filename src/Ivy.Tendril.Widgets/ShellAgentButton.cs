@@ -13,14 +13,30 @@ public record ShellAgentButton : WidgetBase<ShellAgentButton>
     /// <summary>Icon name from AgentBranding.IconFor (e.g. "ClaudeCode"); mapped to a brand SVG client-side.</summary>
     [Prop] public string? Icon { get; init; }
 
-    /// <summary>Key combined with the platform command key (Cmd/Ctrl), handled client-side.</summary>
+    /// <summary>Single letter combined with Cmd+Opt (macOS) or Ctrl+Alt (Windows/Linux), handled client-side.</summary>
     [Prop] public string ShortcutKey { get; init; } = "A";
 
     /// <summary>Highlights the row while an agent session is the visible pane.</summary>
     [Prop] public bool IsActive { get; init; }
 
+    /// <summary>
+    ///     The count pill on the collapsed rail, already formatted ("3"), or null for no pill. Fed by
+    ///     the shell rather than derived from <see cref="Items"/>, which is only published while the
+    ///     chat page or a terminal pane is on screen (issue #2556).
+    /// </summary>
+    [Prop] public string? Badge { get; init; }
+
+    [Prop] public List<ShellSectionItemDto>? Items { get; init; }
+
+    [Prop] public string? SelectedId { get; init; }
+
+    [Prop] public string? ListTitle { get; init; }
+
     [Event] public EventHandler<Event<ShellAgentButton>>? OnOpen { get; init; }
     [Event] public EventHandler<Event<ShellAgentButton>>? OnNewChat { get; init; }
+    [Event] public EventHandler<Event<ShellAgentButton, string>>? OnSelectItem { get; init; }
+    [Event] public EventHandler<Event<ShellAgentButton, string[]>>? OnRenameItem { get; init; }
+    [Event] public EventHandler<Event<ShellAgentButton, string>>? OnDeleteItem { get; init; }
 }
 
 public static class ShellAgentButtonExtensions
@@ -34,9 +50,31 @@ public static class ShellAgentButtonExtensions
     public static ShellAgentButton IsActive(this ShellAgentButton w, bool isActive) =>
         w with { IsActive = isActive };
 
+    public static ShellAgentButton Badge(this ShellAgentButton w, string? badge) =>
+        w with { Badge = badge };
+
     public static ShellAgentButton OnOpen(this ShellAgentButton w, Action handler) =>
         w with { OnOpen = new(_ => { handler(); return ValueTask.CompletedTask; }) };
 
     public static ShellAgentButton OnNewChat(this ShellAgentButton w, Action handler) =>
         w with { OnNewChat = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static ShellAgentButton List(this ShellAgentButton w, string title, List<ShellSectionItemDto> items, string? selectedId) =>
+        w with { ListTitle = title, Items = items, SelectedId = selectedId };
+
+    public static ShellAgentButton OnSelectItem(this ShellAgentButton w, Action<string> handler) =>
+        w with { OnSelectItem = new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
+
+    public static ShellAgentButton OnRenameItem(this ShellAgentButton w, Action<string, string>? handler) =>
+        w with
+        {
+            OnRenameItem = handler == null ? null : new(e =>
+            {
+                if (e.Value is { Length: >= 2 }) handler(e.Value[0], e.Value[1]);
+                return ValueTask.CompletedTask;
+            })
+        };
+
+    public static ShellAgentButton OnDeleteItem(this ShellAgentButton w, Action<string>? handler) =>
+        w with { OnDeleteItem = handler == null ? null : new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
 }

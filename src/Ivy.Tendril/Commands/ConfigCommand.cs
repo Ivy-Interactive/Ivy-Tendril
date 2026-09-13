@@ -12,9 +12,9 @@ namespace Ivy.Tendril.Commands;
 public class ConfigGetSettings : CommandSettings
 {
     internal static readonly string[] ValidFields =
-        ["codingAgent", "jobTimeout", "staleOutputTimeout", "gitTimeout", "maxConcurrentJobs", "planTemplate", "theme", "themeMode"];
+        ["codingAgent", "jobTimeout", "chatTimeout", "staleOutputTimeout", "gitTimeout", "maxConcurrentJobs", "planTemplate", "theme", "themeMode"];
 
-    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme, themeMode)")]
+    [Description("Config key (codingAgent, jobTimeout, chatTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme, themeMode)")]
     [CommandArgument(0, "<key>")]
     public string Key { get; set; } = "";
 
@@ -26,7 +26,7 @@ public class ConfigGetSettings : CommandSettings
 
 public class ConfigSetSettings : CommandSettings
 {
-    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme, themeMode)")]
+    [Description("Config key (codingAgent, jobTimeout, chatTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme, themeMode)")]
     [CommandArgument(0, "<key>")]
     public string Key { get; set; } = "";
 
@@ -71,6 +71,7 @@ public class ConfigGetCommand : Command<ConfigGetSettings>
     {
         "codingagent" => s.CodingAgent,
         "jobtimeout" => s.JobTimeout.ToString(),
+        "chattimeout" => s.ChatTimeout.ToString(),
         "staleoutputtimeout" => s.StaleOutputTimeout.ToString(),
         "gittimeout" => s.GitTimeout.ToString(),
         "maxconcurrentjobs" => s.MaxConcurrentJobs.ToString(),
@@ -112,6 +113,7 @@ public class ConfigSetCommand(IAgentRunner runner) : Command<ConfigSetSettings>
         {
             case "codingagent": s.CodingAgent = ValidateCodingAgent(value, validCodingAgents); break;
             case "jobtimeout": s.JobTimeout = ParseBoundedInt(value, "jobTimeout", 1, 480); break;
+            case "chattimeout": s.ChatTimeout = ParseBoundedInt(value, "chatTimeout", 0, 480); break;
             case "staleoutputtimeout": s.StaleOutputTimeout = ParseBoundedInt(value, "staleOutputTimeout", 1, 60); break;
             case "gittimeout": s.GitTimeout = ParseBoundedInt(value, "gitTimeout", 1, 30); break;
             case "maxconcurrentjobs": s.MaxConcurrentJobs = ParseBoundedInt(value, "maxConcurrentJobs", 1, 512); break;

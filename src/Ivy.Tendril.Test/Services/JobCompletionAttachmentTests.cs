@@ -72,6 +72,17 @@ public class JobCompletionAttachmentTests : IDisposable
     }
 
     [Fact]
+    public void ContentInput_RemovedProperties_AreNotExposedAndInstantiatesCleanly()
+    {
+        var view = new Ivy.Tendril.Widgets.ContentInput();
+        Assert.NotNull(view);
+        Assert.Null(typeof(Ivy.Tendril.Widgets.ContentInput).GetProperty("Models"));
+        Assert.Null(typeof(Ivy.Tendril.Widgets.ContentInput).GetProperty("Projects"));
+        Assert.Null(typeof(Ivy.Tendril.Widgets.ContentInput).GetProperty("SelectedProject"));
+        Assert.Null(typeof(Ivy.Tendril.Widgets.ContentInput).GetProperty("OnProjectChanged"));
+    }
+
+    [Fact]
     public void ResolveUploadSessionId_ReturnsSessionId_ForCreatePlanArgs()
     {
         var args = new CreatePlanArgs("Test project", "Test prompt", UploadSessionId: "session-123");

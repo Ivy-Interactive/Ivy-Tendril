@@ -203,11 +203,14 @@ export const PlanMarkdown: React.FC<PlanMarkdownProps> = ({
     );
     if (!question) return;
 
-    // Scroll the whole block, not just the question: a question is only answerable in the context
-    // of the fence it sits in, and landing mid-block hides that.
-    const block = question.closest(QUESTIONS_SELECTOR) ?? question;
+    // Scroll the whole block if this is the first question in the fence (to frame its border,
+    // padding, and actions). For subsequent questions in the block, scroll directly to the
+    // question element so it is positioned at the top.
+    const block = question.closest(QUESTIONS_SELECTOR);
+    const isFirstQuestionInBlock = block ? block.querySelector("[data-question-id]") === question : true;
+    const target = isFirstQuestionInBlock && block ? block : question;
     const margin = 16;
-    const delta = block.getBoundingClientRect().top - shell.getBoundingClientRect().top - margin;
+    const delta = target.getBoundingClientRect().top - shell.getBoundingClientRect().top - margin;
 
     // The widget owns its own scroll, so move that rather than calling scrollIntoView, which would
     // also drag every scrollable ancestor of the host page along with it.

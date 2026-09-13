@@ -1,4 +1,5 @@
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Widgets;
 using YamlDotNet.Core;
 using YamlDotNet.RepresentationModel;
 using YamlDotNet.Serialization;
@@ -121,6 +122,12 @@ public static class QuestionBlockParser
         return results;
     }
 
+    /// <summary>
+    ///     Sanitizes YAML text in a questions block by wrapping unquoted strings in text fields
+    ///     (<c>title</c>, <c>header</c>, <c>description</c>) in double quotes.
+    /// </summary>
+    public static string SanitizeQuestionYaml(string body) => QuestionAnswers.SanitizeQuestionYaml(body);
+
     private static ParsedQuestionsBlock Analyze(int line, string body)
     {
         // Pass 1: the raw node, which is the only place that knows whether an `answer` key exists.
@@ -138,7 +145,38 @@ public static class QuestionBlockParser
             loadError = Flatten(ex.Message);
         }
 
-        if (Classify(root) is not { } classified)
+        var classified = Classify(root);
+        var effectiveBody = body;
+
+        if (classified is null)
+        {
+            var sanitized = SanitizeQuestionYaml(body);
+            if (sanitized != body)
+            {
+                try
+                {
+                    var sanitizedStream = new YamlStream();
+                    sanitizedStream.Load(new StringReader(sanitized));
+                    if (sanitizedStream.Documents.Count > 0)
+                    {
+                        var sanitizedRoot = sanitizedStream.Documents[0].RootNode;
+                        if (Classify(sanitizedRoot) is { } sanitizedClassified)
+                        {
+                            root = sanitizedRoot;
+                            classified = sanitizedClassified;
+                            loadError = null;
+                            effectiveBody = sanitized;
+                        }
+                    }
+                }
+                catch (YamlException)
+                {
+                    // Keep original loadError
+                }
+            }
+        }
+
+        if (classified is not { } resolvedClassified)
         {
             // Broken YAML that clearly meant to be structured is an error; anything else is the
             // pre-schema plain-text form, which must never be rejected.
@@ -152,18 +190,40 @@ public static class QuestionBlockParser
         QuestionsBlock? typed;
         try
         {
-            typed = Deserialize(body, classified.Shape);
+            typed = Deserialize(effectiveBody, resolvedClassified.Shape);
         }
         catch (YamlException ex)
         {
-            return new ParsedQuestionsBlock(line, body, null, Flatten(ex.Message), IsLegacy: false);
+            if (effectiveBody == body)
+            {
+                var sanitized = SanitizeQuestionYaml(body);
+                if (sanitized != body)
+                {
+                    try
+                    {
+                        typed = Deserialize(sanitized, resolvedClassified.Shape);
+                    }
+                    catch (YamlException)
+                    {
+                        return new ParsedQuestionsBlock(line, body, null, Flatten(ex.Message), IsLegacy: false);
+                    }
+                }
+                else
+                {
+                    return new ParsedQuestionsBlock(line, body, null, Flatten(ex.Message), IsLegacy: false);
+                }
+            }
+            else
+            {
+                return new ParsedQuestionsBlock(line, body, null, Flatten(ex.Message), IsLegacy: false);
+            }
         }
 
         if (typed is null)
             return new ParsedQuestionsBlock(line, body, null, "block is empty", IsLegacy: false);
 
         return new ParsedQuestionsBlock(
-            line, body, typed with { Questions = StampAnswers(typed.Questions, classified.Entries) }, null, IsLegacy: false);
+            line, body, typed with { Questions = StampAnswers(typed.Questions, resolvedClassified.Entries) }, null, IsLegacy: false);
     }
 
     /// <summary>How a block spells its questions. All three mean the same thing.</summary>

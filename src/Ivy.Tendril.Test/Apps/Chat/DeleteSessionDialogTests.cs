@@ -25,7 +25,7 @@ public class DeleteSessionDialogTests
 
         public IReadOnlyList<ChatSessionModel> GetSessions() => Sessions;
         public ChatSessionModel? GetSession(string id) => Sessions.Find(s => s.Id == id);
-        public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null)
+        public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null, string? kind = null, string? planFolderName = null)
         {
             var session = new ChatSessionModel(Guid.NewGuid().ToString(), title ?? "New Chat", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, agentId, modelId, [], effort);
             Sessions.Add(session);
@@ -38,11 +38,14 @@ public class DeleteSessionDialogTests
         {
             return new ChatMessageModel(Guid.NewGuid().ToString(), role, content, DateTimeOffset.UtcNow, agentId, modelId, rawStream, effort);
         }
+        public ChatMessageModel? UpdateMessage(string sessionId, string messageId, ChatMessageUpdate update) => null;
+        public void FlushSession(string sessionId) { }
         public void SetSessionGenerating(string sessionId, bool isGenerating)
         {
             if (isGenerating) GeneratingSessions.Add(sessionId);
             else { GeneratingSessions.Remove(sessionId); CompletedSessions.Add(sessionId); }
         }
+        public void ClearAllGeneratingSessions() => GeneratingSessions.Clear();
         public IReadOnlySet<string> GetGeneratingSessionIds() => GeneratingSessions;
         public IReadOnlySet<string> GetCompletedSessionIds() => CompletedSessions;
         public void ClearSessionCompleted(string sessionId) => CompletedSessions.Remove(sessionId);
@@ -52,6 +55,11 @@ public class DeleteSessionDialogTests
         public bool RemoveQueuedMessage(string sessionId, string queueId) => false;
         public bool UpdateQueuedMessage(string sessionId, string queueId, string prompt) => false;
         public void ClearQueuedMessages(string sessionId) { }
+        public void AddSpawnedJob(string sessionId, string jobId) { }
+        public void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds) { }
+        public IReadOnlyList<string> GetSpawnedJobs(string sessionId) => [];
+        public bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers) => false;
+        public void PruneEmptySessions(string? activeSessionId = null) { }
     }
 
     private class TestState<T> : IState<T>
@@ -177,6 +185,28 @@ public class DeleteSessionDialogTests
         Assert.Single(service.Sessions);
         Assert.Equal(1, sessionVersion.Value);
         Assert.Equal("sess-1", activeSessionId.Value);
+    }
+
+    [Fact]
+    public async Task Dialog_DeleteButton_WithoutActiveSessionState_StillDeletesSession()
+    {
+        var service = new FakeChatHistoryService();
+        var session = new ChatSessionModel("sess-1", "Terminal", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [], Kind: ChatSessionKinds.Terminal);
+        service.Sessions.Add(session);
+
+        var deletingSessionId = new TestState<string?>("sess-1");
+        var sessionVersion = new TestState<int>(1);
+
+        var dialog = new DeleteSessionDialog(deletingSessionId, session, service, null, sessionVersion);
+        var result = Assert.IsType<Dialog>(dialog.Build());
+        var footer = Assert.IsType<DialogFooter>(result.Children[2]);
+        var deleteBtn = Assert.IsType<Button>(footer.Children[1]);
+
+        await deleteBtn.OnClick!.Invoke(new Event<Button>("click", deleteBtn));
+
+        Assert.Empty(service.Sessions);
+        Assert.Null(deletingSessionId.Value);
+        Assert.Equal(2, sessionVersion.Value);
     }
 
     [Fact]

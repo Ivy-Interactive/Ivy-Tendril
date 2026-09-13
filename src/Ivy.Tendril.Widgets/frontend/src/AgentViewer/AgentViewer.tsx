@@ -1,19 +1,18 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import Markdown from "react-markdown";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./agent-output.css";
 import type { EventHandler, PresentationEvent } from "./types";
 import { getHeight, getWidth } from "../styles";
-import { BlockHandler } from "../BlockHandler";
+import { BlockMarkdown } from "../BlockMarkdown";
 import { useAutoScroll } from "./use-auto-scroll";
-import { parseEventWireStream } from "./parse-events";
+import { parseEventWires, presentEventWires } from "./parse-events";
 import { deriveStatus } from "./status";
-import { AnimatedStatus } from "./animated-status";
+import { useHeldStatus } from "./useHeldStatus";
+import { deriveStreamMetrics } from "./stream-metrics";
+import { StatusLine } from "../ui/StatusLine";
 import { ToolUseCard } from "./tool-use-card";
 import { ResultSummary } from "./result-summary";
 import { groupToolUseEvents } from "./group-events";
 import { ToolUseGroup } from "./tool-use-group";
-import { getMarkdownPlugins } from "../math";
-import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
 
 function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   const indices = new Set<number>();
@@ -23,7 +22,8 @@ function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
     if (
       cur.kind === "assistant-text" &&
       next.kind === "result" &&
-      next.wire.response?.trim() === cur.text.trim()
+      (next.wire.response?.trim() === cur.text.trim() ||
+        Boolean(next.wire.response && next.wire.response.trim().length > 0))
     ) {
       indices.add(i);
     }
@@ -31,7 +31,10 @@ function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   return indices;
 }
 
-type StreamSubscriber = (streamId: string, onData: (data: unknown) => void) => () => void;
+type StreamSubscriber = (
+  streamId: string,
+  onData: (data: unknown) => void,
+) => () => void;
 
 interface AgentViewerProps {
   id: string;
@@ -67,16 +70,19 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   groupToolCalls = false,
 }) => {
   const [streamedLines, setStreamedLines] = useState<string[]>([]);
+  const completedSentRef = useRef<string | null>(null);
 
   useEffect(() => {
     setStreamedLines([]);
-  }, [jsonStream]);
+    completedSentRef.current = null;
+  }, [jsonStream, stream?.id]);
 
   useEffect(() => {
     if (!stream?.id || !subscribeToStream) return;
     const unsubscribe = subscribeToStream(stream.id, (data) => {
-      if (typeof data === "string") {
-        setStreamedLines((prev) => [...prev, data]);
+      const line = typeof data === "string" ? data : JSON.stringify(data);
+      if (line) {
+        setStreamedLines((prev) => [...prev, line]);
       }
     });
     return unsubscribe;
@@ -89,12 +95,14 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
     return parts.join("\n");
   }, [jsonStream, streamedLines]);
 
-  const parsedEvents = useMemo<PresentationEvent[]>(
-    () => parseEventWireStream(combinedStream),
-    [combinedStream],
-  );
+  /* One parse per stream update: the presentation events and the run's metrics are two
+     derivations of the same wires. */
+  const wires = useMemo(() => (combinedStream ? parseEventWires(combinedStream) : []), [combinedStream]);
+  const parsedEvents = useMemo<PresentationEvent[]>(() => presentEventWires(wires), [wires]);
 
-  const derived = useMemo(() => deriveStatus(parsedEvents), [parsedEvents]);
+  const rawStatus = useMemo(() => deriveStatus(parsedEvents), [parsedEvents]);
+  const derived = useHeldStatus(rawStatus);
+  const metrics = useMemo(() => deriveStreamMetrics(wires), [wires]);
   const statusText = statusLabelOverride ?? derived.text;
   const isComplete = derived.complete;
 
@@ -116,7 +124,11 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   useEffect(() => {
     const last = parsedEvents[parsedEvents.length - 1];
     if (last && last.kind === "result") {
-      handleComplete(JSON.stringify(last.wire));
+      const serialized = JSON.stringify(last.wire);
+      if (completedSentRef.current !== serialized) {
+        completedSentRef.current = serialized;
+        handleComplete(serialized);
+      }
     }
   }, [parsedEvents, handleComplete]);
 
@@ -189,12 +201,7 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
             case "assistant-text":
               return (
                 <div key={idx} className="aov-markdown aov-assistant">
-                  <Markdown
-                    {...getMarkdownPlugins(event.text)}
-                    components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
-                  >
-                    {event.text}
-                  </Markdown>
+                  <BlockMarkdown content={event.text} />
                 </div>
               );
             case "result":
@@ -214,7 +221,13 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
         })}
         {showStatusLabel && !isComplete && (
           <div className="aov-status-row">
-            <AnimatedStatus statusText={statusText} isComplete={isComplete} />
+            <StatusLine
+              statusText={statusText}
+              isComplete={isComplete}
+              startedAt={metrics.startedAt}
+              tokens={metrics.tokens}
+              tokensEstimated={metrics.tokensEstimated}
+            />
           </div>
         )}
       </div>

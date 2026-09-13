@@ -14,6 +14,45 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.2.0 (2026-09-01)
+
+### Features
+
+- **Redesigned App Shell (Figma)** - Modernized desktop shell layout with collapsible navigation sections, persistent session tabs, and integrated project status indicators (`#2173`).
+- **Redesigned Tendril Dashboard** - Built the new `TendrilDashboard` React widget with live status counters, activity trends, active job tracking, and Cloudflare Quick Tunnel QR code display (`#2201`).
+- **Drafts to Plans Unification** - Renamed the Drafts app, services, and models to "Plans" across the entire codebase, establishing a cohesive lifecycle from issue intake to verified execution (`#2258`).
+- **HTTP Multipart Uploads for Chat Attachments** - Replaced inline base64 transmission with chunked HTTP multipart uploads, avoiding SignalR payload limits on large images and files (`#2255`, `#2224`).
+- **Persistent Queued Messages in Chat** - Queued messages persist and remain visible across chat session switches, allowing developers to queue prompts while an agent is actively running (`#2253`).
+- **In-Page Search Shortcut (Ctrl+F / Cmd+F)** - Added in-page search within markdown views and plans without disrupting layout flow (`#2254`).
+- **Review Action Live Preview** - Added preview and run capabilities for review actions directly within Project Settings (`#2225`).
+- **Lovably Theme Preset** - Added a modern UI theme preset based on Lovable design tokens and color scales (`#2256`).
+- **Monospace CodeInput Expansion** - Integrated syntax-styled `CodeInput` across Review Action commands and conditions (`#2247`), MCP environment variables (`#2248`), Verification prompts (`#2249`), and Project Memory markdown content (`#2259`).
+- **Safe Chat Guardrails** - Prohibited direct unverified codebase edits inside exploratory chat sessions, enforcing formal plan creation for changes (`#2221`).
+- **Team Vault Project Merge on Conflict** - Added intelligent merge resolution when importing vault projects that share names with local projects (`#2219`).
+
+### Improvements
+
+- **Enriched Agent Chat & Issue Generation Prompts** - Provided full project context, repo mappings, and attachment metadata to initial agent chat prompts and GitHub issue creation (`#2226`).
+- **Appearance Settings Theme Mode Indicators** - Displayed active light/dark mode states clearly in Appearance settings (`#2213`).
+- **Theme-Responsive ContentInput Widget** - Adapted input bars, buttons, and borders dynamically across custom theme presets (`#2241`).
+- **Review Actions Table Simplification** - Streamlined Review Actions configuration table in Project Settings for improved readability (`#2240`).
+- **Staging Container Source Builds** - Configured Docker staging images to build directly from source for accurate PR preview branch testing (`#2229`).
+- **Sidebar Layout and Spacing Polish** - Refined completed checkmark badge spacing and generating session layouts in the Chat sidebar (`#2220`, `#2223`).
+- **Native Delete Session Dialog** - Replaced React modal popup with a native `DeleteSessionDialog` widget for session deletion (`#2222`).
+
+### Bug Fixes
+
+- **Job Visibility & Queue Rehydration** - Fixed missing job cards and restored active queued job states correctly following application restarts (`#2243`).
+- **Ghost Blocked Jobs Cleanup** - Prevented orphaned or superseded blocked jobs from lingering in SQLite storage and Output views (`#2250`).
+- **Antigravity Agent Chat Timeouts** - Configured Antigravity agent sessions to respect configured global timeout defaults rather than timing out prematurely (`#2218`).
+- **Project Settings Verification Edit Target** - Fixed verification dialog targeting the incorrect verification entry during edits (`#2252`).
+- **Markdown Code Block Overflow** - Prevented wide code snippets from horizontally overflowing parent plan containers (`#2214`).
+- **Dracula & Forest Dark Theme Contrast** - Resolved text and icon hover visibility bugs on sidebar items, settings icons, and tabs in dark themes (`#2210`, `#2211`, `#2212`, `#2239`, `#2242`).
+- **Duplicate Sidebar Elimination** - Eliminated redundant sidebar rendering during app shell transitions (`#2244`).
+- **Completed Draft State on Solved Issues** - Resolved non-completable state when generating plans for previously solved issues (`#2217`).
+- **Deprecated Model Cleanup** - Removed deprecated Gemini 3.5 Flash model references in favor of Gemini 3.7 Flash (`#2215`).
+- **Ephemeral Test Artifact Cleanup** - Ensured end-to-end test runs clean up temporary directories and agent scratch files (`#2209`).
+
 ## 1.1.36 (2026-08-28)
 
 ### Features

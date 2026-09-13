@@ -24,27 +24,88 @@ public class PlanDatabaseService : IPlanDatabaseService
     private readonly DashboardRepository _dashboardRepository;
     private bool _disposed;
 
+    /// <summary>
+    ///     The transaction a <see cref="BeginBatch" /> scope holds open, or null. Only ever read and
+    ///     written by the thread inside the batch, which holds the write lock for its whole scope.
+    /// </summary>
+    private SqliteTransaction? _batchTransaction;
+
+    /// <remarks>
+    ///     A no-op when the calling thread is already inside a <see cref="BeginBatch" /> scope: that
+    ///     scope holds the write lock, which already covers every read under it, and re-entering a
+    ///     non-recursive <see cref="ReaderWriterLockSlim" /> would throw.
+    /// </remarks>
     private sealed class ReadLockHandle : IDisposable
     {
-        private readonly ReaderWriterLockSlim _lock;
+        private readonly ReaderWriterLockSlim? _lock;
         public ReadLockHandle(ReaderWriterLockSlim rwLock)
         {
+            if (rwLock.IsWriteLockHeld) return;
             _lock = rwLock;
             _lock.EnterReadLock();
         }
-        public void Dispose() => _lock.ExitReadLock();
+        public void Dispose() => _lock?.ExitReadLock();
     }
 
+    /// <inheritdoc cref="ReadLockHandle" />
     private sealed class WriteLockHandle : IDisposable
     {
-        private readonly ReaderWriterLockSlim _lock;
+        private readonly ReaderWriterLockSlim? _lock;
         public WriteLockHandle(ReaderWriterLockSlim rwLock)
         {
+            if (rwLock.IsWriteLockHeld) return;
             _lock = rwLock;
             _lock.EnterWriteLock();
         }
-        public void Dispose() => _lock.ExitWriteLock();
+        public void Dispose() => _lock?.ExitWriteLock();
     }
+
+    /// <summary>
+    ///     One write lock and one transaction held across many mutations. A full plan sync otherwise
+    ///     takes the write lock hundreds of times (twice per plan), and every acquisition is another
+    ///     chance to block a UI thread arriving for the read lock — which is how a burst of plan
+    ///     mutations froze a workspace (#2571).
+    /// </summary>
+    private sealed class BatchScope : IDisposable
+    {
+        private readonly PlanDatabaseService _service;
+        private readonly WriteLockHandle _writeLock;
+        private readonly SqliteTransaction _transaction;
+        private bool _disposed;
+
+        public BatchScope(PlanDatabaseService service)
+        {
+            _service = service;
+            _writeLock = new WriteLockHandle(service._lock);
+            _transaction = service._connection.BeginTransaction();
+            service._batchTransaction = _transaction;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            _service._batchTransaction = null;
+            try
+            {
+                _transaction.Commit();
+            }
+            catch (Exception ex)
+            {
+                _service._logger.LogError(ex, "Failed to commit batched database writes");
+                try { _transaction.Rollback(); } catch { /* connection may already be gone */ }
+            }
+            finally
+            {
+                _transaction.Dispose();
+                _writeLock.Dispose();
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public IDisposable BeginBatch() => new BatchScope(this);
 
     public PlanDatabaseService(string databasePath, ILogger<PlanDatabaseService> logger)
     {
@@ -106,7 +167,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             var sql = """
                       SELECT Id, Title, Project, Level, State, FolderPath, FolderName,
-                             YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl
+                             YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, ChatSessionId
                       FROM Plans
                       """;
 
@@ -127,7 +188,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             using var reader = cmd.ExecuteReader();
             var rawPlans = new List<(int Id, string Title, string Project, string Level, string State,
                 string FolderPath, string FolderName, string YamlRaw, int RevisionCount,
-                string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl)>();
+                string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl, string? ChatSessionId)>();
 
             PlanRowOrdinals? ordinals = null;
             while (reader.Read())
@@ -152,7 +213,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             {
                 var plan = BuildPlanFileFromRowData(row.Id, row.Title, row.Project, row.Level, row.State,
                     row.FolderPath, row.YamlRaw, row.RevisionCount, row.LatestContent,
-                    row.Created, row.Updated, row.InitialPrompt, row.SourceUrl,
+                    row.Created, row.Updated, row.InitialPrompt, row.SourceUrl, row.ChatSessionId,
                     allRepos.GetValueOrDefault(row.Id, []),
                     allCommits.GetValueOrDefault(row.Id, []),
                     allPrs.GetValueOrDefault(row.Id, []),
@@ -174,8 +235,8 @@ public class PlanDatabaseService : IPlanDatabaseService
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
                               SELECT Id, Title, Project, Level, State, FolderPath, FolderName,
-                                     YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl
-                              FROM Plans WHERE FolderPath = @folderPath
+                                     YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, ChatSessionId
+                              FROM Plans WHERE FolderPath = @folderPath OR FolderName = @folderPath
                               """;
             cmd.Parameters.AddWithValue("@folderPath", folderPath);
 
@@ -194,7 +255,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
                               SELECT Id, Title, Project, Level, State, FolderPath, FolderName,
-                                     YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl
+                                     YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, ChatSessionId
                               FROM Plans WHERE Id = @id
                               """;
             cmd.Parameters.AddWithValue("@id", planId);
@@ -253,6 +314,15 @@ public class PlanDatabaseService : IPlanDatabaseService
     public DashboardActivityStats GetActivityStats(int monthsBack = 24) =>
         _dashboardRepository.GetActivityStats(monthsBack);
 
+    public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) =>
+        _dashboardRepository.GetRecentMergedPrs(limit);
+
+    public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) =>
+        _dashboardRepository.GetRecentPlanCosts(days);
+
+    public List<DashboardAgentCost> GetAgentCostBreakdown(int days) =>
+        _dashboardRepository.GetAgentCostBreakdown(days);
+
     public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
     {
         using (new ReadLockHandle(_lock))
@@ -284,6 +354,9 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
+    public List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60) =>
+        _dashboardRepository.GetShippedFeaturesByDay(days);
+
     public decimal GetPlanTotalCost(int planId)
     {
         using (new ReadLockHandle(_lock))
@@ -308,6 +381,84 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
+    public string? ResolveCostSource(int planId, string promptware, string? folderPath = null, string? folderName = null)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT j.CostSource
+                FROM Jobs j
+                WHERE j.CostSource IS NOT NULL
+                  AND j.Type = @promptware
+                  AND (
+                      j.ReportedPlanId = @planIdText
+                      OR (@folderPath IS NOT NULL AND j.PlanFile = @folderPath)
+                      OR (@folderName IS NOT NULL AND j.PlanFile = @folderName)
+                      OR j.PlanFile LIKE '%' || @planIdPadded || '%'
+                  )
+                ORDER BY j.CompletedAt DESC
+                LIMIT 1;
+                """;
+            cmd.Parameters.AddWithValue("@promptware", promptware);
+            cmd.Parameters.AddWithValue("@planIdText", planId.ToString(CultureInfo.InvariantCulture));
+            cmd.Parameters.AddWithValue("@folderPath", (object?)folderPath ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@folderName", (object?)folderName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@planIdPadded", planId.ToString("D5", CultureInfo.InvariantCulture));
+
+            var result = cmd.ExecuteScalar();
+            if (result is string source && !string.IsNullOrWhiteSpace(source))
+                return source;
+
+            using var costsCmd = _connection.CreateCommand();
+            costsCmd.CommandText = """
+                SELECT CostSource FROM Costs
+                WHERE PlanId = @planId AND Promptware = @promptware AND CostSource IS NOT NULL
+                LIMIT 1;
+                """;
+            costsCmd.Parameters.AddWithValue("@planId", planId);
+            costsCmd.Parameters.AddWithValue("@promptware", promptware);
+            var costsResult = costsCmd.ExecuteScalar();
+            if (costsResult is string costSource && !string.IsNullOrWhiteSpace(costSource))
+                return costSource;
+
+            return null;
+        }
+    }
+
+    public string? ResolveAgent(int planId, string promptware, string? folderPath = null, string? folderName = null)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT j.Provider
+                FROM Jobs j
+                WHERE j.Provider IS NOT NULL
+                  AND j.Type = @promptware
+                  AND (
+                      j.ReportedPlanId = @planIdText
+                      OR (@folderPath IS NOT NULL AND j.PlanFile = @folderPath)
+                      OR (@folderName IS NOT NULL AND j.PlanFile = @folderName)
+                      OR j.PlanFile LIKE '%' || @planIdPadded || '%'
+                  )
+                ORDER BY j.CompletedAt DESC
+                LIMIT 1;
+                """;
+            cmd.Parameters.AddWithValue("@promptware", promptware);
+            cmd.Parameters.AddWithValue("@planIdText", planId.ToString(CultureInfo.InvariantCulture));
+            cmd.Parameters.AddWithValue("@folderPath", (object?)folderPath ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@folderName", (object?)folderName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@planIdPadded", planId.ToString("D5", CultureInfo.InvariantCulture));
+
+            var result = cmd.ExecuteScalar();
+            if (result is string agent && !string.IsNullOrWhiteSpace(agent))
+                return agent;
+
+            return null;
+        }
+    }
+
     public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null)
     {
         using (new ReadLockHandle(_lock))
@@ -320,7 +471,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                                SELECT
                                    strftime('%Y-%m-%d %H:00:00', COALESCE(c.LogTimestamp, p.Updated)) as Hour,
                                    p.Project,
-                                   SUM(c.Cost) as TotalCost,
+                                   COALESCE(SUM(c.Cost), 0) as TotalCost,
                                    SUM(c.Tokens) as TotalTokens
                                FROM Costs c
                                JOIN Plans p ON p.Id = c.PlanId
@@ -441,7 +592,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 using var ftsCmd = _connection.CreateCommand();
                 ftsCmd.CommandText = """
                                      SELECT p.Id, p.Title, p.Project, p.Level, p.State, p.FolderPath, p.FolderName,
-                                            p.YamlRaw, p.RevisionCount, p.LatestRevisionContent, p.Created, p.Updated, p.InitialPrompt, p.SourceUrl
+                                            p.YamlRaw, p.RevisionCount, p.LatestRevisionContent, p.Created, p.Updated, p.InitialPrompt, p.SourceUrl, p.ChatSessionId
                                      FROM Plans p
                                      INNER JOIN PlanSearch fts ON fts.rowid = p.Id
                                      WHERE PlanSearch MATCH @query
@@ -468,7 +619,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 using var likeCmd = _connection.CreateCommand();
                 likeCmd.CommandText = """
                                       SELECT Id, Title, Project, Level, State, FolderPath, FolderName,
-                                             YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl
+                                             YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, ChatSessionId
                                       FROM Plans
                                       WHERE Title LIKE @search OR LatestRevisionContent LIKE @search
                                             OR CAST(Id AS TEXT) LIKE @search OR Project LIKE @search
@@ -487,15 +638,16 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new WriteLockHandle(_lock))
         {
-            using var transaction = _connection.BeginTransaction();
+            // Inside a batch the caller's transaction is already open and commits with the scope.
+            using var transaction = _batchTransaction == null ? _connection.BeginTransaction() : null;
             try
             {
                 UpsertPlanInternal(plan);
-                transaction.Commit();
+                transaction?.Commit();
             }
             catch
             {
-                transaction.Rollback();
+                transaction?.Rollback();
                 throw;
             }
         }
@@ -563,24 +715,32 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             using var insertCmd = _connection.CreateCommand();
             insertCmd.CommandText = """
-                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, LogTimestamp)
-                                    VALUES (@planId, @promptware, @tokens, @cost, @logTimestamp)
+                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, Model, LogTimestamp, CostSource, Agent)
+                                    VALUES (@planId, @promptware, @tokens, @cost, @model, @logTimestamp, @costSource, @agent)
                                     """;
             insertCmd.Parameters.AddWithValue("@planId", planId);
             insertCmd.Parameters.AddWithValue("@promptware", string.Empty);
             insertCmd.Parameters.AddWithValue("@tokens", 0);
-            insertCmd.Parameters.AddWithValue("@cost", 0.0);
+            insertCmd.Parameters.AddWithValue("@cost", DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@model", DBNull.Value);
             insertCmd.Parameters.AddWithValue("@logTimestamp", DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@costSource", DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@agent", DBNull.Value);
 
             foreach (var cost in costs)
             {
                 insertCmd.Parameters["@planId"].Value = planId;
                 insertCmd.Parameters["@promptware"].Value = cost.Promptware;
                 insertCmd.Parameters["@tokens"].Value = cost.Tokens;
-                insertCmd.Parameters["@cost"].Value = (double)cost.Cost;
+                // Explicit DBNull: AddWithValue throws on a null value rather than binding NULL, and
+                // NULL is the whole point here (see CostEntry.Cost).
+                insertCmd.Parameters["@cost"].Value = cost.Cost.HasValue ? (double)cost.Cost.Value : DBNull.Value;
+                insertCmd.Parameters["@model"].Value = (object?)cost.Model ?? DBNull.Value;
                 insertCmd.Parameters["@logTimestamp"].Value = cost.LogTimestamp.HasValue
                     ? cost.LogTimestamp.Value.ToString("O", CultureInfo.InvariantCulture)
                     : DBNull.Value;
+                insertCmd.Parameters["@costSource"].Value = (object?)cost.CostSource ?? DBNull.Value;
+                insertCmd.Parameters["@agent"].Value = (object?)cost.Agent ?? DBNull.Value;
                 insertCmd.ExecuteNonQuery();
             }
         }
@@ -657,16 +817,17 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             if (plans.Count == 0) return;
 
-            using var transaction = _connection.BeginTransaction();
+            // Inside a batch the caller's transaction is already open and commits with the scope.
+            using var transaction = _batchTransaction == null ? _connection.BeginTransaction() : null;
             try
             {
                 foreach (var plan in plans)
                     UpsertPlanInternal(plan, forceOverwrite);
-                transaction.Commit();
+                transaction?.Commit();
             }
             catch
             {
-                transaction.Rollback();
+                transaction?.Rollback();
                 throw;
             }
         }
@@ -762,6 +923,7 @@ public class PlanDatabaseService : IPlanDatabaseService
 
     private JobItem MapJobRow(SqliteDataReader reader)
     {
+        var typedArgs = ReadTypedArgs(reader);
         return new JobItem
         {
             Id = reader.GetString(reader.GetOrdinal("Id")),
@@ -793,7 +955,8 @@ public class PlanDatabaseService : IPlanDatabaseService
             StatusMessage = reader.IsDBNull(reader.GetOrdinal("StatusMessage"))
                 ? null
                 : reader.GetString(reader.GetOrdinal("StatusMessage")),
-            TypedArgs = ReadTypedArgs(reader),
+            TypedArgs = typedArgs,
+            ChatSessionId = typedArgs?.ChatSessionId,
             WorkingDirectory = reader.IsDBNull(reader.GetOrdinal("WorkingDirectory"))
                 ? null
                 : reader.GetString(reader.GetOrdinal("WorkingDirectory")),
@@ -1144,13 +1307,14 @@ public class PlanDatabaseService : IPlanDatabaseService
             reader.GetOrdinal("Created"),
             reader.GetOrdinal("Updated"),
             reader.GetOrdinal("InitialPrompt"),
-            reader.GetOrdinal("SourceUrl")
+            reader.GetOrdinal("SourceUrl"),
+            reader.GetOrdinal("ChatSessionId")
         );
     }
 
     private static (int Id, string Title, string Project, string Level, string State,
         string FolderPath, string FolderName, string YamlRaw, int RevisionCount,
-        string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl)
+        string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl, string? ChatSessionId)
         ReadPlanRow(SqliteDataReader reader, PlanRowOrdinals o)
     {
         return (
@@ -1167,11 +1331,12 @@ public class PlanDatabaseService : IPlanDatabaseService
             Created: reader.GetString(o.Created),
             Updated: reader.GetString(o.Updated),
             InitialPrompt: reader.GetStringOrNull(o.InitialPrompt),
-            SourceUrl: reader.GetStringOrNull(o.SourceUrl)
+            SourceUrl: reader.GetStringOrNull(o.SourceUrl),
+            ChatSessionId: reader.GetStringOrNull(o.ChatSessionId)
         );
     }
 
-    private static PlanFile? BuildPlanFileFromRow(
+    private PlanFile? BuildPlanFileFromRow(
         SqliteDataReader reader,
         PlanRowOrdinals ordinals,
         List<string> repos,
@@ -1194,16 +1359,17 @@ public class PlanDatabaseService : IPlanDatabaseService
         var updatedStr = reader.GetString(ordinals.Updated);
         var initialPrompt = reader.GetStringOrNull(ordinals.InitialPrompt);
         var sourceUrl = reader.GetStringOrNull(ordinals.SourceUrl);
+        var chatSessionId = reader.GetStringOrNull(ordinals.ChatSessionId);
 
         return BuildPlanFileFromRowData(planId, title, project, level, state, folderPath,
-            yamlRaw, revisionCount, latestContent, createdStr, updatedStr, initialPrompt, sourceUrl,
+            yamlRaw, revisionCount, latestContent, createdStr, updatedStr, initialPrompt, sourceUrl, chatSessionId,
             repos, commits, prs, verifications, relatedPlans, dependsOn);
     }
 
-    private static PlanFile? BuildPlanFileFromRowData(
+    private PlanFile? BuildPlanFileFromRowData(
         int planId, string title, string project, string level, string state,
         string folderPath, string yamlRaw, int revisionCount, string latestContent,
-        string createdStr, string updatedStr, string? initialPrompt, string? sourceUrl,
+        string createdStr, string updatedStr, string? initialPrompt, string? sourceUrl, string? chatSessionId,
         List<string> repos, List<string> commits, List<string> prs,
         List<PlanVerificationEntry> verifications, List<string> relatedPlans, List<string> dependsOn)
     {
@@ -1213,15 +1379,43 @@ public class PlanDatabaseService : IPlanDatabaseService
         var created = DateTime.Parse(createdStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
         var updated = DateTime.Parse(updatedStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
 
-        // partialDelivery comes from the mirrored YAML rather than a dedicated column: it is an
-        // additive flag on a rare path, so it does not warrant a schema migration.
-        var partialDelivery = PlanYamlHelper.ParsePlanYaml(yamlRaw)?.PartialDelivery ?? false;
+        // partialDelivery and allocatedPorts come from the mirrored YAML rather than dedicated
+        // columns: both are additive and read on rare paths, so neither warrants a schema migration.
+        var mirroredYaml = PlanYamlHelper.ParsePlanYaml(yamlRaw);
+        var partialDelivery = mirroredYaml?.PartialDelivery ?? false;
+        var allocatedPorts = mirroredYaml?.AllocatedPorts;
+
+        if (string.IsNullOrEmpty(chatSessionId))
+        {
+            chatSessionId = ResolveFallbackChatSessionId(folderPath);
+        }
 
         var metadata = new PlanMetadata(planId, project, level, title, status,
             repos, commits, prs, verifications, relatedPlans, dependsOn, created, updated, initialPrompt, sourceUrl,
-            partialDelivery);
+            partialDelivery, chatSessionId, allocatedPorts);
 
         return new PlanFile(metadata, latestContent, folderPath, yamlRaw, revisionCount);
+    }
+
+    private string? ResolveFallbackChatSessionId(string folderPath)
+    {
+        var folderName = Path.GetFileName(folderPath);
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT TypedArgs, Args, Type FROM Jobs
+            WHERE (PlanFile = @folderName OR PlanFile = @folderPath)
+            ORDER BY CASE WHEN CompletedAt IS NULL THEN 0 ELSE 1 END, CompletedAt DESC
+            """;
+        cmd.Parameters.AddWithValue("@folderName", folderName);
+        cmd.Parameters.AddWithValue("@folderPath", folderPath);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var typedArgs = ReadTypedArgs(reader);
+            if (!string.IsNullOrEmpty(typedArgs?.ChatSessionId))
+                return typedArgs.ChatSessionId;
+        }
+        return null;
     }
 
     private List<string> GetListForPlan(int planId, string table, string column)
@@ -1299,7 +1493,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         var planIds = new List<int>();
         var rawPlans = new List<(int Id, string Title, string Project, string Level, string State,
             string FolderPath, string FolderName, string YamlRaw, int RevisionCount,
-            string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl)>();
+            string LatestContent, string Created, string Updated, string? InitialPrompt, string? SourceUrl, string? ChatSessionId)>();
 
         using var reader = cmd.ExecuteReader();
         PlanRowOrdinals? ordinals = null;
@@ -1326,7 +1520,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             var plan = BuildPlanFileFromRowData(row.Id, row.Title, row.Project, row.Level, row.State,
                 row.FolderPath, row.YamlRaw, row.RevisionCount, row.LatestContent,
-                row.Created, row.Updated, row.InitialPrompt, row.SourceUrl,
+                row.Created, row.Updated, row.InitialPrompt, row.SourceUrl, row.ChatSessionId,
                 allRepos.GetValueOrDefault(row.Id, []),
                 allCommits.GetValueOrDefault(row.Id, []),
                 allPrs.GetValueOrDefault(row.Id, []),
@@ -1346,9 +1540,9 @@ public class PlanDatabaseService : IPlanDatabaseService
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = $"""
                            INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName,
-                                              YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl)
+                                              YamlRaw, RevisionCount, LatestRevisionContent, Created, Updated, InitialPrompt, SourceUrl, ChatSessionId)
                            VALUES (@id, @title, @project, @level, @state, @folderPath, @folderName,
-                                   @yamlRaw, @revisionCount, @latestContent, @created, @updated, @initialPrompt, @sourceUrl)
+                                   @yamlRaw, @revisionCount, @latestContent, @created, @updated, @initialPrompt, @sourceUrl, @chatSessionId)
                            ON CONFLICT(Id) DO UPDATE SET
                                Title = excluded.Title,
                                Project = excluded.Project,
@@ -1362,7 +1556,8 @@ public class PlanDatabaseService : IPlanDatabaseService
                                Created = excluded.Created,
                                Updated = excluded.Updated,
                                InitialPrompt = excluded.InitialPrompt,
-                               SourceUrl = excluded.SourceUrl
+                               SourceUrl = excluded.SourceUrl,
+                               ChatSessionId = excluded.ChatSessionId
                            {updateGuard}
                            """;
 
@@ -1380,6 +1575,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         cmd.Parameters.AddWithValue("@updated", plan.Updated.ToString("O", CultureInfo.InvariantCulture));
         cmd.Parameters.AddWithValue("@initialPrompt", plan.InitialPrompt != null ? FileHelper.SanitizeUtf8(plan.InitialPrompt) : (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@sourceUrl", plan.SourceUrl != null ? FileHelper.SanitizeUtf8(plan.SourceUrl) : (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@chatSessionId", plan.ChatSessionId != null ? FileHelper.SanitizeUtf8(plan.ChatSessionId) : (object)DBNull.Value);
 
         cmd.ExecuteNonQuery();
 
@@ -1502,6 +1698,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         int Created,
         int Updated,
         int InitialPrompt,
-        int SourceUrl);
+        int SourceUrl,
+        int ChatSessionId);
 
 }

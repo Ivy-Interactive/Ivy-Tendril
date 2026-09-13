@@ -489,5 +489,8 @@ public class PlanContentHelpersTests
 
         public GitResult<WorktreeBaseInfo?> GetWorktreeBase(string repoPath) =>
             GitResult<WorktreeBaseInfo?>.Success(null);
+
+        public GitResult<List<string>> GetBranches(string repoPath) =>
+            GitResult<List<string>>.Success([]);
     }
 }

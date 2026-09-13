@@ -5,7 +5,22 @@ public record GitHubIssue(
     string Title,
     string? Body,
     string[] Labels,
-    string[] Assignees
+    string[] Assignees,
+    string? Repository = null,
+    string? Url = null,
+    DateTimeOffset? UpdatedAt = null
+);
+
+public record GitHubReviewItem(
+    int Number,
+    string Title,
+    string? Body,
+    string[] Labels,
+    string[] Assignees,
+    string Repository,
+    string Url,
+    string? Branch,
+    DateTimeOffset? UpdatedAt
 );
 
 /// <summary>
@@ -35,4 +50,6 @@ public interface IGithubService
     Task<(List<string> labels, string? error)> GetLabelsAsync(string owner, string repo);
     Task<(Dictionary<string, PrInfo> statuses, string? error)> GetPrStatusesAsync(string owner, string repo);
     Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(IssueSearchRequest request);
+    Task<(List<GitHubIssue> issues, string? error)> GetMyAssignedIssuesAsync();
+    Task<(List<GitHubReviewItem> prs, string? error)> GetReviewRequestsAsync();
 }

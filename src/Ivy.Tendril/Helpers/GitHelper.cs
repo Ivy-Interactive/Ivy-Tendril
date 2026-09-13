@@ -157,6 +157,51 @@ public static class GitHelper
         }
     }
 
+    /// <summary>
+    /// Resolves the Git repository root directory for a given path.
+    /// Traverses upward looking for a .git directory or file, falling back to git rev-parse --show-toplevel.
+    /// Returns null if the path does not exist or is not within a Git repository.
+    /// </summary>
+    public static string? ResolveGitRoot(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        if (!Directory.Exists(path))
+            return null;
+
+        try
+        {
+            var dir = new DirectoryInfo(path);
+            while (dir != null)
+            {
+                var gitPath = Path.Combine(dir.FullName, ".git");
+                if (Directory.Exists(gitPath) || File.Exists(gitPath))
+                {
+                    return dir.FullName;
+                }
+
+                dir = dir.Parent;
+            }
+
+            var toplevel = RunGitCapture(path, "rev-parse --show-toplevel", 5000);
+            if (!string.IsNullOrWhiteSpace(toplevel))
+            {
+                var trimmed = toplevel.Trim();
+                if (Directory.Exists(trimmed))
+                {
+                    return Path.GetFullPath(trimmed);
+                }
+            }
+        }
+        catch
+        {
+            // Best effort root resolution
+        }
+
+        return null;
+    }
+
     public static string? ResolveRepoRootFromWorktree(string wtDir)
     {
         var gitFile = Path.Combine(wtDir, ".git");

@@ -13,7 +13,7 @@ public class MarkdownFieldBuildersTests
         var field = MarkdownFieldBuilders.BuildProjectMemoryContentField(content);
 
         Assert.Single(field.Children);
-        var codeInput = Assert.IsType<CodeInputBase>(field.Children.Single());
+        var codeInput = Assert.IsAssignableFrom<CodeInputBase>(field.Children.Single());
         Assert.Equal(Languages.Markdown, codeInput.Language);
         Assert.Equal("Content (Markdown)", field.Label);
         Assert.True(field.Required);
@@ -28,7 +28,7 @@ public class MarkdownFieldBuildersTests
         var field = MarkdownFieldBuilders.BuildSkillInstructionsField(instructions);
 
         Assert.Single(field.Children);
-        var codeInput = Assert.IsType<CodeInputBase>(field.Children.Single());
+        var codeInput = Assert.IsAssignableFrom<CodeInputBase>(field.Children.Single());
         Assert.Equal(Languages.Markdown, codeInput.Language);
         Assert.Equal("Inline Instructions", field.Label);
         Assert.False(field.Required);
@@ -43,7 +43,7 @@ public class MarkdownFieldBuildersTests
         var field = MarkdownFieldBuilders.BuildProjectContextField(context);
 
         Assert.Single(field.Children);
-        var codeInput = Assert.IsType<CodeInputBase>(field.Children.Single());
+        var codeInput = Assert.IsAssignableFrom<CodeInputBase>(field.Children.Single());
         Assert.Equal(Languages.Markdown, codeInput.Language);
         Assert.Equal("Context / Prompt", field.Label);
         Assert.False(field.Required);

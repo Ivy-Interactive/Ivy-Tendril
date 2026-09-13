@@ -87,8 +87,16 @@ public sealed class ClaudePty : IAgentPty
 
         if (!string.IsNullOrEmpty(config.SessionId))
         {
-            args.Add("--session-id");
-            args.Add(config.SessionId);
+            if (config.Resume)
+            {
+                args.Add("--resume");
+                args.Add(config.SessionId);
+            }
+            else
+            {
+                args.Add("--session-id");
+                args.Add(config.SessionId);
+            }
         }
 
         var tempFiles = new List<string>();

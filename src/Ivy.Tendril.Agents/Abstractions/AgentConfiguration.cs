@@ -11,6 +11,7 @@ public sealed record AgentLaunchConfig
     public IReadOnlyList<string> DeniedTools { get; init; } = [];
     public IReadOnlyList<string> WritableDirectories { get; init; } = [];
     public string? SessionId { get; init; }
+    public bool Resume { get; init; }
     public IReadOnlyDictionary<string, string>? EnvironmentVariables { get; init; }
     public IReadOnlyList<string> ExtraArguments { get; init; } = [];
     public string? SystemPrompt { get; init; }

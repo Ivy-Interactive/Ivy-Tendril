@@ -1,6 +1,6 @@
 using Ivy;
 using Ivy.Tendril.Widgets;
-using DraftMarkdownWidget = Ivy.Tendril.Widgets.DraftMarkdown;
+using DraftMarkdownWidget = Ivy.Tendril.Widgets.PlanMarkdown;
 
 namespace WidgetSamples.Apps.DraftMarkdown;
 
@@ -39,7 +39,6 @@ class QuestionsReviewApp : ViewBase
             header: Scope
             description: Answered in the kickoff, so the answer shows as the option's title
               rather than the `dispatch` slug the YAML actually carries.
-            other: false
             options:
               - title: Dispatch only
                 description: |
@@ -59,7 +58,6 @@ class QuestionsReviewApp : ViewBase
             header: Regions
             description: A multi-select answer lists every value it carries.
             multiple: true
-            other: false
             options:
               - title: EU
                 value: eu

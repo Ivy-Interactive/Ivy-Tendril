@@ -140,6 +140,26 @@ public class ContentViewTests
     }
 
     [Fact]
+    public void BuildFailureCallout_WithTruncatedFinalOutput_ShowsTheSection()
+    {
+        var (tendrilHome, planDir) = CreateHome(
+            "# Job Log 00007-00001-ExecutePlan\n\n- **Status:** Completed\n\n## Final Output (truncated)\n\n*Model output truncated.*\n\npartial answer\n");
+        try
+        {
+            var result = ContentView.BuildFailureCallout(CreateFailedPlan(planDir), tendrilHome);
+
+            var callout = Assert.IsType<Callout>(result);
+            Assert.Equal(CalloutVariant.Destructive, callout.Variant);
+            Assert.Equal("Execution Failed", callout.Title);
+        }
+        finally
+        {
+            if (Directory.Exists(tendrilHome))
+                Directory.Delete(tendrilHome, true);
+        }
+    }
+
+    [Fact]
     public void BuildUpdatePrompt_NumbersAnnotationsAndQuotesSelectedText()
     {
         var annotations = new[]
@@ -311,5 +331,54 @@ public class ContentViewTests
         var selected = ReviewContentView.ResolvePendingSelection(recs, ["Unknown"]);
 
         Assert.Empty(selected);
+    }
+
+    [Fact]
+    public void CountUnansweredQuestions_IncludesOptionalQuestionsWithoutAnswers()
+    {
+        var questions = new QuestionSummary[]
+        {
+            new(0, "q1", "Question 1", null, HasAnswer: false, IsOptional: false),
+            new(0, "q2", "Question 2", null, HasAnswer: false, IsOptional: true),
+            new(0, "q3", "Question 3", null, HasAnswer: true, IsOptional: false),
+            new(0, "q4", "Question 4", null, HasAnswer: true, IsOptional: true),
+        };
+
+        var count = ContentView.CountUnansweredQuestions(questions);
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public void CountUnansweredQuestions_FromMarkdown_CountsBothRequiredAndOptionalUnanswered()
+    {
+        var markdown = """
+            # Test Plan
+
+            ```questions
+            - id: req-q
+              question: "Required question"
+              options:
+                - text: "Option A"
+                - text: "Option B"
+            - id: opt-q
+              question: "Optional question"
+              optional: true
+              options:
+                - text: "Option A"
+                - text: "Option B"
+            - id: answered-opt-q
+              question: "Answered optional question"
+              optional: true
+              answer: "Option A"
+              options:
+                - text: "Option A"
+                - text: "Option B"
+            ```
+            """;
+
+        var count = ContentView.CountUnansweredQuestions(markdown);
+
+        Assert.Equal(2, count);
     }
 }

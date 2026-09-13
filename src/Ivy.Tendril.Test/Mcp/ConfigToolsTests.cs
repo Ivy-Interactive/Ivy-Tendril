@@ -53,6 +53,16 @@ public class ConfigToolsTests : IDisposable
     }
 
     [Fact]
+    public void SetConfig_ChatTimeout_UpdatesAndPersists()
+    {
+        var result = _tools.SetConfig("chatTimeout", "60");
+        Assert.StartsWith("Updated chatTimeout", result);
+
+        Assert.Equal("60", _tools.GetConfig("chatTimeout"));
+        Assert.Equal(60, new ConfigService().Settings.ChatTimeout);
+    }
+
+    [Fact]
     public void SetConfig_PlanTemplate_MultilineRoundTrips()
     {
         var template = "# Plan\n\n- step [one]\n- step two with -flag\n";

@@ -16,7 +16,7 @@ public class VersionCommand : AsyncCommand<VersionCommand.Settings>
         var version = assembly.GetName().Version;
         var versionString = version?.ToString(3) ?? "0.0.0";
 
-        AnsiConsole.MarkupLine($"[blue]Ivy Tendril[/] v{versionString}");
+        AnsiConsole.MarkupLine($"[blue]{AppBrand.AppName}[/] v{versionString}");
         return Task.FromResult(0);
     }
 }

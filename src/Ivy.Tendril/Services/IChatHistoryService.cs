@@ -19,7 +19,16 @@ public record ChatMessageModel(
     string? AgentId = null,
     string? ModelId = null,
     string? RawStream = null,
-    string? Effort = null
+    string? Effort = null,
+    DateTimeOffset? CompletedAt = null
+);
+
+public sealed record ChatMessageUpdate(
+    string Content,
+    string? RawStream = null,
+    bool FlushImmediately = true,
+    bool TouchUpdatedAt = true,
+    bool MarkCompleted = false
 );
 
 public record ChatSessionModel(
@@ -30,8 +39,20 @@ public record ChatSessionModel(
     string AgentId,
     string ModelId,
     List<ChatMessageModel> Messages,
-    string? Effort = null
+    string? Effort = null,
+    List<string>? SpawnedJobIds = null,
+    string? Kind = null,
+    string? PlanFolderName = null
 );
+
+public static class ChatSessionKinds
+{
+    public const string Chat = "chat";
+    public const string Terminal = "terminal";
+
+    public static bool IsTerminal(this ChatSessionModel session) =>
+        string.Equals(session.Kind, Terminal, StringComparison.OrdinalIgnoreCase);
+}
 
 public interface IChatHistoryService
 {
@@ -39,12 +60,15 @@ public interface IChatHistoryService
     event EventHandler? GeneratingSessionsChanged;
     IReadOnlyList<ChatSessionModel> GetSessions();
     ChatSessionModel? GetSession(string id);
-    ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null);
+    ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null, string? kind = null, string? planFolderName = null);
     void SaveSession(ChatSessionModel session);
     void DeleteSession(string id);
     void RenameSession(string id, string newTitle);
     ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null);
+    ChatMessageModel? UpdateMessage(string sessionId, string messageId, ChatMessageUpdate update);
+    void FlushSession(string sessionId);
     void SetSessionGenerating(string sessionId, bool isGenerating);
+    void ClearAllGeneratingSessions();
     IReadOnlySet<string> GetGeneratingSessionIds();
     IReadOnlySet<string> GetCompletedSessionIds();
     void ClearSessionCompleted(string sessionId);
@@ -54,4 +78,15 @@ public interface IChatHistoryService
     bool RemoveQueuedMessage(string sessionId, string queueId);
     bool UpdateQueuedMessage(string sessionId, string queueId, string prompt);
     void ClearQueuedMessages(string sessionId);
+    void AddSpawnedJob(string sessionId, string jobId);
+    void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds);
+    IReadOnlyList<string> GetSpawnedJobs(string sessionId);
+    bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers);
+    /// <summary>
+    ///     Drops chat sessions that hold no messages, so a chat the user never typed into is not kept
+    ///     in the history. The session named by <paramref name="activeSessionId" />, any session that
+    ///     is generating, and every terminal session are left alone: a terminal session belongs to its
+    ///     pane, which may legitimately be open with nothing typed into it yet.
+    /// </summary>
+    void PruneEmptySessions(string? activeSessionId = null);
 }

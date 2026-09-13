@@ -177,19 +177,7 @@ public class PushToVaultDialog(
             var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var projName in availableProjects)
             {
-                var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
-                var skills = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (proj != null)
-                {
-                    foreach (var s in proj.Skills) skills.Add(s.Name);
-                    var skillsDir = ProjectPathHelper.GetSkillsDir(config.TendrilHome, proj.Name);
-                    if (Directory.Exists(skillsDir))
-                    {
-                        foreach (var f in Directory.GetFiles(skillsDir, "*.md"))
-                            skills.Add(Path.GetFileNameWithoutExtension(f));
-                    }
-                }
-                dict[projName] = skills;
+                dict[projName] = new HashSet<string>(vaultService.CollectProjectAssets(projName).Skills, StringComparer.OrdinalIgnoreCase);
             }
             return dict;
         });
@@ -199,13 +187,7 @@ public class PushToVaultDialog(
             var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var projName in availableProjects)
             {
-                var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
-                var mcps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (proj != null)
-                {
-                    foreach (var m in proj.McpServers) mcps.Add(m.Name);
-                }
-                dict[projName] = mcps;
+                dict[projName] = new HashSet<string>(vaultService.CollectProjectAssets(projName).McpServers, StringComparer.OrdinalIgnoreCase);
             }
             return dict;
         });
@@ -215,14 +197,7 @@ public class PushToVaultDialog(
             var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var projName in availableProjects)
             {
-                var mems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var memoryDir = ProjectPathHelper.GetMemoryDir(config.TendrilHome, projName);
-                if (Directory.Exists(memoryDir))
-                {
-                    foreach (var f in Directory.GetFiles(memoryDir, "*.md"))
-                        mems.Add(Path.GetFileName(f));
-                }
-                dict[projName] = mems;
+                dict[projName] = new HashSet<string>(vaultService.CollectProjectAssets(projName).Memories, StringComparer.OrdinalIgnoreCase);
             }
             return dict;
         });
@@ -232,13 +207,7 @@ public class PushToVaultDialog(
             var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var projName in availableProjects)
             {
-                var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
-                var actions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (proj != null)
-                {
-                    foreach (var a in proj.ReviewActions) actions.Add(a.Name);
-                }
-                dict[projName] = actions;
+                dict[projName] = new HashSet<string>(vaultService.CollectProjectAssets(projName).ReviewActions, StringComparer.OrdinalIgnoreCase);
             }
             return dict;
         });
@@ -248,13 +217,7 @@ public class PushToVaultDialog(
             var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var projName in availableProjects)
             {
-                var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
-                var verifs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (proj != null)
-                {
-                    foreach (var v in proj.Verifications) verifs.Add(v.Name);
-                }
-                dict[projName] = verifs;
+                dict[projName] = new HashSet<string>(vaultService.CollectProjectAssets(projName).Verifications, StringComparer.OrdinalIgnoreCase);
             }
             return dict;
         });
@@ -335,39 +298,13 @@ public class PushToVaultDialog(
         foreach (var projName in availableProjects)
         {
             var isProjectChecked = selectedProjects.Value.Contains(projName);
-            var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
 
-            var projSkills = new List<string>();
-            var projMcps = new List<string>();
-            var projMemories = new List<string>();
-            var projActions = new List<string>();
-            var projVerifs = new List<string>();
-
-            if (proj != null)
-            {
-                foreach (var s in proj.Skills) projSkills.Add(s.Name);
-                var skillsDir = ProjectPathHelper.GetSkillsDir(config.TendrilHome, proj.Name);
-                if (Directory.Exists(skillsDir))
-                {
-                    foreach (var f in Directory.GetFiles(skillsDir, "*.md"))
-                    {
-                        var name = Path.GetFileNameWithoutExtension(f);
-                        if (!projSkills.Contains(name)) projSkills.Add(name);
-                    }
-                }
-
-                foreach (var m in proj.McpServers) projMcps.Add(m.Name);
-
-                var memDir = ProjectPathHelper.GetMemoryDir(config.TendrilHome, proj.Name);
-                if (Directory.Exists(memDir))
-                {
-                    foreach (var f in Directory.GetFiles(memDir, "*.md"))
-                        projMemories.Add(Path.GetFileName(f));
-                }
-
-                foreach (var a in proj.ReviewActions) projActions.Add(a.Name);
-                foreach (var v in proj.Verifications) projVerifs.Add(v.Name);
-            }
+            var assets = vaultService.CollectProjectAssets(projName);
+            var projSkills = assets.Skills;
+            var projMcps = assets.McpServers;
+            var projMemories = assets.Memories;
+            var projActions = assets.ReviewActions;
+            var projVerifs = assets.Verifications;
 
             var projectHeader = Layout.Horizontal().AlignContent(Align.Left)
                 | new PushProjectSelectRow(projName, selectedProjects)

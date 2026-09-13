@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Settings.Blades;
 using Ivy.Tendril.Apps.Settings.Dialogs;
@@ -23,7 +24,11 @@ public class ProjectDetailView(
 {
     public override object? Build()
     {
+        var nav = UseNavigation();
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
+
+        var isSyncingAllRepos = UseState(false);
+        var projectSyncError = UseState<(string RepoPath, string? BaseBranch, string Message, string? Details)?>(null);
 
         // Inline Name & Color Editing State
         var isEditingName = UseState(false);
@@ -46,6 +51,10 @@ public class ProjectDetailView(
         // Verifications State
         var verifications = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<ProjectVerificationRef>(config.Settings.Projects[projectIndex].Verifications) : new List<ProjectVerificationRef>());
 
+        // Ports & Environment Files State
+        var ports = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new Dictionary<string, ProjectPortConfig>(config.Settings.Projects[projectIndex].Ports) : new Dictionary<string, ProjectPortConfig>());
+        var envFiles = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<ProjectEnvFileConfig>(config.Settings.Projects[projectIndex].EnvFiles) : new List<ProjectEnvFileConfig>());
+
         // MCP & Skills States
         var mcpServers = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<ProjectMcpServerRef>(config.Settings.Projects[projectIndex].McpServers) : new List<ProjectMcpServerRef>());
         var skills = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<ProjectSkillRef>(config.Settings.Projects[projectIndex].Skills) : new List<ProjectSkillRef>());
@@ -57,6 +66,12 @@ public class ProjectDetailView(
 
         var (verificationTrigger, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, string? existingVerificationName) =>
             new OnboardingEditVerificationDialog(isOpen, existingVerificationName, config, client, refreshToken, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", projectVerifications: verifications));
+
+        var (portTrigger, showPortTrigger) = UseTrigger((IState<bool> isOpen, string? existingPortName) =>
+            new EditProjectPortDialog(isOpen, existingPortName, ports));
+
+        var (envFileTrigger, showEnvFileTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
+            new EditProjectEnvFileDialog(isOpen, existingIndex, envFiles));
 
         var (mcpSheet, openMcpSheet) = UseTrigger((IState<bool> isOpen, int? editingIndex) =>
             new EditMcpServerSheet(isOpen, editingIndex, mcpServers));
@@ -108,6 +123,16 @@ public class ProjectDetailView(
             if (!AreVerificationsEqual(currentProj.Verifications, verifications.Value))
             {
                 currentProj.Verifications = new List<ProjectVerificationRef>(verifications.Value);
+                changed = true;
+            }
+            if (!ArePortsEqual(currentProj.Ports, ports.Value))
+            {
+                currentProj.Ports = new Dictionary<string, ProjectPortConfig>(ports.Value);
+                changed = true;
+            }
+            if (!AreEnvFilesEqual(currentProj.EnvFiles, envFiles.Value))
+            {
+                currentProj.EnvFiles = new List<ProjectEnvFileConfig>(envFiles.Value);
                 changed = true;
             }
             if (!AreMcpServersEqual(currentProj.McpServers, mcpServers.Value))
@@ -182,7 +207,7 @@ public class ProjectDetailView(
             }
         }
 
-        UseEffect(SaveProjectChanges, [projectColor, autoImplement, repos, reviewActions, verifications, mcpServers, skills]);
+        UseEffect(SaveProjectChanges, [projectColor, autoImplement, repos, reviewActions, verifications, ports, envFiles, mcpServers, skills]);
 
         var currentProjectList = config.Settings.Projects;
         if (projectIndex < 0 || projectIndex >= currentProjectList.Count)
@@ -289,13 +314,93 @@ public class ProjectDetailView(
             return draft with { Path = destPath };
         };
 
+        var repoSectionHeader = Layout.Horizontal().AlignContent(Align.Center).Width(Size.Full())
+            | Text.H4("Repositories").Bold()
+            | new Spacer()
+            | new Button("Sync Repositories").Icon(Icons.RefreshCw).Outline().Small()
+                .Loading(isSyncingAllRepos.Value)
+                .Disabled(isSyncingAllRepos.Value || repos.Value.Count == 0)
+                .OnClick(async () =>
+                {
+                    isSyncingAllRepos.Set(true);
+                    projectSyncError.Set(null);
+                    try
+                    {
+                        var proj = new ProjectConfig
+                        {
+                            Name = editName.Value,
+                            Repos = new List<RepoRef>(repos.Value)
+                        };
+                        var results = await ProjectSyncHelper.SyncProjectAsync(proj, tendrilHome: config.TendrilHome);
+                        var successCount = results.Count(r => r.Success);
+                        var failCount = results.Count(r => !r.Success);
+
+                        if (failCount == 0)
+                        {
+                            client.Toast(results.Count == 1
+                                ? "Successfully synchronized repository"
+                                : $"Successfully synchronized all {results.Count} repositories", "Synchronized");
+                        }
+                        else
+                        {
+                            var firstFail = results.First(r => !r.Success);
+                            projectSyncError.Set((firstFail.RepoPath, firstFail.BaseBranch, firstFail.Message, firstFail.GitErrorDetails));
+                            var failRepoName = RepoPathValidator.ExtractRepoName(firstFail.RepoPath) ?? firstFail.RepoPath;
+                            client.Toast(
+                                results.Count == 1
+                                    ? $"Failed to sync {failRepoName}: {firstFail.Message}"
+                                    : $"{successCount} repository synced, {failCount} failed",
+                                "Sync Failed",
+                                variant: ToastVariant.Destructive);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        client.Toast($"Sync error: {ex.Message}", "Sync Error", variant: ToastVariant.Destructive);
+                    }
+                    finally
+                    {
+                        isSyncingAllRepos.Set(false);
+                    }
+                });
+
+        object? projectSyncErrorAlert = null;
+        if (projectSyncError.Value != null)
+        {
+            var err = projectSyncError.Value.Value;
+            var failedRepoName = RepoPathValidator.ExtractRepoName(err.RepoPath) ?? err.RepoPath;
+            var diagnosticPrompt = ProjectSyncHelper.GenerateDiagnosticPrompt(err.RepoPath, err.BaseBranch, err.Details ?? err.Message);
+
+            var errorLayout = Layout.Vertical()
+                | (Layout.Horizontal().AlignContent(Align.Center).Width(Size.Full())
+                    | new Icon(Icons.TriangleAlert, Colors.Destructive)
+                    | Text.Block($"Sync failed for {failedRepoName}: {err.Message}").Bold().Color(Colors.Destructive)
+                    | new Spacer()
+                    | new Button().Icon(Icons.X).Outline().Small().OnClick(() => projectSyncError.Set(null)).WithTooltip("Dismiss"))
+                | (!string.IsNullOrWhiteSpace(err.Details)
+                    ? Text.Block(err.Details).Small()
+                    : null!)
+                | (Layout.Horizontal().AlignContent(Align.Center)
+                    | new Button("Fix with Agent").Icon(Icons.Bot).Small().OnClick(() =>
+                    {
+                        if (nav != null)
+                        {
+                            ChatLauncher.Open(nav, config, prompt: diagnosticPrompt, title: $"Fix sync: {failedRepoName}");
+                        }
+                    })
+                    | new Button("Dismiss").Outline().Small().OnClick(() => projectSyncError.Set(null)));
+
+            projectSyncErrorAlert = new Box(errorLayout).BorderColor(Colors.Destructive).Background(Colors.Muted).Width(Size.Full());
+        }
+
         var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
             | vaultBadge
 
             // Section 2: Repositories
-            | Text.H4("Repositories").Bold()
+            | repoSectionHeader
+            | (projectSyncErrorAlert ?? null!)
             | new ProjectRepoPickerView(repos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
 
             // Section 3: Review Actions
@@ -308,21 +413,31 @@ public class ProjectDetailView(
             | new ProjectVerificationsTableView(verifications, name => showVerificationTrigger(name))
             | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() => showVerificationTrigger(null))
 
-            // Section 5: Agent Behavior
+            // Section 5: Ports
+            | Text.H4("Ports").Bold()
+            | new ProjectPortsTableView(ports, name => showPortTrigger(name))
+            | new Button("Add Port").Icon(Icons.Plus).Outline().OnClick(() => showPortTrigger(null))
+
+            // Section 6: Environment Files
+            | Text.H4("Environment Files").Bold()
+            | new ProjectEnvFilesTableView(envFiles, idx => showEnvFileTrigger(idx))
+            | new Button("Add Environment File").Icon(Icons.Plus).Outline().OnClick(() => showEnvFileTrigger(null))
+
+            // Section 7: Agent Behavior
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Agent Behavior").Bold()
                     | autoImplementSelect)
                 : null!)
 
-            // Section 6: Local Permissions (MCP Tools & Servers)
+            // Section 8: Local Permissions (MCP Tools & Servers)
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Local Permissions").Bold()
                     | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx)))
                 : null!)
 
-            // Section 7: Customizations
+            // Section 9: Customizations
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Customizations").Bold()
@@ -330,7 +445,7 @@ public class ProjectDetailView(
                     | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx)))
                 : null!)
 
-            // Section 8: Danger Zone
+            // Section 10: Danger Zone
             | Text.H4("Danger Zone").Bold()
             | new Button("Delete Project").Destructive().OnClick(() =>
             {
@@ -343,6 +458,8 @@ public class ProjectDetailView(
             )
             | reviewActionTrigger
             | verificationTrigger
+            | portTrigger
+            | envFileTrigger
             | mcpSheet
             | skillSheet
             | memorySheet
@@ -382,6 +499,35 @@ public class ProjectDetailView(
         {
             if (a[i].Name != b[i].Name || a[i].Required != b[i].Required)
                 return false;
+        }
+        return true;
+    }
+
+    private static bool ArePortsEqual(Dictionary<string, ProjectPortConfig> a, Dictionary<string, ProjectPortConfig> b)
+    {
+        if (a.Count != b.Count) return false;
+        foreach (var (name, config) in a)
+        {
+            if (!b.TryGetValue(name, out var other)) return false;
+            if (config.DefaultPort != other.DefaultPort || config.Description != other.Description)
+                return false;
+        }
+        return true;
+    }
+
+    private static bool AreEnvFilesEqual(List<ProjectEnvFileConfig> a, List<ProjectEnvFileConfig> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i].Path != b[i].Path || a[i].Template != b[i].Template)
+                return false;
+            if (a[i].Overrides.Count != b[i].Overrides.Count) return false;
+            foreach (var (key, value) in a[i].Overrides)
+            {
+                if (!b[i].Overrides.TryGetValue(key, out var other) || other != value)
+                    return false;
+            }
         }
         return true;
     }

@@ -12,6 +12,19 @@ public static class UseInboxAutoRefreshExtensions
     ///     plus <see cref="IPlanWatcherService.PlansChanged" /> directly, which
     ///     covers content changes where the counts stay equal (Status dedupes by record equality).
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Deliberately <b>not</b> gated on the changed plan folder, unlike the detail views (see
+    ///         <see cref="PlanRefreshGate" />). Every caller here renders a <em>list</em> of plans, and a
+    ///         change to any plan can add it to that list, remove it from it, or reorder it - including a
+    ///         plan the list is not currently showing, which is exactly the case a folder gate would
+    ///         discard. Gating here would leave stale rows on screen.
+    ///     </para>
+    ///     <para>
+    ///         The coalescer is what keeps that affordable: folder-blind means every event arrives, so a
+    ///         burst must still cost one refresh (#2571).
+    ///     </para>
+    /// </remarks>
     public static void UseInboxAutoRefresh(this IViewContext context, RefreshToken refreshToken)
     {
         var statusService = context.UseService<ITendrilProcessStatusService>();

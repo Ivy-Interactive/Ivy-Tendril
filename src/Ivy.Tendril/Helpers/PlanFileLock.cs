@@ -10,6 +10,12 @@ public static class PlanFileLock
     private const int MaxRetries = 50;
     private const int DelayMs = 100;
 
+    /// <summary>
+    ///     The longest <see cref="Acquire" /> can take before it gives up. Callers that block on a write
+    ///     which has to take this lock size their own timeout from it rather than guessing (#2571).
+    /// </summary>
+    public static TimeSpan AcquireBudget { get; } = TimeSpan.FromMilliseconds(MaxRetries * DelayMs);
+
     public static FileStream Acquire(string planFolder)
     {
         var lockPath = Path.Combine(planFolder, "plan.yaml.lock");

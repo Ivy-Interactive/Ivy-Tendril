@@ -330,13 +330,6 @@ public static class PlanContentHelpers
         ).Width(Size.Half()).Resizable();
     }
 
-    internal static (Icons Icon, Colors Color) GetFileStatusIconAndColor(string status) => status switch
-    {
-        "A" => (Icons.FilePlus, Colors.Success),
-        "D" => (Icons.FileMinus, Colors.Destructive),
-        _ => (Icons.FilePen, Colors.Neutral)
-    };
-
     public record AllChangesData(
         string? Diff,
         List<(string Status, string FilePath)> Files,

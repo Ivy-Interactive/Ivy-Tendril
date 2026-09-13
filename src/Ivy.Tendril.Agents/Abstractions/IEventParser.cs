@@ -44,5 +44,7 @@ public enum FailureKind
     ValidationError,
     PermissionBlocked,
     NetworkError,
+    OutputTruncated,
+    UnhandledStopReason,
     Unknown
 }

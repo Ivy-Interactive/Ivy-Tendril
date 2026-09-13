@@ -239,12 +239,14 @@ public class InboxWatcherServiceTests : IDisposable
         public JobItem? GetJob(string id) => null;
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => false;
         public bool ReportJobFailure(string id, string message) => false;
+        public void SetChatSessionId(string id, string chatSessionId) { }
         public void Dispose() { }
 
 #pragma warning disable CS0067
         public event Action? JobsChanged;
         public event Action? JobsStructureChanged;
         public event Action? JobPropertyChanged;
+        public event Action<JobItem>? JobFinished;
         public event Action<JobNotification>? NotificationReady;
 #pragma warning restore CS0067
     }
@@ -392,12 +394,14 @@ public class InboxWatcherServiceTests : IDisposable
         public JobItem? GetJob(string id) => null;
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => false;
         public bool ReportJobFailure(string id, string message) => false;
+        public void SetChatSessionId(string id, string chatSessionId) { }
         public void Dispose() { }
 
 #pragma warning disable CS0067
         public event Action? JobsChanged;
         public event Action? JobsStructureChanged;
         public event Action? JobPropertyChanged;
+        public event Action<JobItem>? JobFinished;
         public event Action<JobNotification>? NotificationReady;
 #pragma warning restore CS0067
     }
@@ -431,12 +435,14 @@ public class InboxWatcherServiceTests : IDisposable
         public JobItem? GetJob(string id) => null;
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => false;
         public bool ReportJobFailure(string id, string message) => false;
+        public void SetChatSessionId(string id, string chatSessionId) { }
         public void Dispose() { }
 
 #pragma warning disable CS0067
         public event Action? JobsChanged;
         public event Action? JobsStructureChanged;
         public event Action? JobPropertyChanged;
+        public event Action<JobItem>? JobFinished;
         public event Action<JobNotification>? NotificationReady;
 #pragma warning restore CS0067
     }

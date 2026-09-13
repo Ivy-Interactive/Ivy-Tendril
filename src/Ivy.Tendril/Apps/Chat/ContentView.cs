@@ -1,15 +1,16 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Ivy;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Chat;
@@ -21,59 +22,81 @@ public class ContentView(
     IState<string> selectedAgent,
     IState<string> selectedModel,
     IState<string> selectedEffort,
-    IState<bool> isStreaming,
-    IState<string?> streamingSessionId,
-    IState<HashSet<string>> runningSessionIds,
-    IState<Dictionary<string, string>> liveSessionStreams,
-    IRef<IAgentSession?> activeSessionRef,
     List<ChatSessionDto> sessionDtos,
     List<AgentOptionDto> agentDtos,
     List<ModelOptionDto> modelDtos,
     List<EffortOptionDto> effortDtos,
     bool supportsEffort,
+    bool isStreaming,
+    string streamingText,
+    string? streamingMessageId,
+    string greeting,
+    string headline,
     IChatHistoryService chatService,
+    IChatExecutionService executionService,
     IAgentRunner agentRunner,
-    Action<ChatSendMessageDto> sendMessage) : ViewBase
+    Action<ChatSendMessageDto> sendMessage,
+    Action<string> selectSession,
+    Action startNewChat,
+    bool embedded = false,
+    IState<string?>? sharedDeletingSessionId = null,
+    List<ChatSamplePromptDto>? samplePrompts = null) : ViewBase
 {
+    internal IState<string> SelectedAgentState => selectedAgent;
+    internal IState<string> SelectedModelState => selectedModel;
+    internal IState<string> SelectedEffortState => selectedEffort;
+
+    /// <summary>The plan a job event names, by folder, numeric id or zero-padded id.</summary>
+    internal static PlanFile? FindPlan(IPlanReaderService planService, string planId)
+    {
+        var rawId = planId;
+        var dashIndex = planId.IndexOf('-');
+        if (dashIndex > 0)
+        {
+            rawId = planId[..dashIndex];
+        }
+
+        var trimmed = rawId.TrimStart('0');
+        if (int.TryParse(trimmed.Length > 0 ? trimmed : rawId, out var id))
+        {
+            var plan = planService.GetPlanById(id);
+            if (plan != null) return plan;
+        }
+
+        var byFolder = planService.GetPlanByFolder(planId);
+        if (byFolder != null) return byFolder;
+
+        return planService.GetPlans().FirstOrDefault(p =>
+            p.FolderName.StartsWith(planId + "-", StringComparison.OrdinalIgnoreCase));
+    }
+
     public override object Build()
     {
         var configService = UseService<IConfigService>();
-        var deletingSessionId = UseState<string?>(null);
+        Context.TryUseService<IJobService>(out var jobService);
+        Context.TryUseService<IPlanReaderService>(out var planService);
+        Context.TryUseService<IChatAgentPreferences>(out var preferences);
+        var navigator = UseNavigation();
+        var localDeletingSessionId = UseState<string?>(null);
 
         var upload = UseUpload(async (fileUpload, stream, ct) =>
         {
-            var attachDir = Path.Combine(configService.TendrilHome, "Attachments", activeSessionId.Value ?? "temp");
+            var targetSession = activeSessionId.Value ?? "temp";
+            var attachDir = Path.Combine(configService.TendrilHome, "Attachments", targetSession);
             Directory.CreateDirectory(attachDir);
             var rawName = Path.GetFileName(fileUpload.FileName);
-            var safeFileName = string.IsNullOrWhiteSpace(rawName) ? $"file_{Guid.NewGuid():N}.bin" : rawName;
+            var safeFileName = !string.IsNullOrWhiteSpace(rawName)
+                ? string.Concat(rawName.Split(Path.GetInvalidFileNameChars()))
+                : $"file_{Guid.NewGuid():N}.bin";
+            if (string.IsNullOrWhiteSpace(safeFileName)) safeFileName = $"file_{Guid.NewGuid():N}.bin";
             var filePath = Path.Combine(attachDir, safeFileName);
             await using var fileStream = File.Create(filePath);
             await stream.CopyToAsync(fileStream, ct);
         });
 
-        if (activeSession == null)
-        {
-            var newChatBtn = new Button("Start New Chat")
-                .Icon(Icons.Plus)
-                .Primary()
-                .OnClick(() =>
-                {
-                    var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                    activeSessionId.Set(newSess.Id);
-                    sessionVersion.Set(v => v + 1);
-                });
+        _ = sessionVersion.Value;
 
-            return Layout.Vertical().AlignContent(Align.Center).Width(Size.Full()).Height(Size.Full())
-                | Icons.MessageSquare.ToIcon().Size(Size.Px(48)).Color(Colors.Muted)
-                | Text.H3("No Chat Selected")
-                | Text.Muted("Select an existing chat session from history or start a new chat.")
-                | newChatBtn;
-        }
-
-        string activeSessionLiveStream = activeSessionId.Value != null && liveSessionStreams.Value.TryGetValue(activeSessionId.Value, out var streamText)
-            ? streamText
-            : "";
-
+        var deletingSessionId = sharedDeletingSessionId ?? localDeletingSessionId;
         var sessionToDelete = deletingSessionId.Value != null
             ? chatService.GetSession(deletingSessionId.Value) ?? activeSession
             : activeSession;
@@ -90,10 +113,16 @@ public class ContentView(
             q.Attachments
         )).ToList();
 
+        var runningJobs = (activeSessionId.Value != null && jobService != null)
+            ? jobService.GetJobs()
+                .Where(j => string.Equals(j.ChatSessionId, activeSessionId.Value, StringComparison.OrdinalIgnoreCase)
+                         && (j.Status == JobStatus.Running || j.Status == JobStatus.Pending || j.Status == JobStatus.Queued))
+                .Select(j => ChatApp.ToJobDto(j, planService)).ToList()
+            : new List<ChatJobDto>();
+
         var chatWidget = new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
-            StreamingSessionId = streamingSessionId.Value,
             UploadUrl = upload.Value.UploadUrl,
             Sessions = sessionDtos,
             Agents = agentDtos,
@@ -103,13 +132,22 @@ public class ContentView(
             SelectedModel = selectedModel.Value,
             SelectedEffort = selectedEffort.Value,
             SupportsEffort = supportsEffort,
-            IsStreaming = activeSessionId.Value != null && runningSessionIds.Value.Contains(activeSessionId.Value),
-            StreamingText = activeSessionLiveStream,
+            IsStreaming = isStreaming,
+            StreamingText = streamingText,
+            StreamingMessageId = streamingMessageId,
             QueuedMessages = queuedMessageDtos,
+            RunningJobs = runningJobs,
+            Greeting = greeting,
+            Headline = headline,
+            SamplePrompts = samplePrompts ?? new(),
+            Embedded = embedded,
 
             OnSelectSession = e =>
             {
-                activeSessionId.Set(e.Value);
+                if (!string.IsNullOrEmpty(e.Value))
+                {
+                    selectSession(e.Value);
+                }
                 return ValueTask.CompletedTask;
             },
             OnDeleteSession = e =>
@@ -128,8 +166,7 @@ public class ContentView(
             },
             OnCreateSession = _ =>
             {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                activeSessionId.Set(newSess.Id);
+                startNewChat();
                 return ValueTask.CompletedTask;
             },
             OnSendMessage = e =>
@@ -142,43 +179,56 @@ public class ContentView(
                 if (activeSessionId.Value != null)
                 {
                     chatService.ClearQueuedMessages(activeSessionId.Value);
+                    await executionService.CancelAsync(activeSessionId.Value);
                 }
-                try
-                {
-                    if (activeSessionRef.Value != null)
-                    {
-                        await activeSessionRef.Value.StopAsync();
-                    }
-                }
-                catch
-                {
-                    // Ignore cancel exceptions
-                }
-                isStreaming.Set(false);
-                streamingSessionId.Set(null);
-                runningSessionIds.Set(new HashSet<string>());
-                liveSessionStreams.Set(new Dictionary<string, string>());
             },
             OnAgentChanged = e =>
             {
+                if (string.IsNullOrEmpty(e.Value)) return ValueTask.CompletedTask;
+                var preference = preferences?.Get(e.Value) ?? new ChatAgentPreference();
+                var model = ChatApp.ResolveModel(ChatApp.GetModelsForAgent(agentRunner, e.Value), preference.ModelId);
+                var effort = ChatApp.ResolveEffort(ChatApp.GetEffortsForAgentAndModel(agentRunner, e.Value, model), preference.Effort);
                 selectedAgent.Set(e.Value);
-                var newModels = ChatApp.GetModelsForAgent(agentRunner, e.Value);
-                if (newModels.Count > 0)
-                {
-                    selectedModel.Set(newModels[0].Id);
-                }
-                selectedEffort.Set("default");
+                selectedModel.Set(model);
+                selectedEffort.Set(effort);
+                configService.Settings.LastChatAgent = e.Value;
+                configService.Settings.LastChatModel = model;
+                configService.Settings.LastChatEffort = effort;
+                configService.SaveSettings();
                 return ValueTask.CompletedTask;
             },
+            // A model or effort is remembered for the agent it was chosen for; only a choice for
+            // the selected agent changes the live selection, the rest just needs a re-render.
             OnModelChanged = e =>
             {
-                selectedModel.Set(e.Value);
-                selectedEffort.Set("default");
+                if (e.Value is not [var agentId, var modelId]) return ValueTask.CompletedTask;
+                preferences?.SetModel(agentId, modelId);
+                if (!agentId.Equals(selectedAgent.Value, StringComparison.OrdinalIgnoreCase))
+                {
+                    sessionVersion.Set(v => v + 1);
+                    return ValueTask.CompletedTask;
+                }
+                var effort = ChatApp.ResolveEffort(ChatApp.GetEffortsForAgentAndModel(agentRunner, agentId, modelId), selectedEffort.Value);
+                selectedModel.Set(modelId);
+                selectedEffort.Set(effort);
+                configService.Settings.LastChatAgent = agentId;
+                configService.Settings.LastChatModel = modelId;
+                configService.Settings.LastChatEffort = effort;
+                configService.SaveSettings();
                 return ValueTask.CompletedTask;
             },
             OnEffortChanged = e =>
             {
-                selectedEffort.Set(e.Value);
+                if (e.Value is not [var agentId, var effort]) return ValueTask.CompletedTask;
+                preferences?.SetEffort(agentId, effort);
+                if (!agentId.Equals(selectedAgent.Value, StringComparison.OrdinalIgnoreCase))
+                {
+                    sessionVersion.Set(v => v + 1);
+                    return ValueTask.CompletedTask;
+                }
+                selectedEffort.Set(effort);
+                configService.Settings.LastChatEffort = effort;
+                configService.SaveSettings();
                 return ValueTask.CompletedTask;
             },
             OnDeleteQueuedMessage = e =>
@@ -206,15 +256,50 @@ public class ContentView(
                     if (item != null)
                     {
                         chatService.RemoveQueuedMessage(activeSessionId.Value, e.Value);
-                        sendMessage(new ChatSendMessageDto(item.Prompt, item.Attachments, activeSessionId.Value));
+                        sendMessage(new ChatSendMessageDto(item.Prompt, item.Attachments, activeSessionId.Value, ForceSend: true));
+                    }
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnAnswerQuestion = e =>
+            {
+                if (e.Value != null)
+                {
+                    chatService.ApplyQuestionAnswers(e.Value.SessionId, e.Value.MessageId, e.Value.Answers);
+                    if (executionService.IsGenerating(e.Value.SessionId))
+                    {
+                        executionService.ApplyQuestionAnswers(e.Value.SessionId, e.Value.Answers);
+                    }
+                    sessionVersion.Set(v => v + 1);
+                    if (!string.IsNullOrWhiteSpace(e.Value.ResponseText))
+                    {
+                        sendMessage(new ChatSendMessageDto(e.Value.ResponseText, SessionId: e.Value.SessionId));
+                    }
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnOpenPlan = e =>
+            {
+                if (planService == null || string.IsNullOrEmpty(e.Value)) return ValueTask.CompletedTask;
+                var plan = FindPlan(planService, e.Value);
+                if (plan != null)
+                {
+                    var target = PlanSearchDialog.ResolveTarget(plan);
+                    if (target.HasValue)
+                    {
+                        navigator.Navigate(target.Value.App, target.Value.Args);
                     }
                 }
                 return ValueTask.CompletedTask;
             }
         }
         .WithLayout()
-        .Full()
-        .RemoveParentPadding();
+        .Full();
+
+        // The panel that hosts an embedded chat draws its own inset; RemoveParentPadding would
+        // zero it (the framework strips padding from every ancestor wrapper of that class).
+        if (!embedded)
+            chatWidget = chatWidget.RemoveParentPadding();
 
         return new Fragment(chatWidget, deleteDialog);
     }

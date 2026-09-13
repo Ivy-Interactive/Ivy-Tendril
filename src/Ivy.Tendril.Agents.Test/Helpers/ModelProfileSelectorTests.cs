@@ -7,6 +7,27 @@ namespace Ivy.Tendril.Agents.Test.Helpers;
 public sealed class ModelProfileSelectorTests
 {
     [Fact]
+    public void SelectDefaults_IvyProxy_PicksOpus5Deep_Gemini38Balanced_GeminiQuick()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "claude-opus-4", DisplayName = "Claude Opus 4" },
+            new() { Id = "claude-opus-5", DisplayName = "Claude Opus 5" },
+            new() { Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5" },
+            new() { Id = "gemini-2.5-flash-lite", DisplayName = "Gemini 2.5 Flash Lite" },
+            new() { Id = "gemini-3.8-flash", DisplayName = "Gemini 3.8 Flash" },
+            new() { Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash" },
+            new() { Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash" },
+        };
+
+        var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(models, isIvy: true);
+
+        Assert.Equal("claude-opus-5", deep);
+        Assert.Equal("gemini-3.8-flash", balanced);
+        Assert.Equal("gemini-3.8-flash", quick);
+    }
+
+    [Fact]
     public void SelectDefaults_IvyProxy_PicksOpus5Deep_Gemini37Balanced_GeminiQuick()
     {
         var models = new List<ModelInfo>
@@ -84,6 +105,45 @@ public sealed class ModelProfileSelectorTests
     }
 
     [Fact]
+    public void SelectDefaults_OpenAiOnly_WithGpt6Astra_PicksSolDeepByDefault()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "gpt-4o", DisplayName = "GPT-4o" },
+            new() { Id = "gpt-4o-mini", DisplayName = "GPT-4o mini" },
+            new() { Id = "gpt-6-astra", DisplayName = "GPT-6 Astra" },
+            new() { Id = "gpt-5.6-sol", DisplayName = "GPT-5.6 Sol" },
+            new() { Id = "gpt-5.6-terra", DisplayName = "GPT-5.6 Terra" },
+            new() { Id = "gpt-5.6-luna", DisplayName = "GPT-5.6 Luna" },
+        };
+
+        var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(models, isOpenAi: true);
+
+        Assert.Equal("gpt-5.6-sol", deep);
+        Assert.Equal("gpt-5.6-terra", balanced);
+        Assert.Equal("gpt-5.6-luna", quick);
+    }
+
+    [Fact]
+    public void SelectDefaults_OpenAiOnly_WhenSolMissing_ResolvesGpt6AstraForDeep()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "gpt-4o", DisplayName = "GPT-4o" },
+            new() { Id = "gpt-4o-mini", DisplayName = "GPT-4o mini" },
+            new() { Id = "gpt-6-astra", DisplayName = "GPT-6 Astra" },
+            new() { Id = "gpt-5.6-terra", DisplayName = "GPT-5.6 Terra" },
+            new() { Id = "gpt-5.6-luna", DisplayName = "GPT-5.6 Luna" },
+        };
+
+        var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(models, isOpenAi: true);
+
+        Assert.Equal("gpt-6-astra", deep);
+        Assert.Equal("gpt-5.6-terra", balanced);
+        Assert.Equal("gpt-5.6-luna", quick);
+    }
+
+    [Fact]
     public void SelectDefaults_GeminiCatalog_PicksFlashDeep_FlashBalanced_FlashQuick()
     {
         var models = new List<ModelInfo>
@@ -126,19 +186,19 @@ public sealed class ModelProfileSelectorTests
     public void SelectDefaults_EmptyModels_ReturnsCardDefaults()
     {
         var (deepIvy, balancedIvy, quickIvy) = ModelProfileSelector.SelectDefaults(null, isIvy: true);
-        Assert.Equal("claude-opus-5", deepIvy);
-        Assert.Equal("gemini-3.7-flash", balancedIvy);
-        Assert.Equal("gemini-3.7-flash", quickIvy);
+        Assert.Equal("claude-fable-5", deepIvy);
+        Assert.Equal("gemini-3.8-flash", balancedIvy);
+        Assert.Equal("gemini-3.8-flash", quickIvy);
 
         var (deepAnt, balancedAnt, quickAnt) = ModelProfileSelector.SelectDefaults(null, isAnthropic: true);
-        Assert.Equal("claude-opus-5", deepAnt);
-        Assert.Equal("claude-sonnet-5", balancedAnt);
-        Assert.Equal("claude-haiku-4-5", quickAnt);
+        Assert.Equal("claude-fable-5", deepAnt);
+        Assert.Equal("claude-sonnet-5-1", balancedAnt);
+        Assert.Equal("claude-haiku-5-1", quickAnt);
 
         var (deepGoogle, balancedGoogle, quickGoogle) = ModelProfileSelector.SelectDefaults(null, isGoogle: true);
-        Assert.Equal("gemini-3.7-flash", deepGoogle);
-        Assert.Equal("gemini-3.7-flash", balancedGoogle);
-        Assert.Equal("gemini-3.7-flash", quickGoogle);
+        Assert.Equal("gemini-3.8-flash", deepGoogle);
+        Assert.Equal("gemini-3.8-flash", balancedGoogle);
+        Assert.Equal("gemini-3.8-flash", quickGoogle);
 
         var (deepOpenAi, balancedOpenAi, quickOpenAi) = ModelProfileSelector.SelectDefaults(null, isOpenAi: true);
         Assert.Equal("gpt-5.6-sol", deepOpenAi);
@@ -155,9 +215,9 @@ public sealed class ModelProfileSelectorTests
         Assert.Equal("moonshotai/Kimi-K3", quickBerget);
 
         var (deepCode, balancedCode, quickCode) = ModelProfileSelector.SelectDefaults(null, ModelProviderKind.OpenCode);
-        Assert.Equal("claude-opus-5", deepCode);
-        Assert.Equal("gemini-3.7-flash", balancedCode);
-        Assert.Equal("gemini-3.7-flash", quickCode);
+        Assert.Equal("claude-fable-5", deepCode);
+        Assert.Equal("gemini-3.8-flash", balancedCode);
+        Assert.Equal("gemini-3.8-flash", quickCode);
     }
 
     [Fact]

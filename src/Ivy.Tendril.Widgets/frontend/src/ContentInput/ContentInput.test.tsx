@@ -10,7 +10,7 @@ import { ContentInput } from "./ContentInput";
 describe("ContentInput", () => {
   it("enables the submit button when only a file is attached (no text)", () => {
     render(<ContentInput id="civ-1" value=" [file: /tmp/foo.png]" />);
-    const submitButton = screen.getByTitle("Send");
+    const submitButton = screen.getByRole("button", { name: "Send" });
     expect(submitButton).toBeEnabled();
   });
 
@@ -18,7 +18,7 @@ describe("ContentInput", () => {
     const onIvyEvent = vi.fn();
     render(<ContentInput id="civ-1" value=" [file: /tmp/foo.png]" onIvyEvent={onIvyEvent} />);
 
-    const submitButton = screen.getByTitle("Send");
+    const submitButton = screen.getByRole("button", { name: "Send" });
     fireEvent.click(submitButton);
 
     expect(onIvyEvent).toHaveBeenCalledWith(
@@ -34,7 +34,7 @@ describe("ContentInput", () => {
 
   it("keeps the submit button disabled when there is no text and no file", () => {
     render(<ContentInput id="civ-1" value="" />);
-    const submitButton = screen.getByTitle("Send");
+    const submitButton = screen.getByRole("button", { name: "Send" });
     expect(submitButton).toBeDisabled();
   });
 
@@ -82,7 +82,7 @@ describe("ContentInput", () => {
     const onIvyEvent = vi.fn();
     render(<ContentInput id="civ-1" value="" onIvyEvent={onIvyEvent} transcriptionUrl="ws://test" />);
 
-    const micButton = screen.getByTitle("Voice input transcription");
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
     fireEvent.click(micButton);
 
     await vi.waitFor(() => {
@@ -110,7 +110,7 @@ describe("ContentInput", () => {
 
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
-    const micButton = screen.getByTitle("Voice input transcription");
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
     fireEvent.click(micButton);
 
     await vi.waitFor(() => {
@@ -133,7 +133,7 @@ describe("ContentInput", () => {
 
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
-    const micButton = screen.getByTitle("Voice input transcription");
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
     fireEvent.click(micButton);
 
     await vi.waitFor(() => {
@@ -150,16 +150,18 @@ describe("ContentInput", () => {
       },
     });
 
-    // Stub AudioContext for jsdom
+    // Stub AudioContext and AudioWorkletNode for jsdom, so the environment check passes and the
+    // recorder actually reaches getUserMedia.
     vi.stubGlobal("AudioContext", class {
       state = "running";
       close() { return Promise.resolve(); }
       resume() { return Promise.resolve(); }
     });
+    vi.stubGlobal("AudioWorkletNode", class {});
 
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
-    const micButton = screen.getByTitle("Voice input transcription");
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
     fireEvent.click(micButton);
 
     await vi.waitFor(() => {
@@ -168,9 +170,97 @@ describe("ContentInput", () => {
     });
   });
 
+  it("reports an unsupported browser when audio capture is unavailable", async () => {
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [] }),
+      },
+    });
+
+    // A browser without AudioWorklet support, which is also jsdom's own default.
+    vi.stubGlobal("AudioWorkletNode", undefined);
+    expect(typeof AudioWorkletNode).toBe("undefined");
+
+    render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
+
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
+    fireEvent.click(micButton);
+
+    await vi.waitFor(() => {
+      const errorBanner = document.querySelector(".civ-error-banner");
+      expect(errorBanner?.textContent).toContain("cannot capture audio");
+    });
+  });
+
   it("does not render a job execution mode selector", () => {
     render(<ContentInput id="civ-1" value="" />);
     expect(document.querySelector(".civ-mode-selector-container")).toBeNull();
     expect(screen.queryByTitle("Select job execution mode")).toBeNull();
+  });
+
+  it("posts uploads via HTTP multipart FormData when uploadUrl is present", async () => {
+    const origFetch = global.fetch;
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    global.fetch = mockFetch;
+
+    try {
+      render(<ContentInput id="civ-1" value="" uploadUrl="/api/upload/test" />);
+      const textarea = screen.getByPlaceholderText("How can I help you today?");
+
+      const imageFile = new File(["test-image-bytes"], "photo.png", { type: "image/png" });
+      fireEvent.paste(textarea, {
+        clipboardData: {
+          items: [{ kind: "file", getAsFile: () => imageFile }],
+          files: [imageFile],
+        },
+      });
+
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/upload/test",
+          expect.objectContaining({
+            method: "POST",
+            body: expect.any(FormData),
+          })
+        );
+      });
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
+  it("revokes object URLs when a file preview is removed", async () => {
+    const origCreateObjectURL = URL.createObjectURL;
+    const origRevokeObjectURL = URL.revokeObjectURL;
+
+    URL.createObjectURL = vi.fn().mockReturnValue("blob:http://localhost/test-preview");
+    URL.revokeObjectURL = vi.fn();
+
+    try {
+      render(<ContentInput id="civ-1" value="" />);
+      const textarea = screen.getByPlaceholderText("How can I help you today?");
+
+      const imageFile = new File(["image-bytes"], "preview-photo.png", { type: "image/png" });
+      fireEvent.paste(textarea, {
+        clipboardData: {
+          items: [{ kind: "file", getAsFile: () => imageFile }],
+          files: [imageFile],
+        },
+      });
+
+      await vi.waitFor(() => {
+        expect(document.querySelector(".civ-thumbnail-card")).toBeTruthy();
+      });
+
+      const removeBtn = document.querySelector(".civ-thumbnail-card-remove") as HTMLButtonElement;
+      expect(removeBtn).toBeTruthy();
+      fireEvent.click(removeBtn);
+
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:http://localhost/test-preview");
+    } finally {
+      URL.createObjectURL = origCreateObjectURL;
+      URL.revokeObjectURL = origRevokeObjectURL;
+    }
   });
 });

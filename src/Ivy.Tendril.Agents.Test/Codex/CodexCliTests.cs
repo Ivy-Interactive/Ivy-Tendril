@@ -194,7 +194,8 @@ public class CodexCliTests
         Assert.Equal("codex", spec.FileName);
         Assert.Contains("exec", spec.Arguments);
         Assert.Contains("--sandbox", spec.Arguments);
-        Assert.Contains("workspace-write", spec.Arguments);
+        Assert.Contains("danger-full-access", spec.Arguments);
+        Assert.Contains("approval_policy=\"never\"", spec.Arguments);
         Assert.Contains("--json", spec.Arguments);
         Assert.Contains("--skip-git-repo-check", spec.Arguments);
         Assert.Contains("-", spec.Arguments);
@@ -204,12 +205,96 @@ public class CodexCliTests
     }
 
     [Fact]
+    public void BuildProcessSpec_PermissionMode_FullAuto_SetsCorrectSandboxAndPermissions()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.FullAuto,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var sandboxIdx = argList.IndexOf("--sandbox");
+        Assert.True(sandboxIdx >= 0);
+        Assert.Equal("danger-full-access", argList[sandboxIdx + 1]);
+
+        var approvalIdx = argList.IndexOf("approval_policy=\"never\"");
+        Assert.True(approvalIdx >= 0);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_PermissionMode_AcceptEdits_SetsWorkspaceWriteWithDiskPermissions()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.AcceptEdits,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var sandboxIdx = argList.IndexOf("--sandbox");
+        Assert.True(sandboxIdx >= 0);
+        Assert.Equal("workspace-write", argList[sandboxIdx + 1]);
+
+        Assert.Contains("sandbox_workspace_write.network_access=true", argList);
+        Assert.Contains("sandbox_permissions=[\"disk-full-read-access\"]", argList);
+
+        var approvalIdx = argList.IndexOf("approval_policy=\"never\"");
+        Assert.True(approvalIdx >= 0);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_PermissionMode_Plan_SetsReadOnlySandbox()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.Plan,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var sandboxIdx = argList.IndexOf("--sandbox");
+        Assert.True(sandboxIdx >= 0);
+        Assert.Equal("read-only", argList[sandboxIdx + 1]);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_PermissionMode_Default_SetsWorkspaceWrite()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.Default,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var sandboxIdx = argList.IndexOf("--sandbox");
+        Assert.True(sandboxIdx >= 0);
+        Assert.Equal("workspace-write", argList[sandboxIdx + 1]);
+
+        Assert.Contains("sandbox_workspace_write.network_access=true", argList);
+    }
+
+    [Fact]
     public void BuildProcessSpec_EnablesNetworkAccessInWorkspaceWriteSandbox()
     {
         var config = new AgentLaunchConfig
         {
             Prompt = "Hello",
             WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.Default,
         };
 
         var spec = _cli.BuildProcessSpec(config);

@@ -1,0 +1,17 @@
+# Verifies the top-level repository layout has not drifted.
+# Runs on every push and pull request targeting the development branch.
+
+name: Repo health
+
+on:
+  push:
+    branches: [development]
+  pull_request:
+    branches: [development]
+
+jobs:
+  check-repo-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/check-repo-health.sh
