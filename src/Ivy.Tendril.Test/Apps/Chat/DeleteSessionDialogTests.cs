@@ -34,6 +34,7 @@ public class DeleteSessionDialogTests
         public void SaveSession(ChatSessionModel session) { }
         public void DeleteSession(string id) => Sessions.RemoveAll(s => s.Id == id);
         public void RenameSession(string id, string newTitle) { }
+        public void PinSession(string id, bool isPinned) { }
         public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null)
         {
             return new ChatMessageModel(Guid.NewGuid().ToString(), role, content, DateTimeOffset.UtcNow, agentId, modelId, rawStream, effort);

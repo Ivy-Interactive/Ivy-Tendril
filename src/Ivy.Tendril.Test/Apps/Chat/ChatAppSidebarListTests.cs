@@ -329,4 +329,36 @@ public class ChatAppSidebarListTests
         Assert.Equal("max", ChatApp.ResolveEffort(efforts, "max"));
         Assert.Equal("default", ChatApp.ResolveEffort(efforts, "ultra"));
     }
+
+    [Fact]
+    public void BuildSidebarList_MapsPinnedStatus_AndExposesTogglePinHandler()
+    {
+        var pinnedSession = new ChatSessionModel("pinned-1", "Pinned Chat", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [], IsPinned: true);
+        var unpinnedSession = new ChatSessionModel("unpinned-1", "Regular Chat", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [], IsPinned: false);
+
+        string? toggledId = null;
+        var list = ChatApp.BuildSidebarList(
+            [pinnedSession, unpinnedSession],
+            null,
+            new HashSet<string>(),
+            new HashSet<string>(),
+            () => { },
+            togglePinSession: id => toggledId = id);
+
+        Assert.Collection(list.Items,
+            item =>
+            {
+                Assert.Equal("pinned-1", item.Id);
+                Assert.True(item.Pinned);
+            },
+            item =>
+            {
+                Assert.Equal("unpinned-1", item.Id);
+                Assert.False(item.Pinned);
+            });
+
+        Assert.NotNull(list.OnTogglePin);
+        list.OnTogglePin("pinned-1");
+        Assert.Equal("pinned-1", toggledId);
+    }
 }

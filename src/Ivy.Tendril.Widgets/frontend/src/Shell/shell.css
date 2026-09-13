@@ -1088,6 +1088,28 @@
   width: 100%;
 }
 
+.tsh-section-item-pin {
+  flex-shrink: 0;
+  opacity: 0.5;
+  display: flex;
+}
+
+.tsh-section-item:hover .tsh-section-item-pin,
+.tsh-section-item[data-selected="true"] .tsh-section-item-pin {
+  opacity: 0.8;
+}
+
+.tsh-section-group-label {
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tsh-fg);
+  opacity: 0.5;
+  user-select: none;
+}
+
 .tsh-section-empty {
   padding: 10px 12px;
   font-size: 12px;

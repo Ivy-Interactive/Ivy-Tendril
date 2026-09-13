@@ -146,15 +146,27 @@ describe("ShellSidebarSection", () => {
       { id: "c3", title: "Idle chat" },
     ];
     render(
-      <ShellSidebarSection id="sec-1" title="Chats" items={items} events={["OnSelectItem"]} eventHandler={vi.fn()} />,
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={items}
+        events={["OnSelectItem"]}
+        eventHandler={vi.fn()}
+      />,
     );
 
     const working = screen.getByRole("img", { name: "Working" });
     expect(working).toHaveAttribute("data-state", "working");
     expect(working.closest(".tsh-section-item")).toHaveTextContent("Working chat");
-    expect(screen.getByRole("img", { name: "Completed" })).toHaveAttribute("data-state", "completed");
+    expect(screen.getByRole("img", { name: "Completed" })).toHaveAttribute(
+      "data-state",
+      "completed",
+    );
     expect(
-      screen.getByText("Idle chat").closest(".tsh-section-item")?.querySelector(".tsh-section-item-state"),
+      screen
+        .getByText("Idle chat")
+        .closest(".tsh-section-item")
+        ?.querySelector(".tsh-section-item-state"),
     ).toBeNull();
     expect(document.querySelector(".tui-badge")).toBeNull();
   });
@@ -342,7 +354,9 @@ describe("ShellSidebarSection", () => {
   });
 
   it("shows no row options without rename or delete events", () => {
-    render(<ShellSidebarSection id="sec-1" title="Chats" items={mockItems} eventHandler={vi.fn()} />);
+    render(
+      <ShellSidebarSection id="sec-1" title="Chats" items={mockItems} eventHandler={vi.fn()} />,
+    );
     expect(screen.queryByRole("button", { name: /options$/ })).not.toBeInTheDocument();
   });
 
@@ -387,7 +401,9 @@ describe("ShellSidebarSection", () => {
     fireEvent.change(input, { target: { value: "Renamed plan" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
-    expect(eventHandler).toHaveBeenCalledWith("OnRenameItem", "sec-1", [["00001-PlanA", "Renamed plan"]]);
+    expect(eventHandler).toHaveBeenCalledWith("OnRenameItem", "sec-1", [
+      ["00001-PlanA", "Renamed plan"],
+    ]);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
@@ -414,7 +430,9 @@ describe("ShellSidebarSection", () => {
   });
 
   it("renders the mapped icon for an item with icon: Terminal", () => {
-    const itemsWithIcon: ShellSectionItemDto[] = [{ id: "term-1", title: "Terminal Session", icon: "Terminal" }];
+    const itemsWithIcon: ShellSectionItemDto[] = [
+      { id: "term-1", title: "Terminal Session", icon: "Terminal" },
+    ];
     const { container } = render(
       <ShellSidebarSection id="sec-1" title="Chats" items={itemsWithIcon} eventHandler={vi.fn()} />,
     );
@@ -427,7 +445,12 @@ describe("ShellSidebarSection", () => {
   it("renders no icon for an item without a recognized icon name", () => {
     const itemsWithoutIcon: ShellSectionItemDto[] = [{ id: "plain-1", title: "Plain Item" }];
     const { container } = render(
-      <ShellSidebarSection id="sec-1" title="Chats" items={itemsWithoutIcon} eventHandler={vi.fn()} />,
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={itemsWithoutIcon}
+        eventHandler={vi.fn()}
+      />,
     );
 
     expect(container.querySelector(".tsh-section-item-icon")).not.toBeInTheDocument();
@@ -502,9 +525,7 @@ describe("ShellSidebarSection", () => {
 
   it("triggers OnSelectItem when a rail chat item is clicked", () => {
     const onSelect = vi.fn();
-    const chatItems: ShellSectionItemDto[] = [
-      { id: "chat-1", title: "General Chat" },
-    ];
+    const chatItems: ShellSectionItemDto[] = [{ id: "chat-1", title: "General Chat" }];
 
     render(
       <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
@@ -535,12 +556,7 @@ describe("ShellSidebarSection", () => {
 
     render(
       <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
-        <ShellSidebarSection
-          id="sec-1"
-          title="Chats"
-          items={chatItems}
-          eventHandler={vi.fn()}
-        />
+        <ShellSidebarSection id="sec-1" title="Chats" items={chatItems} eventHandler={vi.fn()} />
       </ShellContext.Provider>,
     );
 
@@ -611,5 +627,63 @@ describe("ShellSidebarSection", () => {
     expect(screen.getByText("Sep 10")).toBeInTheDocument();
     expect(screen.getByText("Bug Triage")).toBeInTheDocument();
     expect(screen.getByText("Sep 9")).toBeInTheDocument();
+  });
+
+  it("renders 'Pin chat' in row options menu for unpinned items and triggers OnTogglePinItem", () => {
+    const eventHandler = vi.fn();
+    const items: ShellSectionItemDto[] = [{ id: "chat-1", title: "My Chat", pinned: false }];
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={items}
+        events={["OnTogglePinItem"]}
+        eventHandler={eventHandler}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "My Chat options" }));
+    const pinBtn = screen.getByRole("menuitem", { name: /Pin chat/ });
+    expect(pinBtn).toBeInTheDocument();
+    fireEvent.click(pinBtn);
+
+    expect(eventHandler).toHaveBeenCalledWith("OnTogglePinItem", "sec-1", ["chat-1"]);
+  });
+
+  it("renders 'Unpin chat' in row options menu for pinned items and triggers OnTogglePinItem", () => {
+    const eventHandler = vi.fn();
+    const items: ShellSectionItemDto[] = [{ id: "chat-1", title: "Pinned Chat", pinned: true }];
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={items}
+        events={["OnTogglePinItem"]}
+        eventHandler={eventHandler}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pinned Chat options" }));
+    const unpinBtn = screen.getByRole("menuitem", { name: /Unpin chat/ });
+    expect(unpinBtn).toBeInTheDocument();
+    fireEvent.click(unpinBtn);
+
+    expect(eventHandler).toHaveBeenCalledWith("OnTogglePinItem", "sec-1", ["chat-1"]);
+  });
+
+  it("renders Pinned and Recent group headers and pin icon when items have pinned true", () => {
+    const items: ShellSectionItemDto[] = [
+      { id: "chat-1", title: "Important Chat", pinned: true },
+      { id: "chat-2", title: "Other Chat", pinned: false },
+    ];
+    const { container } = render(
+      <ShellSidebarSection id="sec-1" title="Chats" items={items} eventHandler={vi.fn()} />,
+    );
+
+    expect(screen.getByText("Pinned")).toBeInTheDocument();
+    expect(screen.getByText("Recent")).toBeInTheDocument();
+    expect(screen.getByText("Important Chat")).toBeInTheDocument();
+    expect(screen.getByText("Other Chat")).toBeInTheDocument();
+    expect(container.querySelector(".tsh-section-item-pin")).toBeInTheDocument();
   });
 });

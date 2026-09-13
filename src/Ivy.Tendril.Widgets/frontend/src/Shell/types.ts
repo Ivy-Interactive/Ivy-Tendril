@@ -34,6 +34,7 @@ export interface ShellSectionItemDto {
   icon?: string;
   /** A small icon left of the title telling the row's state, e.g. a chat still being answered. */
   state?: ShellItemState;
+  pinned?: boolean;
 }
 
 export interface ShellTabDto {

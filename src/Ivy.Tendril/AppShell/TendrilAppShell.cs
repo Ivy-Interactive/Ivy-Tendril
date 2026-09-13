@@ -996,7 +996,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     chatService.RenameSession(id, title);
                     sessionsVersion.Set(v => v + 1);
                 },
-                id => deletingSessionId.Set(id));
+                id => deletingSessionId.Set(id),
+                id =>
+                {
+                    var s = chatService.GetSession(id);
+                    if (s != null)
+                    {
+                        chatService.PinSession(id, !s.IsPinned);
+                        sessionsVersion.Set(v => v + 1);
+                    }
+                });
         }
         var deleteSessionDialog = new DeleteSessionDialog(
             deletingSessionId,
@@ -1022,7 +1031,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnSearch(list.OnSearch ?? showPlanSearchDialog)
                 .OnNew(list.OnNew)
                 .OnRenameItem(list.OnRename)
-                .OnDeleteItem(list.OnDelete);
+                .OnDeleteItem(list.OnDelete)
+                .OnTogglePinItem(list.OnTogglePin);
         }
         else
         {
@@ -1046,6 +1056,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnNewChat(chatList.OnNew ?? StartNewChat)
                 .OnRenameItem(chatList.OnRename)
                 .OnDeleteItem(chatList.OnDelete)
+                .OnTogglePinItem(chatList.OnTogglePin)
                 .OnSelectItem(itemId =>
                     OpenApp(new NavigateArgs(chatList.AppId, chatList.BuildSelectArgs(itemId))));
         }

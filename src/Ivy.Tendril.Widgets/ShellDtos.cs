@@ -10,7 +10,7 @@ public record ShellBadgeDto(string Label, string Kind = "neutral", string? Color
     public static ShellBadgeDto Colored(string label, Colors color) => new(label, "color", color.ToString());
 }
 
-public record ShellSectionItemDto(string Id, string Title, string? Tag = null, List<ShellBadgeDto>? Badges = null, string? Icon = null, string? State = null);
+public record ShellSectionItemDto(string Id, string Title, string? Tag = null, List<ShellBadgeDto>? Badges = null, string? Icon = null, string? State = null, bool Pinned = false);
 
 /// <summary>
 ///     One entry in the shell's bottom tab strip. <c>Closable</c> is false for the

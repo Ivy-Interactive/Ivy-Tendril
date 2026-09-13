@@ -37,6 +37,7 @@ public record ShellAgentButton : WidgetBase<ShellAgentButton>
     [Event] public EventHandler<Event<ShellAgentButton, string>>? OnSelectItem { get; init; }
     [Event] public EventHandler<Event<ShellAgentButton, string[]>>? OnRenameItem { get; init; }
     [Event] public EventHandler<Event<ShellAgentButton, string>>? OnDeleteItem { get; init; }
+    [Event] public EventHandler<Event<ShellAgentButton, string>>? OnTogglePinItem { get; init; }
 }
 
 public static class ShellAgentButtonExtensions
@@ -77,4 +78,7 @@ public static class ShellAgentButtonExtensions
 
     public static ShellAgentButton OnDeleteItem(this ShellAgentButton w, Action<string>? handler) =>
         w with { OnDeleteItem = handler == null ? null : new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
+
+    public static ShellAgentButton OnTogglePinItem(this ShellAgentButton w, Action<string>? handler) =>
+        w with { OnTogglePinItem = handler == null ? null : new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
 }
