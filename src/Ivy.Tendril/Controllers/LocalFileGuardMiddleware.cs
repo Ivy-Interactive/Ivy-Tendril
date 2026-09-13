@@ -200,22 +200,14 @@ public class LocalFileGuardMiddleware
         return false;
     }
 
+    internal static readonly string[] AllowedFileExtensions =
+        [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".svg", ".webp", ".ico", ".avif", ".pdf"];
+
     private static bool IsAllowedFileType(string extension)
     {
         if (string.IsNullOrEmpty(extension))
             return false;
 
-        // Images (using FileHelper.IsImageExtension covers .png .jpg .jpeg .gif .bmp .svg .webp .ico)
-        if (FileHelper.IsImageExtension(extension))
-            return true;
-
-        // Additional extensions
-        if (extension.Equals(".avif", StringComparison.OrdinalIgnoreCase) ||
-            extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
+        return AllowedFileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
     }
 }
