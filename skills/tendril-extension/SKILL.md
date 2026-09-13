@@ -11,7 +11,7 @@ This skill provides procedures and helper scripts for building, testing, packagi
 
 ## Directory & Environment
 
-- **Extension Directory**: `/Users/rorychatt/git/ivy-tendril/extensions/vscode`
+- **Extension Directory**: `extensions/vscode`
 - **Antigravity Extensions Directory**: `~/.antigravity-ide/extensions`
 - **Installed Extension Name**: `ivy-interactive.ivy-tendril-0.1.0`
 - **Package Manager**: `pnpm` (fixed versions configured via `.npmrc`)
@@ -25,17 +25,17 @@ This skill provides procedures and helper scripts for building, testing, packagi
 To compile the latest extension bundle and link it live into Antigravity IDE:
 
 ```bash
-/Users/rorychatt/git/ivy-tendril/extensions/vscode/.agents/skills/tendril-extension/scripts/install-antigravity.sh
+skills/tendril-extension/scripts/install-antigravity.sh
 ```
 
 Or manually:
 
 ```bash
-cd /Users/rorychatt/git/ivy-tendril/extensions/vscode
+cd extensions/vscode
 pnpm install
 pnpm run build
 mkdir -p ~/.antigravity-ide/extensions
-ln -sfn /Users/rorychatt/git/ivy-tendril/extensions/vscode ~/.antigravity-ide/extensions/ivy-interactive.ivy-tendril-0.1.0
+ln -sfn "$(pwd)" ~/.antigravity-ide/extensions/ivy-interactive.ivy-tendril-0.1.0
 antigravity-ide --list-extensions | grep "ivy-interactive.ivy-tendril"
 ```
 
@@ -50,13 +50,13 @@ After installing/linking:
 To build a standalone VSIX distribution file:
 
 ```bash
-/Users/rorychatt/git/ivy-tendril/extensions/vscode/.agents/skills/tendril-extension/scripts/package-vsix.sh
+skills/tendril-extension/scripts/package-vsix.sh
 ```
 
 Or manually:
 
 ```bash
-cd /Users/rorychatt/git/ivy-tendril/extensions/vscode
+cd extensions/vscode
 pnpm install
 pnpm run build
 npx @vscode/vsce package --no-dependencies
@@ -72,7 +72,7 @@ npx @vscode/vsce package --no-dependencies
 To verify extension integrity and TypeScript compliance:
 
 ```bash
-cd /Users/rorychatt/git/ivy-tendril/extensions/vscode
+cd extensions/vscode
 pnpm run typecheck
 pnpm test
 ```
@@ -84,7 +84,7 @@ pnpm test
 To remove the extension from Antigravity IDE:
 
 ```bash
-/Users/rorychatt/git/ivy-tendril/extensions/vscode/.agents/skills/tendril-extension/scripts/uninstall-antigravity.sh
+skills/tendril-extension/scripts/uninstall-antigravity.sh
 ```
 
 Or manually:

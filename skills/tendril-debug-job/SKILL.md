@@ -1,3 +1,8 @@
+---
+name: tendril-debug-job
+description: Analyze a Tendril job's execution artifacts to identify issues and improvement opportunities in Tendril, promptware instructions, memory, or tools.
+---
+
 # tendril-debug-job
 
 Analyze a job's execution artifacts to identify issues and improvement opportunities in Tendril, the promptware instructions, memory, or tools.
@@ -8,8 +13,8 @@ Analyze a job's execution artifacts to identify issues and improvement opportuni
 /tendril-debug-job <job-id> <comment>
 ```
 
-* **job-id** — Five-digit job id (e.g., `00458`). A full path to a job log also works.
-* **comment** — Free-text describing what to look for or what went wrong
+* **job-id** - Five-digit job id (e.g., `00458`). A full path to a job log also works.
+* **comment** - Free-text describing what to look for or what went wrong
 
 ## Job Artifacts
 
@@ -22,10 +27,10 @@ Every job writes four files, flat, into `$TENDRIL_HOME/Jobs/`. They share one st
 
 | File | Name |
 |------|------|
-| `{stem}.md` | **Job Log** — status, timings, CLI command, final output, agent-authored `## Agent Log` sections |
-| `{stem}.prompt.md` | **Job Prompt** — the exact prompt handed to the agent |
-| `{stem}.raw.jsonl` | **Job Raw Log** — unparsed CLI stream-json output |
-| `{stem}.eventwire.jsonl` | **Job Eventwire Log** — Tendril's parsed event stream |
+| `{stem}.md` | **Job Log** - status, timings, CLI command, final output, agent-authored `## Agent Log` sections |
+| `{stem}.prompt.md` | **Job Prompt** - the exact prompt handed to the agent |
+| `{stem}.raw.jsonl` | **Job Raw Log** - unparsed CLI stream-json output |
+| `{stem}.eventwire.jsonl` | **Job Eventwire Log** - Tendril's parsed event stream |
 
 Locate them with a glob on the job id:
 
@@ -33,7 +38,7 @@ Locate them with a glob on the job id:
 ls "$TENDRIL_HOME/Jobs/00458-"*
 ```
 
-The promptware type is the **last** dash-separated segment of the stem; the plan id, when present, is the middle segment. There is no `Logs/` folder anywhere — not under promptwares, not under plans.
+The promptware type is the **last** dash-separated segment of the stem; the plan id, when present, is the middle segment. There is no `Logs/` folder anywhere - not under promptwares, not under plans.
 
 ## What This Skill Does
 
@@ -45,7 +50,7 @@ The promptware type is the **last** dash-separated segment of the stem; the plan
 
 ## Execution Steps
 
-### Phase 1 — Read the Job Log and Job Prompt
+### Phase 1 - Read the Job Log and Job Prompt
 
 The Job Log (`{stem}.md`, produced by `JobLogWriter`) has this structure:
 
@@ -71,9 +76,9 @@ The Job Log (`{stem}.md`, produced by `JobLogWriter`) has this structure:
 {agent's last text response}
 
 ## Outcome
-{commits, verifications, final plan state — ExecutePlan/RetryPlan only}
+{commits, verifications, final plan state - ExecutePlan/RetryPlan only}
 
-## Agent Log — {action} ({timestamp})
+## Agent Log - {action} ({timestamp})
 {narrative the agent appended mid-run via `tendril job add-log`}
 ```
 
@@ -86,7 +91,7 @@ Extract:
 - The agent's own narrative from the `## Agent Log` sections
 - The final output
 
-### Phase 2 — Analyze the Raw JSONL
+### Phase 2 - Analyze the Raw JSONL
 
 `{stem}.raw.jsonl` is the CLI's `--output-format stream-json` output. Each line is a JSON object with a `type` field:
 
@@ -97,7 +102,7 @@ Extract:
 | `tool_result` | Result of a tool call |
 | `result` | Final result text |
 
-`{stem}.eventwire.jsonl` is Tendril's own parsed view of that same stream — use it when you want Tendril's interpretation (including `PermissionDenialEvent`) rather than the provider's raw wire format.
+`{stem}.eventwire.jsonl` is Tendril's own parsed view of that same stream - use it when you want Tendril's interpretation (including `PermissionDenialEvent`) rather than the provider's raw wire format.
 
 **Analysis approach (use targeted reads, never read the whole file if large):**
 
@@ -119,15 +124,15 @@ Extract:
    - First and last timestamps for wall-clock duration
    - Long gaps between messages (rate limiting, slow tools)
 
-### Phase 3 — Cross-Reference with Promptware Source
+### Phase 3 - Cross-Reference with Promptware Source
 
 Read the promptware's source files from the program folder:
 
 | File | Purpose |
 |------|---------|
-| `Program.md` | The agent's instructions — did it follow them? |
-| `Memory/*.md` | Accumulated learnings — is anything missing or wrong? |
-| `Tools/*` | Custom tools available — were they used appropriately? |
+| `Program.md` | The agent's instructions - did it follow them? |
+| `Memory/*.md` | Accumulated learnings - is anything missing or wrong? |
+| `Tools/*` | Custom tools available - were they used appropriately? |
 
 Check:
 - Did the agent follow Program.md instructions in order?
@@ -136,7 +141,7 @@ Check:
 - Are there Tools that should have been used but weren't?
 - Did the compiled prompt provide sufficient context?
 
-### Phase 4 — Cross-Reference with Tendril Source
+### Phase 4 - Cross-Reference with Tendril Source
 
 Based on findings, check relevant Tendril source files:
 
@@ -150,7 +155,7 @@ Based on findings, check relevant Tendril source files:
 | `Services/Promptware/JobLogWriter.cs` | Job Log / Job Prompt / raw log writing |
 | `Models/JobArgs.cs` | Typed POCO args passed to jobs |
 
-### Phase 5 — Produce Recommendations
+### Phase 5 - Produce Recommendations
 
 Output a structured analysis directly in the conversation (do NOT write files):
 
@@ -179,7 +184,7 @@ Brief narrative of what the agent did step by step.
 {Description of the issue.}
 
 **Root Cause:** {why this happened}
-**Recommendation:** {concrete fix — which file, what to change}
+**Recommendation:** {concrete fix - which file, what to change}
 
 ---
 
@@ -194,7 +199,7 @@ Brief narrative of what the agent did step by step.
 ## Rules
 
 * **Read-only**: Do NOT modify source code, promptware instructions, or memory files. Output recommendations only.
-* **Always produce findings**, even if the execution was clean — "executed as expected" is a valid finding.
+* **Always produce findings**, even if the execution was clean - "executed as expected" is a valid finding.
 * **Be specific**: Cite JSONL line ranges, tool call sequences, and exact prompt sections.
 * **The user's comment is your guide**: Prioritize investigating what they flagged.
 * **Use targeted reads**: JSONL files can be huge. Use grep, offset/limit, and line counts rather than reading entire files.

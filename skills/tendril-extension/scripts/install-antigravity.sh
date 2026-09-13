@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXTENSION_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+if [ -d "$(dirname "${BASH_SOURCE[0]}")/../../../extensions/vscode" ]; then
+    EXTENSION_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../extensions/vscode" && pwd)"
+else
+    EXTENSION_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+fi
 ANTIGRAVITY_EXT_DIR="$HOME/.antigravity-ide/extensions"
 SYMLINK_NAME="ivy-interactive.ivy-tendril-0.1.0"
 TARGET_LINK="$ANTIGRAVITY_EXT_DIR/$SYMLINK_NAME"
