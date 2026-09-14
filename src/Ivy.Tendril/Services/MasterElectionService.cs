@@ -1,3 +1,4 @@
+using Ivy.Helpers;
 using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -91,7 +92,7 @@ public class MasterElectionService(
         // The claim exists already with port 0; this is what turns it into one a sibling launch can
         // attach to instead of starting a second server.
         _handle?.Publish(bound.Value.Port, bound.Value.Scheme);
-        _heartbeatTimer = new Timer(UpdateHeartbeat, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        _heartbeatTimer = new Timer(UpdateHeartbeat, null, MasterLock.HeartbeatPeriod, MasterLock.HeartbeatPeriod);
         logger.LogInformation("Master election won, listening on port {Port}", bound.Value.Port);
     }
 
@@ -101,8 +102,10 @@ public class MasterElectionService(
     }
 
     /// <summary>
-    ///     The heartbeat is also the demotion check: if the claim no longer names this process, another
-    ///     launch judged it stale and took it, and this instance must stop behaving like the master.
+    ///     The heartbeat is also the claim's repair pass. A claim that went missing is re-asserted rather
+    ///     than given up on: this instance is the one with the port bound and the jobs running, and
+    ///     demoting over a vanished file stops the inbox watcher and job services while leaving nobody at
+    ///     all in charge. Only a claim now held by a different, live process is a real dispossession.
     /// </summary>
     private void UpdateHeartbeat(object? state)
     {
@@ -110,19 +113,52 @@ public class MasterElectionService(
 
         try
         {
-            if (!_handle.StillOwned())
+            switch (_handle.BeatOrReassert(out var foreignPid))
             {
-                logger.LogWarning("Lost mastership: the .master file no longer names PID {Pid}", _handle.Pid);
-                IsMaster = false;
-                return;
-            }
+                case MasterLockHandle.HeartbeatOutcome.Beat:
+                    break;
 
-            _handle.Heartbeat();
+                case MasterLockHandle.HeartbeatOutcome.Reasserted:
+                    // Warning, not Debug: a claim that vanished under a live master is the 14:57 incident.
+                    LogClaimEvent($"Re-asserted the master claim (PID {_handle.Pid}, port {_handle.Port}): " +
+                                  "the .master file was missing or no longer ours");
+                    break;
+
+                case MasterLockHandle.HeartbeatOutcome.Dispossessed:
+                    LogClaimEvent($"Demoting: the .master file now names live PID {foreignPid}, not {_handle.Pid}");
+                    Demote();
+                    break;
+            }
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Failed to update heartbeat");
+            // A heartbeat that throws is not routine: it is the write that keeps the claim alive.
+            logger.LogWarning(ex, "Heartbeat failed");
         }
+    }
+
+    /// <summary>
+    ///     Stops acting as the master without touching the claim. Deliberately no re-promotion loop: a
+    ///     live foreign master owns the claim now, and this instance's job is to stop behaving like one.
+    ///     Clearing <see cref="IsMaster" /> is also what stops <see cref="Cleanup" /> from deleting the
+    ///     claim this instance lost.
+    /// </summary>
+    private void Demote()
+    {
+        _heartbeatTimer?.Dispose();
+        _heartbeatTimer = null;
+        IsMaster = false;
+    }
+
+    /// <summary>
+    ///     Claim transitions go to <c>crash.log</c> as well as the logger: it is the sink that survives a
+    ///     wedged server and the one an operator actually reads. The 14:57 incident wrote zero lines about
+    ///     the claim it lost.
+    /// </summary>
+    private void LogClaimEvent(string message)
+    {
+        logger.LogWarning("MasterElection: {Message}", message);
+        CrashLog.Write($"[{DateTime.UtcNow:O}] MasterElection (PID {Environment.ProcessId}): {message}");
     }
 
     private (int Port, string Scheme)? GetBoundAddress()
