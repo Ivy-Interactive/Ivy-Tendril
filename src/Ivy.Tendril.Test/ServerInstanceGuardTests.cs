@@ -188,9 +188,43 @@ public class ServerInstanceGuardTests : IDisposable
             Heartbeat = stale
         }, JsonOptions));
 
-        // Alive but not beating: a hung master is reclaimed rather than deferred to forever.
-        Assert.Equal(ServerLaunchDecision.Proceed, Evaluate(useDesktop: false, out _));
+        // Alive but not beating and not answering: a hung master is reclaimed rather than deferred to
+        // forever. The probe has to be explicit now - a claim whose PID is running is only evicted once it
+        // has been proved silent, so leaving the probe at its default would defer to it instead.
+        Assert.Equal(ServerLaunchDecision.Proceed, Evaluate(useDesktop: false, out _, _ => false));
         Assert.Equal(Environment.ProcessId, MasterLock.Read(MasterFile)!.Pid);
+    }
+
+    [Fact]
+    public void Refuses_WhenAStaleClaimIsStillAnsweringItsHealthEndpoint()
+    {
+        var alive = StartIdleProcess();
+        var stale = DateTime.UtcNow - MasterLock.StaleAfter - TimeSpan.FromMinutes(1);
+        File.WriteAllText(MasterFile, JsonSerializer.Serialize(new MasterElectionService.MasterFileData
+        {
+            Pid = alive.Id,
+            Port = 5016,
+            Scheme = "http",
+            StartedAt = stale,
+            Heartbeat = stale
+        }, JsonOptions));
+
+        // The 2026-09-14 14:57 case exactly: at load average 33-56 the master's 30s timer overshot the 90s
+        // window while it was still bound and answering. Evicting it there is what left 28 agents with no
+        // master. Saturated is not hung, and the proof is that it answers.
+        var decision = Evaluate(useDesktop: false, out var webUrl, _ => true);
+
+        Assert.Equal(ServerLaunchDecision.Refuse, decision);
+        Assert.Equal("http://localhost:5016", webUrl);
+
+        // Untouched: the holder keeps its mastership, so its heartbeat can catch up.
+        Assert.True(File.Exists(MasterFile));
+        Assert.Equal(alive.Id, MasterLock.Read(MasterFile)!.Pid);
+
+        // And the desktop launch has somewhere to send the user rather than starting a second server.
+        Assert.Equal(ServerLaunchDecision.AttachToExisting, Evaluate(useDesktop: true, out var desktopUrl, _ => true));
+        Assert.Equal("http://localhost:5016", desktopUrl);
+        Assert.Equal(alive.Id, MasterLock.Read(MasterFile)!.Pid);
     }
 
     [Fact]

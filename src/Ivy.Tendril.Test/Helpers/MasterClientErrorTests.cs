@@ -68,7 +68,7 @@ public class MasterClientErrorTests
     }
 
     [Fact]
-    public void Discover_CleansUpAndReportsAStaleClaim()
+    public void Discover_ReportsAStaleClaim_ButLeavesALiveHoldersFileAlone()
     {
         var home = WriteClaim(Environment.ProcessId, 5010,
             heartbeatAge: MasterLock.StaleAfter + TimeSpan.FromMinutes(1));
@@ -77,7 +77,12 @@ public class MasterClientErrorTests
         {
             var ex = Assert.Throws<InvalidOperationException>(() => MasterClient.Discover(home));
             Assert.Contains("heartbeat stale", ex.Message);
-            Assert.False(File.Exists(Path.Combine(home, ".master")));
+
+            // The claim names a PID that is running, so the reclaim declines it. This is the whole fix for
+            // the 2026-09-14 14:57 incident: every CLI command took this path against a master that was
+            // merely saturated, and deleting its claim is what left the server with nobody in charge. The
+            // message still tells the user what it found; only the deletion is gone.
+            Assert.True(File.Exists(Path.Combine(home, ".master")));
         }
         finally
         {
