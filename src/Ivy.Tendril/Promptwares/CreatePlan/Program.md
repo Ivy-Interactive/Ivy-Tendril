@@ -174,8 +174,9 @@ Report status: `tendril job status TendrilJobId --message="Researching codebase.
 
 - Read relevant source files to understand the codebase areas involved (READ ONLY — do not write, edit, or create any source files).
 - **Safe Codebase Search Guidelines**:
-  - When using `grep_search` or CLI search tools, **ALWAYS** target specific source subdirectories (e.g. `src/`) and provide specific `Includes` file patterns (e.g. `*.cs`, `*.tsx`, `*.ts`, `*.rs`, `*.py`, `*.md`).
+  - When using `grep_search` or CLI search tools, **ALWAYS** target specific source subdirectories (e.g. `src/`) and provide specific file-pattern filters (e.g. `*.cs`, `*.tsx`, `*.ts`, `*.rs`, `*.py`, `*.md`). If the search tool's file-filter argument (e.g. `Includes`) takes a list, pass it as an array of glob strings (e.g. `["*.cs"]`), not a comma-separated string.
   - **NEVER** run broad unconstrained grep searches across entire repository roots without file filters. Searching unconstrained roots encounters generated bundles and build artifacts (`dist/`, `bin/`, `obj/`, `node_modules/`) whose minified lines trigger tool buffer limits (`bufio.Scanner: token too long`).
+  - When using a file-finder tool (e.g. `find_by_name`) that requires a pattern argument, always pass one — use a wildcard (e.g. `*`) to match all files.
 - For each repo in the plan's repo list, check for and read these context files in the repo root:
   - `AGENTS.md`
   - `CLAUDE.md`
@@ -308,7 +309,7 @@ EOF
 
 **The revision's first line is the `# {title}` H1 heading — it MUST be the exact same string you passed as `<Title>` to `tendril plan create` above** (human-readable Title Case, not the PascalCase folder form). The `plan.yaml` title and the spec H1 must always match.
 
-The submitting call (`--file` or `--stdin`) auto-creates `Revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`. The duplicate-candidate block described below is read from stderr of that submitting call, not from any of the append calls.
+The submitting call (`--file` or `--stdin`) auto-creates `Revisions/001.md` (or the next sequential number) in the plan folder. Do NOT create revision files directly in `Revisions/`; only use the command above. The duplicate-candidate block described below is read from stderr of that submitting call, not from any of the append calls.
 
 **Duplicate candidates at finalization.** `write-revision` prints this to **stderr** when it finds overlapping plans, while still writing the revision and exiting 0:
 

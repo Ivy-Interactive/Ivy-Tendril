@@ -207,7 +207,7 @@ Report status: `tendril job status TendrilJobId --message="Running final checks.
 
 After all verifications pass:
 
-1. Kill any remaining processes spawned during plan execution (e.g. dev servers) whose working directory is under the plan's worktree or artifacts directory. **See Prohibited Actions below — never kill dotnet.exe or Ivy.Tendril.exe.**
+1. Kill any remaining processes spawned during plan execution (e.g. dev servers) whose working directory is under the plan's worktree or artifacts directory. **See Prohibited Actions below — never kill `dotnet` or `Ivy.Tendril` processes.**
 
 2. Run `git status` in every worktree. If there are uncommitted files, commit or discard them. The worktrees must be completely clean.
 
@@ -217,7 +217,7 @@ The launcher script handles state transitions (Completed/Failed) based on exit c
 
 ## Prohibited Actions
 
-- **NEVER kill `dotnet.exe` or `Ivy.Tendril.exe` processes.** Tendril (your orchestrator) is a .NET application hosted by `dotnet.exe`. Killing it will terminate Tendril itself, losing all job state.
+- **NEVER kill `dotnet` or `Ivy.Tendril` processes.** Tendril (your orchestrator) is a .NET application hosted by `dotnet`. Killing it will terminate Tendril itself, losing all job state.
 - **NEVER destroy or reset an existing worktree, its branch, or its commits.** Create a worktree only when both the directory and its branch are missing (Step 2, case 3).
 - Do NOT commit artifact files (screenshots, images) to the repo. Test artifacts belong in `<TendrilPlanFolder>/Artifacts/` only.
 - Do NOT create filesystem aliases or shortcuts (symlinks, drive mappings) to worktree paths.

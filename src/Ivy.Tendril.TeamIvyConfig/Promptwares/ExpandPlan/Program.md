@@ -23,7 +23,7 @@ Project configuration is available from the firmware header.
 
 For each investigation section:
 
-1. **Read relevant source files** to understand the current implementation
+1. **Read relevant source files** to understand the current implementation. When using `grep_search` or CLI search tools, always scope searches to specific subdirectories (e.g. `src/`) and provide file-pattern filters (`*.cs`, `*.tsx`, `*.ts`, `*.rs`, `*.py`). If the tool's file-filter argument (e.g. `Includes`) takes a list, pass it as an array of glob strings (e.g. `["*.cs"]`), not a comma-separated string. Avoid broad unconstrained root searches over generated/build directories (`dist/`, `bin/`, `obj/`, `node_modules/`). When using a file-finder tool (e.g. `find_by_name`) that requires a pattern argument, always pass one — use a wildcard (e.g. `*`) to match all files.
 2. **Answer the investigation questions** by examining code, docs, and patterns
 3. **Transform into concrete steps** — replace "Investigate X" with specific implementation tasks
 
@@ -52,7 +52,7 @@ Example:
   EOF
   ```
 
-  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
+  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT create revision files directly in `Revisions/`; only use the command above.
 - Replace all investigative/exploratory language with specific actions
 - Include exact file paths for changes
 - Specify concrete code modifications or additions
