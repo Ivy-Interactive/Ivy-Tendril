@@ -13,10 +13,25 @@ public static class MasterClient
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
+
+    // The progress-report PUT (job status / job fail) is idempotent - replaying the same payload
+    // does nothing the server hasn't already recorded - so it is safe to retry once on a timeout
+    // instead of surfacing a false failure to a caller whose first attempt likely landed anyway.
+    private const int ProgressReportAttempts = 2;
 
     public record DiscoveryResult(string BaseUrl, string? ApiKey);
     public record JobStartResponse(string JobId, string Status);
+
+    /// <summary>
+    /// Message for a request that timed out waiting for a response. Under load the server can
+    /// still be processing (or may have already applied) the request when the client gives up
+    /// waiting, so this must not read as "nothing happened" - the caller has to check before
+    /// assuming a retry is safe.
+    /// </summary>
+    internal static string TimedOutMessage(string relativePath) =>
+        $"Tendril server did not respond in time ({DefaultTimeout.TotalSeconds:0}s timeout) for {relativePath}. " +
+        "The request may have already been accepted by the server - run 'tendril job list' to check before retrying.";
 
     public static HttpClient CreateHttpClient(DiscoveryResult discovery)
     {
@@ -64,7 +79,7 @@ public static class MasterClient
         }
         catch (TaskCanceledException)
         {
-            throw new InvalidOperationException($"Server did not respond in time (5s timeout) for {relativePath}.");
+            throw new InvalidOperationException(TimedOutMessage(relativePath));
         }
         catch (HttpRequestException ex)
         {
@@ -109,39 +124,50 @@ public static class MasterClient
     /// <summary>
     /// Best-effort variant of <see cref="PutJson" /> for progress telemetry: returns the failure
     /// reason instead of throwing, so a transient server-side problem (or a master restart that lost
-    /// the job) can't turn a status report into a non-zero exit for a running agent.
+    /// the job) can't turn a status report into a non-zero exit for a running agent. Retries once
+    /// on a timeout - the PUT is idempotent, so replaying it is safe even if the first attempt
+    /// actually landed - before giving up and returning a reconcile-don't-retry message to the caller.
     /// </summary>
     public static (bool Ok, string? Error) TryPutJson(string relativePath, object payload,
         CancellationToken cancellationToken = default)
     {
-        try
+        for (var attempt = 1; attempt <= ProgressReportAttempts; attempt++)
         {
-            var discovery = Discover();
-            using var client = CreateHttpClient(discovery);
+            try
+            {
+                var discovery = Discover();
+                using var client = CreateHttpClient(discovery);
 
-            var json = JsonSerializer.Serialize(payload, JsonOptions);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var json = JsonSerializer.Serialize(payload, JsonOptions);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = client
-                .PutAsync($"{discovery.BaseUrl}/{relativePath.TrimStart('/')}", content, cancellationToken)
-                .GetAwaiter().GetResult();
+                var response = client
+                    .PutAsync($"{discovery.BaseUrl}/{relativePath.TrimStart('/')}", content, cancellationToken)
+                    .GetAwaiter().GetResult();
 
-            return response.IsSuccessStatusCode
-                ? (true, null)
-                : (false, $"server returned {(int)response.StatusCode} {response.ReasonPhrase}");
+                return response.IsSuccessStatusCode
+                    ? (true, null)
+                    : (false, $"server returned {(int)response.StatusCode} {response.ReasonPhrase}");
+            }
+            catch (TaskCanceledException) when (attempt < ProgressReportAttempts && !cancellationToken.IsCancellationRequested)
+            {
+                // The HttpClient timeout tripped, not the caller's own cancellation - retry.
+            }
+            catch (TaskCanceledException)
+            {
+                return (false, TimedOutMessage(relativePath));
+            }
+            catch (HttpRequestException ex)
+            {
+                return (false, $"failed to connect to the Tendril server: {ex.Message}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                return (false, ex.Message);
+            }
         }
-        catch (TaskCanceledException)
-        {
-            return (false, $"server did not respond in time ({DefaultTimeout.TotalSeconds:0}s timeout)");
-        }
-        catch (HttpRequestException ex)
-        {
-            return (false, $"failed to connect to the Tendril server: {ex.Message}");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return (false, ex.Message);
-        }
+
+        return (false, TimedOutMessage(relativePath));
     }
 
     public static (bool Ok, string? Error) TryPostJson(string relativePath, object payload,
@@ -165,7 +191,7 @@ public static class MasterClient
         }
         catch (TaskCanceledException)
         {
-            return (false, $"server did not respond in time ({DefaultTimeout.TotalSeconds:0}s timeout)");
+            return (false, TimedOutMessage(relativePath));
         }
         catch (HttpRequestException ex)
         {
@@ -229,7 +255,7 @@ public static class MasterClient
         }
         catch (TaskCanceledException)
         {
-            throw new InvalidOperationException("Server did not respond in time (5s timeout).");
+            throw new InvalidOperationException(TimedOutMessage("api/jobs"));
         }
         catch (HttpRequestException ex)
         {

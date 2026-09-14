@@ -135,4 +135,25 @@ public class MasterClientErrorTests
 
         Assert.Equal("Server returned 500 for api/jobs/00001/status: Internal Server Error", message);
     }
+
+    [Fact]
+    public void TimedOutMessage_NamesTheThirtySecondTimeoutAndTheEndpoint()
+    {
+        var message = MasterClient.TimedOutMessage("api/jobs/00432/status");
+
+        Assert.Contains("30s timeout", message);
+        Assert.Contains("api/jobs/00432/status", message);
+    }
+
+    [Fact]
+    public void TimedOutMessage_TellsTheCallerToReconcileInsteadOfRetrying()
+    {
+        // A caller that retries blindly on a timeout can mint a real duplicate (e.g. a second
+        // job start) when the first attempt actually landed server-side - the message must steer
+        // it toward checking first.
+        var message = MasterClient.TimedOutMessage("api/jobs");
+
+        Assert.Contains("may have already been accepted", message);
+        Assert.Contains("tendril job list", message);
+    }
 }
