@@ -440,6 +440,53 @@ public class InboxBreadcrumbRecoveryTests
         Assert.Equal(0, InboxBreadcrumb.ReadRecoveryAttempts(content));
     }
 
+    // 2E: the task hash is also the CreatePlan conflict key (Plan 00601), so what it treats as the
+    // same task is what the dedup guard rejects. 39 inbox descriptions became 99 jobs partly because
+    // trivially different spellings of one request read as different requests.
+
+    [Theory]
+    [InlineData("Add a widget", "add a widget")]
+    [InlineData("Add a widget", "ADD A WIDGET")]
+    [InlineData("Add a widget", "  Add a widget  ")]
+    [InlineData("Add a widget", "Add  a\twidget")]
+    [InlineData("Add a widget", "Add a\nwidget")]
+    public void TaskHash_IsStable_ForWhitespaceAndCaseVariants(string first, string second)
+    {
+        Assert.Equal(
+            InboxBreadcrumb.TaskHash("Tendril", first),
+            InboxBreadcrumb.TaskHash("Tendril", second));
+    }
+
+    [Fact]
+    public void TaskHash_Differs_ForDifferentProjects()
+    {
+        // The same description against two projects is two requests, so the key has to carry the
+        // project. Otherwise one project's in-flight plan would reject the other's submission.
+        Assert.NotEqual(
+            InboxBreadcrumb.TaskHash("Tendril", "Add a widget"),
+            InboxBreadcrumb.TaskHash("Ivy", "Add a widget"));
+
+        // Project matching is case and whitespace insensitive too, matching the description half.
+        Assert.Equal(
+            InboxBreadcrumb.TaskHash("Tendril", "Add a widget"),
+            InboxBreadcrumb.TaskHash(" tendril ", "Add a widget"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void TaskHash_HandlesEmptyDescription(string? description)
+    {
+        // Never throws, and every empty spelling agrees: a submission with no description is one
+        // request, not an unbounded family of them.
+        var hash = InboxBreadcrumb.TaskHash("Tendril", description);
+
+        Assert.Equal(16, hash.Length);
+        Assert.Equal(InboxBreadcrumb.TaskHash("Tendril", ""), hash);
+        Assert.NotEqual(InboxBreadcrumb.TaskHash("Tendril", "Add a widget"), hash);
+    }
+
     private static string CreateInbox(TempDirectoryFixture temp)
     {
         var inboxDir = Path.Combine(temp.Path, "Inbox");
