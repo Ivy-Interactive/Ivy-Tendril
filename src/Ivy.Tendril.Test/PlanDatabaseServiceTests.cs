@@ -1223,6 +1223,209 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
+    public void PurgeOldJobs_RetainsRunningJobs()
+    {
+        for (var i = 0; i < 600; i++)
+            _db.UpsertJob(new JobItem
+            {
+                Id = $"job-{i:D4}",
+                Type = "ExecutePlan",
+                PlanFile = $"plan-{i}",
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                Provider = "claude",
+                CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i)
+            });
+
+        for (var i = 0; i < 5; i++)
+            _db.UpsertJob(new JobItem
+            {
+                Id = $"running-{i}",
+                Type = "ExecutePlan",
+                PlanFile = $"running-plan-{i}",
+                Project = "Tendril",
+                Status = JobStatus.Running,
+                Provider = "claude",
+                StartedAt = DateTime.UtcNow,
+                CompletedAt = null
+            });
+
+        var purgedIds = _db.PurgeOldJobs();
+
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.NotNull(_db.GetJobById($"running-{i}"));
+            Assert.DoesNotContain($"running-{i}", purgedIds);
+        }
+
+        Assert.Equal(100, purgedIds.Count);
+        Assert.Equal(505, _db.GetRecentJobs(1000).Count);
+    }
+
+    [Fact]
+    public void PurgeOldJobs_RetainsQueuedJobWithNullStartedAt()
+    {
+        for (var i = 0; i < 600; i++)
+            _db.UpsertJob(new JobItem
+            {
+                Id = $"job-{i:D4}",
+                Type = "ExecutePlan",
+                PlanFile = $"plan-{i}",
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                Provider = "claude",
+                CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i)
+            });
+
+        _db.UpsertJob(new JobItem
+        {
+            Id = "queued-1",
+            Type = "ExecutePlan",
+            PlanFile = "queued-plan",
+            Project = "Tendril",
+            Status = JobStatus.Queued,
+            Provider = "claude",
+            StartedAt = null,
+            CompletedAt = null
+        });
+        _db.UpsertJob(new JobItem
+        {
+            Id = "pending-1",
+            Type = "ExecutePlan",
+            PlanFile = "pending-plan",
+            Project = "Tendril",
+            Status = JobStatus.Pending,
+            Provider = "claude",
+            StartedAt = null,
+            CompletedAt = null
+        });
+        _db.UpsertJob(new JobItem
+        {
+            Id = "blocked-1",
+            Type = "ExecutePlan",
+            PlanFile = "blocked-plan",
+            Project = "Tendril",
+            Status = JobStatus.Blocked,
+            Provider = "claude",
+            StartedAt = null,
+            CompletedAt = null
+        });
+
+        var purgedIds = _db.PurgeOldJobs();
+
+        Assert.NotNull(_db.GetJobById("queued-1"));
+        Assert.NotNull(_db.GetJobById("pending-1"));
+        Assert.NotNull(_db.GetJobById("blocked-1"));
+        Assert.DoesNotContain("queued-1", purgedIds);
+        Assert.DoesNotContain("pending-1", purgedIds);
+        Assert.DoesNotContain("blocked-1", purgedIds);
+    }
+
+    [Fact]
+    public void PurgeOldJobs_ReturnedIdsMatchRemovedRows()
+    {
+        for (var i = 0; i < 550; i++)
+            _db.UpsertJob(new JobItem
+            {
+                Id = $"job-{i:D4}",
+                Type = "ExecutePlan",
+                PlanFile = $"plan-{i}",
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                Provider = "claude",
+                CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i)
+            });
+
+        for (var i = 0; i < 3; i++)
+            _db.UpsertJob(new JobItem
+            {
+                Id = $"running-{i}",
+                Type = "ExecutePlan",
+                PlanFile = $"running-plan-{i}",
+                Project = "Tendril",
+                Status = JobStatus.Running,
+                Provider = "claude",
+                StartedAt = DateTime.UtcNow,
+                CompletedAt = null
+            });
+
+        var idsBefore = _db.GetRecentJobs(10000).Select(j => j.Id).ToHashSet();
+
+        var purgedIds = _db.PurgeOldJobs();
+
+        foreach (var id in purgedIds)
+            Assert.Null(_db.GetJobById(id));
+
+        var idsAfter = _db.GetRecentJobs(10000).Select(j => j.Id).ToHashSet();
+        var actuallyRemoved = new HashSet<string>(idsBefore);
+        actuallyRemoved.ExceptWith(idsAfter);
+
+        Assert.Equal(actuallyRemoved, new HashSet<string>(purgedIds));
+    }
+
+    [Fact]
+    public void PurgeOldJobs_DeletesOldestTerminalRowsFirst()
+    {
+        for (var i = 0; i < 510; i++)
+            _db.UpsertJob(new JobItem
+            {
+                Id = $"job-{i:D4}",
+                Type = "ExecutePlan",
+                PlanFile = $"plan-{i}",
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                Provider = "claude",
+                CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i)
+            });
+
+        _db.UpsertJob(new JobItem
+        {
+            Id = "failed-recent",
+            Type = "ExecutePlan",
+            PlanFile = "failed-plan",
+            Project = "Tendril",
+            Status = JobStatus.Failed,
+            Provider = "claude",
+            StartedAt = DateTime.UtcNow,
+            CompletedAt = null
+        });
+
+        _db.UpsertJob(new JobItem
+        {
+            Id = "stopped-old",
+            Type = "ExecutePlan",
+            PlanFile = "stopped-plan",
+            Project = "Tendril",
+            Status = JobStatus.Stopped,
+            Provider = "claude",
+            CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(-10)
+        });
+        _db.UpsertJob(new JobItem
+        {
+            Id = "timeout-old",
+            Type = "ExecutePlan",
+            PlanFile = "timeout-plan",
+            Project = "Tendril",
+            Status = JobStatus.Timeout,
+            Provider = "claude",
+            CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(-5)
+        });
+
+        var purgedIds = _db.PurgeOldJobs();
+
+        for (var i = 0; i < 10; i++)
+            Assert.Null(_db.GetJobById($"job-{i:D4}"));
+        for (var i = 10; i < 510; i++)
+            Assert.NotNull(_db.GetJobById($"job-{i:D4}"));
+
+        Assert.NotNull(_db.GetJobById("failed-recent"));
+        Assert.DoesNotContain("failed-recent", purgedIds);
+
+        Assert.Contains("stopped-old", purgedIds);
+        Assert.Contains("timeout-old", purgedIds);
+    }
+
+    [Fact]
     public void UpsertPlan_WithSourceUrl_PreservesValue()
     {
         var metadata = new PlanMetadata(

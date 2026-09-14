@@ -1006,6 +1006,17 @@ public class PlanDatabaseService : IPlanDatabaseService
         };
     }
 
+    /// <summary>
+    /// Job statuses whose rows are eligible for purging. Everything else (Pending, Queued,
+    /// Running, Blocked) is in flight: deleting such a row orphans a live agent, because status
+    /// reports and completion writes for that job id then have nowhere to land.
+    /// </summary>
+    private static readonly string[] TerminalJobStatuses =
+    [
+        nameof(JobStatus.Completed), nameof(JobStatus.Failed),
+        nameof(JobStatus.Timeout), nameof(JobStatus.Stopped)
+    ];
+
     public List<string> PurgeOldJobs(int keepCount = 500)
     {
         using (new WriteLockHandle(_lock))
@@ -1014,32 +1025,54 @@ public class PlanDatabaseService : IPlanDatabaseService
             using (var selectCmd = _connection.CreateCommand())
             {
                 selectCmd.CommandText = """
-                                        SELECT Id FROM Jobs
-                                        WHERE Id NOT IN (
-                                            SELECT Id FROM Jobs
-                                            ORDER BY CompletedAt DESC
-                                            LIMIT @keepCount
-                                        )
+                                        SELECT Id, Status FROM Jobs
+                                        WHERE Status IN (@t0, @t1, @t2, @t3)
+                                          AND CompletedAt IS NOT NULL
+                                          AND Id NOT IN (
+                                              SELECT Id FROM Jobs
+                                              WHERE Status IN (@t0, @t1, @t2, @t3)
+                                                AND CompletedAt IS NOT NULL
+                                              ORDER BY COALESCE(CompletedAt, StartedAt) DESC
+                                              LIMIT @keepCount
+                                          )
                                         """;
+                for (var i = 0; i < TerminalJobStatuses.Length; i++)
+                    selectCmd.Parameters.AddWithValue($"@t{i}", TerminalJobStatuses[i]);
                 selectCmd.Parameters.AddWithValue("@keepCount", keepCount);
                 using var reader = selectCmd.ExecuteReader();
                 while (reader.Read())
-                    purgedIds.Add(reader.GetString(0));
+                {
+                    var id = reader.GetString(0);
+                    var status = reader.GetString(1);
+                    if (TerminalJobStatuses.Contains(status))
+                        purgedIds.Add(id);
+                    else
+                        _logger.LogWarning(
+                            "PurgeOldJobs candidate set contained a non-terminal job {Id} with status {Status}. It was excluded; the status guard should have made this impossible.",
+                            id, status);
+                }
             }
 
+            if (purgedIds.Count == 0)
+                return purgedIds;
+
+            var deleted = 0;
             using (var deleteCmd = _connection.CreateCommand())
             {
-                deleteCmd.CommandText = """
-                                        DELETE FROM Jobs
-                                        WHERE Id NOT IN (
-                                            SELECT Id FROM Jobs
-                                            ORDER BY CompletedAt DESC
-                                            LIMIT @keepCount
-                                        )
-                                        """;
-                deleteCmd.Parameters.AddWithValue("@keepCount", keepCount);
-                deleteCmd.ExecuteNonQuery();
+                foreach (var chunk in purgedIds.Chunk(500))
+                {
+                    deleteCmd.Parameters.Clear();
+                    var placeholders = string.Join(", ", chunk.Select((_, i) => $"@id{i}"));
+                    deleteCmd.CommandText = $"DELETE FROM Jobs WHERE Id IN ({placeholders})";
+                    for (var i = 0; i < chunk.Length; i++)
+                        deleteCmd.Parameters.AddWithValue($"@id{i}", chunk[i]);
+                    deleted += deleteCmd.ExecuteNonQuery();
+                }
             }
+
+            _logger.LogInformation(
+                "Purged {Count} old job rows, keeping the newest {KeepCount} terminal jobs plus all in-flight jobs",
+                deleted, keepCount);
 
             return purgedIds;
         }

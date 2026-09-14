@@ -144,7 +144,9 @@ public class PlanDatabaseSyncService : IDisposable
             SyncPlanDetails(plans);
 
             // Purging old rows keeps the database small; the job artifacts under <TendrilHome>/Jobs/ are
-            // kept so a purged job can still be inspected and attached to a bug report.
+            // kept so a purged job can still be inspected and attached to a bug report. Only terminal
+            // jobs are eligible: in-flight rows are retained on top of the keepCount budget, because
+            // deleting a Running job's row orphans its agent (its plan is then stuck Failed).
             _database.PurgeOldJobs();
             _database.SetLastSyncTime(DateTime.UtcNow);
             _isInitialSyncComplete = true;
