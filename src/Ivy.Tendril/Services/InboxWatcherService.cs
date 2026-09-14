@@ -139,6 +139,11 @@ public class InboxWatcherService : IInboxWatcherService
 
     internal async Task ProcessExistingFilesAsync()
     {
+        // Start() hands this to the thread pool, so it can first run after a Stop() that a demotion
+        // triggered in between. Every await below is another chance to be demoted, so the flag is
+        // rechecked rather than read once.
+        if (!_started) return;
+
         if (!Directory.Exists(_inboxPath))
             return;
 
@@ -157,6 +162,8 @@ public class InboxWatcherService : IInboxWatcherService
 
         for (int i = 0; i < files.Count; i++)
         {
+            if (!_started) return;
+
             _ = ProcessFileAsync(files[i]);
 
             // Stagger startup to avoid thundering herd
@@ -174,6 +181,10 @@ public class InboxWatcherService : IInboxWatcherService
         {
             // Wait briefly for the file to be fully written
             await Task.Delay(500);
+
+            // Renaming the file and starting a job is the side effect a demoted instance must not have,
+            // and it is on the far side of that delay.
+            if (!_started) return;
 
             if (!File.Exists(filePath))
                 return;
