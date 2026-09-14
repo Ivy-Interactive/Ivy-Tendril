@@ -57,16 +57,72 @@ public static class QuestionBlockParser
     ///     document order. A document may contain any number of blocks, anywhere.
     /// </summary>
     public static IReadOnlyList<ParsedQuestionsBlock> Parse(string markdown) =>
-        Scan(markdown).Select(block => Analyze(block.StartLine, block.Body)).ToList();
+        Scan(markdown, InfoWord).Select(block => Analyze(block.StartLine, block.Body)).ToList();
+
+    /// <summary>
+    ///     Every top-level fence whose language is <paramref name="infoWord" />, as the 1-based line of
+    ///     its opening fence and its dedented body. The same CommonMark fence tracking as questions
+    ///     blocks, so a fence documented inside a longer fence is not reported. Used for
+    ///     <c>wireframe</c> fences.
+    /// </summary>
+    public static IReadOnlyList<(int Line, string Body)> FindFences(string markdown, string infoWord) =>
+        Scan(markdown, infoWord).Select(block => (block.StartLine, block.Body)).ToList();
+
+    /// <summary>
+    ///     Every ATX heading outside a fenced block, as its 1-based line, level and text, in document
+    ///     order. A <c># heading</c> inside a code sample is not a heading. Used to check which section
+    ///     a <c>wireframe</c> fence sits in.
+    /// </summary>
+    public static IReadOnlyList<(int Line, int Level, string Text)> FindHeadings(string markdown)
+    {
+        var headings = new List<(int, int, string)>();
+        if (string.IsNullOrEmpty(markdown))
+            return headings;
+
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var open = false;
+        var openChar = '\0';
+        var openLength = 0;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var fence = MatchFence(lines[i]);
+
+            if (open)
+            {
+                if (fence is { } closing && closing.Delimiter == openChar &&
+                    closing.Length >= openLength && closing.Info.Length == 0)
+                    open = false;
+                continue;
+            }
+
+            if (fence is { } opening)
+            {
+                open = true;
+                openChar = opening.Delimiter;
+                openLength = opening.Length;
+                continue;
+            }
+
+            var match = HeadingPattern.Match(lines[i]);
+            if (match.Success)
+                headings.Add((i + 1, match.Groups[1].Value.Length, match.Groups[2].Value.Trim().TrimEnd('#').Trim()));
+        }
+
+        return headings;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex HeadingPattern =
+        new(@"^ {0,3}(#{1,6})\s+(.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>
     ///     1-based inclusive line ranges of every <c>questions</c> fence, delimiters included.
     ///     Used by <see cref="MarkdownLinkPolisher" /> to leave machine-read YAML alone.
     /// </summary>
     public static IReadOnlyList<QuestionFenceRange> FindFenceRanges(string markdown) =>
-        Scan(markdown).Select(block => new QuestionFenceRange(block.StartLine, block.EndLine)).ToList();
+        Scan(markdown, InfoWord).Select(block => new QuestionFenceRange(block.StartLine, block.EndLine)).ToList();
 
-    private static List<RawBlock> Scan(string markdown)
+    private static List<RawBlock> Scan(string markdown, string infoWord)
     {
         var results = new List<RawBlock>();
         if (string.IsNullOrEmpty(markdown))
@@ -95,7 +151,7 @@ public static class QuestionBlockParser
                 openChar = opening.Delimiter;
                 openLength = opening.Length;
                 openIndent = opening.Indent;
-                isQuestions = IsQuestionsInfo(opening.Info);
+                isQuestions = IsInfo(opening.Info, infoWord);
                 startLine = i + 1;
                 body.Clear();
                 continue;
@@ -344,7 +400,7 @@ public static class QuestionBlockParser
         return false;
     }
 
-    private static bool IsQuestionsInfo(string info)
+    private static bool IsInfo(string info, string infoWord)
     {
         if (info.Length == 0)
             return false;
@@ -353,7 +409,7 @@ public static class QuestionBlockParser
         var word = end < 0 ? info : info[..end];
 
         // Matches the renderer, which keys off the fence language verbatim.
-        return word.Equals(InfoWord, StringComparison.Ordinal);
+        return word.Equals(infoWord, StringComparison.Ordinal);
     }
 
     private static string Dedent(string line, int indent)

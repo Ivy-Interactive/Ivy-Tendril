@@ -194,6 +194,11 @@ public class PlanReaderService(
             // Plan 00103: block on failed pre-execution with no deliverables
             if (GetCompletionBlockReason(folderName) is { } blockReason)
                 throw new PlanTransitionBlockedException(folderName, newState, blockReason);
+
+            // Wireframes never ship: a plan whose changes carry wireframe code cannot be completed.
+            var planFolder = Path.IsPathRooted(folderName) ? folderName : Path.Combine(PlansDirectory, folderName);
+            if (Wireframes.PlanWireframeGuard.BlockReason(planFolder, config) is { } wireframeLeak)
+                throw new PlanTransitionBlockedException(folderName, newState, wireframeLeak);
         }
 
         WriteStateTransition(folderName, newState, markPartialDelivery: false);

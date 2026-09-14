@@ -38,6 +38,18 @@ public static class TendrilServer
         // endpoints have to be served here and kept out of the app router.
         server.ReservePaths(WebViewerProxy.ReservedPaths);
 
+        // Plan wireframes are served live from this origin (see WireframeHost), so a preview
+        // works over HTTPS and through a share tunnel exactly like the page framing it.
+        server.ReservePaths(Ivy.Tendril.Wireframe.Hosting.WireframeEndpoints.ReservedPaths);
+        server.Services.AddSingleton(sp => new Ivy.Tendril.Wireframe.Hosting.WireframeHost(
+            Ivy.Tendril.Wireframe.Assets.AssetCatalog.Default,
+            (scope, name) =>
+            {
+                // Resolved per request: the plans folder is configuration, and can change.
+                var plans = sp.GetService<Ivy.Tendril.Services.Plans.IPlanReaderService>();
+                return Ivy.Tendril.Services.Wireframes.PlanWireframes.ResolveRoot(plans?.PlansDirectory, scope, name);
+            }));
+
         server.Services.AddSingleton(tendrilArgs);
         server.AddTendrilServices(configService, tendrilArgs);
 
@@ -142,6 +154,15 @@ public static class TendrilServer
             // this machine, or the network it is on. Without a predicate it is an open relay,
             // and Tendril's origin is reachable by anyone the user shares a tunnel with.
             app.MapWebViewerProxy(new WebViewerProxyOptions { IsUrlAllowed = AppPreview.IsAllowedTarget });
+
+            // Live plan wireframes: the shared payload once, then one route per plan wireframe.
+            app.UseWebSockets();
+            Ivy.Tendril.Wireframe.Hosting.WireframeEndpoints.MapWireframePayload(app,
+                Ivy.Tendril.Wireframe.Assets.AssetCatalog.Default);
+            Ivy.Tendril.Wireframe.Hosting.WireframeEndpoints.MapWireframeSite(app,
+                Ivy.Tendril.Wireframe.Hosting.WireframeHost.RoutePattern,
+                Ivy.Tendril.Wireframe.Assets.AssetCatalog.Default,
+                app.Services.GetRequiredService<Ivy.Tendril.Wireframe.Hosting.WireframeHost>());
         });
 
         var assembly = typeof(TendrilServer).Assembly;

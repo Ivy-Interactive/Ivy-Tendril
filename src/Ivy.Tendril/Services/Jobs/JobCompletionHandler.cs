@@ -620,6 +620,20 @@ internal class JobCompletionHandler
                 ? PlanStatus.Failed
                 : PlanStatus.Review;
 
+            // Wireframes are plan material only. A plan whose changes carry wireframe code does not
+            // reach Review, however its verifications went; the report is what its failure callout shows.
+            if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs)
+            {
+                var leaks = Ivy.Tendril.Services.Wireframes.PlanWireframeGuard.Check(planFolder, _configService);
+                Ivy.Tendril.Services.Wireframes.WireframeLeakGuard.WriteReport(planFolder, leaks);
+                if (leaks.Count > 0)
+                {
+                    _logger.LogWarning("Job {JobId}: plan {PlanFolder} changes carry wireframe code; failing the plan",
+                        job.Id, Path.GetFileName(planFolder));
+                    targetState = PlanStatus.Failed;
+                }
+            }
+
             // Do not stomp Review back to Failed on a late job
             if (current == PlanStatus.Review && targetState == PlanStatus.Failed)
             {

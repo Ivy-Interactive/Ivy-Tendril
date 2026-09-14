@@ -36,9 +36,14 @@ public static class RevisionWriter
         warnings = [];
 
         // Validated before anything touches disk, so a rejected revision does not consume a number.
+        // Wireframe fences ride on the same switch and the same exception: to an agent they are one
+        // more machine-read block with rules, fixed in the same edit.
         if (validateQuestions)
         {
-            var issues = QuestionValidationService.Validate(content);
+            var issues = QuestionValidationService.Validate(content)
+                .Concat(WireframeFenceValidator.Validate(content, planFolder))
+                .OrderBy(i => i.Line)
+                .ToList();
             var errors = issues.Where(i => i.Severity == QuestionIssueSeverity.Error).ToList();
             if (errors.Count > 0)
                 throw new QuestionValidationException(errors);

@@ -18,7 +18,8 @@ frontend/             React/Vite bundle (npm run build → dist/)
 
 .samples/             Standalone Ivy app hosting widgets for development and testing
   Apps/
-    DraftMarkdown/    AnnotationsApp, CollapsibleApp, ComparisonApp, MathApp, StickyContentApp
+    DraftMarkdown/    AnnotationsApp, CollapsibleApp, ComparisonApp, MathApp, StickyContentApp,
+                      WireframeApp (a live wireframe host over a scaffolded wireframe)
     AgentViewer/      ErrorApp, LiveStreamApp, PreBufferedApp, TableOutputApp
     TendrilProcessViewer/  DemoApp
     ChatWidget/       DemoApp (mocked conversation: attachments, tool calls, job event, questions, streaming toggle)
@@ -172,6 +173,27 @@ and `rehype-sanitize` immediately prunes it against the allow-list in
 
 Styling lives in `frontend/src/DraftMarkdown/draft-markdown.css` (chevron, hover, body inset),
 mirroring the framework's `typography.details` / `typography.summary`.
+
+## Wireframe fences
+
+A ` ```wireframe ` fence renders as `WireframeBlock` (`frontend/src/PlanMarkdown/`): a same-origin
+iframe onto one of the plan's wireframes, served live by `WireframeHost` (`src/Ivy.Tendril.Wireframe`)
+at `{WireframeBaseUrl}{name}/`. The host view sets `PlanMarkdown.WireframeBaseUrl`; without it the fence
+renders a placeholder, which is what chat and the agent viewer show.
+
+- Only the wireframe itself is shown, never its source and never a screenshot. A failed rebuild is
+  reported by the framed page (`build-failed`) rather than drawn over it, because esbuild's error
+  overlay quotes source code.
+- The framed page reports its height and build state with `postMessage`. A message counts only when
+  its `source` is the block's own frame, the same rule WebViewer follows for several viewers on a page.
+- `wireframeSource.ts` parses the fence, and `WireframeFenceValidator` in Ivy.Tendril applies the same
+  rules when a revision is written. Keep the two in step.
+- "Open Full Size" is an overlay inside the page (portalled to `document.body`, closed with Esc,
+  the backdrop or its close icon), never a new window. In the desktop window (Rustino) neither
+  `window.open` nor a `target="_blank"` link opens anything, and opening the URL in the system
+  browser fails because it does not trust the desktop app's certificate for `https://localhost`.
+  The overlay loads the same same-origin URL as the inline frame, so it works everywhere.
+- `.samples/Apps/DraftMarkdown/WireframeApp.cs` mounts a real `WireframeHost`, as TendrilServer does.
 
 ## Shared primitives
 

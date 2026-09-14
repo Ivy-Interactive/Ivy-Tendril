@@ -240,6 +240,7 @@ A question that already carries an `answer` is a decision the user made: honor i
 ## Rules
 
 - All work happens in worktree directories, never in the original repos
+- **Wireframes are a layout reference, never code.** Build what a plan's `wireframe` blocks show with the project's own UI stack. Never copy a wireframe's files, components or markup into a worktree, never add `tendril-wireframes` to a project, and never edit the wireframe. If the plan failed because wireframe code was found in its changes, `<TendrilPlanFolder>/Verification/WireframeLeak.md` lists each finding: remove them, then confirm with `tendril plan check-wireframes <plan-id>`.
 - Make logically grouped commits — not one giant commit
 - Worktrees must be clean (no uncommitted files) when finished
 - Document all commit hashes via `tendril plan add-commit` — never edit plan.yaml directly

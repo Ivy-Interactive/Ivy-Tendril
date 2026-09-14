@@ -76,6 +76,7 @@ public class ContentView(
                                 new PlanMarkdown(MarkdownHelper.PrepareForDisplay(selectedPlan.LatestRevisionContent, config))
                                     .Article()
                                     .DangerouslyAllowLocalFiles()
+                                    .WireframeBaseUrl(Ivy.Tendril.Services.Wireframes.PlanWireframes.BaseUrl(selectedPlan.Id))
                                     .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
                                     {
                                         var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")

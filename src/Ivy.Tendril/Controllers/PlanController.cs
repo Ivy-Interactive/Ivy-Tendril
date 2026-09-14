@@ -46,12 +46,14 @@ internal static class PlanFieldAccessors
     ///     Records Completed despite a failed verification, flagging the plan as a partial delivery.
     ///     Only meaningful for the <c>state</c> field (see plan 00090).
     /// </param>
+    /// <param name="planFolder">The plan's folder, so Completed can be refused for wireframe code in its changes.</param>
     public static bool TrySetField(
         PlanYaml plan,
         string field,
         string value,
         out string? error,
-        bool allowFailedVerifications = false)
+        bool allowFailedVerifications = false,
+        string? planFolder = null)
     {
         // State goes through the shared guard: this endpoint writes plan.yaml directly rather than
         // through PlanReaderService.TransitionState, so it would otherwise bypass the Completed check.
@@ -59,7 +61,7 @@ internal static class PlanFieldAccessors
         {
             try
             {
-                PlanCompletionGuard.ApplyState(plan, value, allowFailedVerifications, plan.Title);
+                PlanCompletionGuard.ApplyState(plan, value, allowFailedVerifications, plan.Title, planFolder);
                 error = null;
                 return true;
             }
@@ -220,7 +222,7 @@ public class PlanController : ControllerBase
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
             if (!PlanFieldAccessors.TrySetField(plan, request.Field, request.Value, out var error,
-                    request.AllowFailedVerifications))
+                    request.AllowFailedVerifications, planFolder))
                 return BadRequest(new { error });
 
             if (request.Field.ToLower() != "updated")

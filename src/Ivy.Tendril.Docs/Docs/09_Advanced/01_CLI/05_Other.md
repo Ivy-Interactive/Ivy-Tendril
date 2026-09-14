@@ -52,6 +52,42 @@ Read and write files in a promptware's `Memory/` and `Tools/` directories. Used 
 >  tendril promptware write-memory ExecutePlan cli-quirks.md --stdin
 ```
 
+## wireframe
+
+Hand-drawn React wireframes for plans that involve UX. A wireframe project builds and serves with no node or npm installed; esbuild is downloaded once, on first use.
+
+#### wireframe setup
+
+```terminal
+>tendril wireframe setup [path] [--tailwind superset|jit] [--force] [--quiet]
+```
+
+Scaffolds a wireframe project. In a plan it goes at `<PlanFolder>/Wireframes/<name>`. Refuses inside a plan whose project has `wireframes: false`.
+
+#### wireframe screenshot
+
+```terminal
+>tendril wireframe screenshot [path] [-w <px>] [--height <px>] [-s <scale>] [--full] [--repeat <n>]
+```
+
+Builds the wireframe and renders it to `screenshots/<width>x<height>.png`, for the agent to check its own work. Uses an installed Chrome, Edge or Chromium, or `--browser <path>`. `--repeat` captures several times and fails unless every PNG is byte-identical.
+
+#### wireframe serve
+
+```terminal
+>tendril wireframe serve [path] [--open] [--port <port>] [--print-url]
+```
+
+Serves the wireframe on a free loopback port with hot reload.
+
+#### wireframe agent-readme
+
+```terminal
+>tendril wireframe agent-readme [--component <name>] [--list] [-o <file>]
+```
+
+Prints the rules and the full component and prop reference an agent needs to write a wireframe.
+
 ## job
 
 #### job list

@@ -115,6 +115,18 @@ public record ProjectConfig
     public List<NetworkAccessRuleConfig> NetworkAccessRules { get; set; } = new();
     public List<string> AllowedTerminalCommands { get; set; } = new();
 
+    /// <summary>
+    ///     Whether planning agents may make wireframes for this project's plans. Turn it off for a
+    ///     project with no user interface: <c>tendril wireframe setup</c> then refuses in its plans.
+    /// </summary>
+    public bool Wireframes { get; set; } = true;
+
+    /// <summary>
+    ///     Whether Tendril checks this project's plan changes for wireframe code before they reach
+    ///     Review, a PR or Completed. Off only for the repos that are the wireframe tooling itself.
+    /// </summary>
+    public bool WireframeGuard { get; set; } = true;
+
     [YamlIgnore]
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
 

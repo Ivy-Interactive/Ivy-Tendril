@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useContext } from "react";
 import { CodeBlock } from "./CodeBlock";
 import { QuestionsCallout } from "./PlanMarkdown/QuestionsCallout";
 import { QuestionsAnswerContext, QuestionsSubmitContext } from "./PlanMarkdown/questionsContext";
+import { WireframeBlock } from "./PlanMarkdown/WireframeBlock";
 
 /** `questions`, or `questions_<n>` once `tagQuestionBlocks` has stamped the block's index on it. */
 const QUESTIONS_LANG = /^questions(?:_(\d+))?$/;
@@ -32,6 +33,10 @@ export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ clas
           <GraphvizRenderer content={content} />
         </Suspense>
       );
+    }
+
+    if (lang === "wireframe") {
+      return <WireframeBlock content={content} />;
     }
 
     if (QUESTIONS_LANG.test(lang)) {

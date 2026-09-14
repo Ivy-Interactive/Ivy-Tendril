@@ -157,7 +157,7 @@ public sealed class PlanTools : AuthenticatedToolBase
                     try
                     {
                         warning = PlanCompletionGuard.ApplyState(
-                            plan, value, allowFailedVerifications, planId);
+                            plan, value, allowFailedVerifications, planId, planFolder);
                     }
                     catch (PlanTransitionBlockedException ex)
                     {

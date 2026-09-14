@@ -46,6 +46,20 @@ Example:
    - In `form_builder`, ensure state hooks execute synchronously in dialog context
 ```
 
+### 2.5. Wireframe (mandatory decision)
+
+Decide as CreatePlan does, using **When to make one** under **Wireframes** in the Reference Documents, against the expanded plan: does it add or reshape a screen, page, dialog, panel or tool that a user sees? A new page or tool that follows an existing pattern counts.
+
+- **Yes, and there is no wireframe yet:** make one in `TendrilPlanFolder/Wireframes/<name>` and embed it in a `## Wireframe` section directly under the `# {title}` heading.
+- **Yes, and there is one:** update it in place. If its block sits anywhere but a `## Wireframe` section directly under the heading, move it there.
+- **No:** make none.
+
+Record the decision in one line before moving on:
+
+```bash
+tendril job add-log <TendrilJobId> "Wireframe" --summary="<added|updated|none>: <name or one-line reason>"
+```
+
 ### 3. Create Expanded Revision
 
 Report status: `tendril job status TendrilJobId --message="Writing expanded revision..."`
@@ -66,6 +80,7 @@ Report status: `tendril job status TendrilJobId --message="Writing expanded revi
 
 ### Rules
 
+- **Wireframes**: A plan's wireframes live in its `Wireframes/` folder and are plan material, not source code, so you may create or edit them. Step 2.5 is mandatory: at most 2 per revision, created before the revision that embeds them, and embedded in a `## Wireframe` section directly under the H1. Never put a screenshot or wireframe code in the plan.
 - Expansion is research, so it retires the questions it answers. For every question in a `questions` fence that your research settles, fold the finding into the plan and delete that question from its block; drop the fence when its last question goes. Questions that need a human decision — a product or naming call — stay exactly as they are, in place. You may add blocks, but only for genuine decisions, never for anything you could have looked up, and placed next to the section they concern. The schema is in the **Question Blocks** section of **Reference Documents**; `write-revision` rejects a malformed block and writes nothing.
 - The expanded plan must be **immediately actionable** without further investigation
 - If research reveals the problem is already solved or doesn't exist, note that clearly

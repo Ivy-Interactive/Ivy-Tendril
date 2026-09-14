@@ -753,6 +753,166 @@
   font-size: 0.875rem;
 }
 
+/* ==========================================================================
+   Wireframe blocks
+   Rendered by BlockHandler for ```wireframe fences: a live, same-origin frame
+   onto one of the plan's wireframes. No code and no screenshot is ever shown.
+   ========================================================================== */
+.pmv-markdown > * + :is(.pmv-wireframe, .pmv-wireframe-placeholder),
+.pmv-markdown > :is(.pmv-wireframe, .pmv-wireframe-placeholder) + * {
+  margin-top: 1rem;
+}
+
+.pmv-wireframe {
+  position: relative;
+  margin: 0;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background: var(--background);
+  overflow: hidden;
+}
+
+.pmv-wireframe-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+/* Floats over the frame's top-right corner: there is no title bar. */
+.pmv-wireframe-actions {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.125rem 0.125rem 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+
+.pmv-wireframe-overlay-bar {
+  justify-content: flex-end;
+}
+
+.pmv-wireframe-note {
+  font-size: 0.75rem;
+}
+
+.pmv-wireframe-button {
+  display: inline-block;
+  text-decoration: none;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--foreground);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  cursor: pointer;
+}
+.pmv-wireframe-button:hover {
+  background: var(--muted);
+}
+.pmv-wireframe-button:focus-visible {
+  outline: 2px solid var(--ring, var(--border));
+  outline-offset: 1px;
+}
+
+/* The outer box takes the column's width; the scaled box is the frame's scaled footprint; the
+   iframe keeps its real size and is shrunk from its top-left corner. */
+.pmv-wireframe-frame-box {
+  position: relative;
+  width: 100%;
+}
+.pmv-wireframe-frame-scaled {
+  overflow: hidden;
+}
+.pmv-wireframe-frame-scaled iframe {
+  display: block;
+  border: 0;
+  transform-origin: top left;
+}
+
+.pmv-wireframe-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.pmv-wireframe-detail {
+  font-size: 0.8125rem;
+}
+
+.pmv-wireframe-invalid {
+  border-color: var(--destructive);
+}
+
+.pmv-wireframe-placeholder {
+  border: 1px dashed var(--border);
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+/* Open Full Size: an in-page overlay, portalled to <body> like .pmv-img-overlay. */
+.pmv-wireframe-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.pmv-wireframe-overlay-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--background);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Zoomed on width like the inline frame; the frame fills the height and the page scrolls inside it. */
+.pmv-wireframe-overlay-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pmv-wireframe-frame-fill {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 640px) {
+  .pmv-wireframe-overlay {
+    padding: 0;
+  }
+}
+
 .pmv-diagram-error {
   border-radius: 0.375rem;
   border: 1px solid var(--destructive);
