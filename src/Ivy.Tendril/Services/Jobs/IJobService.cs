@@ -32,4 +32,11 @@ public interface IJobService : IDisposable
     void SetChatSessionId(string id, string chatSessionId);
     bool ReportJobFailure(string id, string message);
     bool IsInboxFileTracked(string filePath);
+
+    /// <summary>
+    ///     Returns the CreatePlan job that owns the given breadcrumb path, or null if none does.
+    ///     Defaulted so the test doubles that track no inbox files need no stub: to them every
+    ///     breadcrumb is an orphan, which is the behaviour they were already asserting.
+    /// </summary>
+    JobItem? GetJobByInboxFile(string filePath) => null;
 }

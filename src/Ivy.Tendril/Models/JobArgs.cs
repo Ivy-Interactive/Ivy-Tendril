@@ -24,13 +24,32 @@ public abstract record JobArgsBase
     public string? ChatSessionId { get; init; }
 }
 
+/// <summary>
+///     Where a CreatePlan was submitted from. Only <see cref="Inbox" /> submissions get a
+///     crash-recovery breadcrumb: inferring that from whether an inbox path happened to be supplied
+///     meant every chat, CLI and UI CreatePlan left one behind for the next restart to resurrect
+///     (#2710).
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<JobOrigin>))]
+public enum JobOrigin
+{
+    /// <summary>Not stated. The safe default: no breadcrumb, so nothing to resurrect.</summary>
+    Unspecified = 0,
+    Inbox,
+    Chat,
+    Cli,
+    Api,
+    Ui
+}
+
 public record CreatePlanArgs(
     string Description,
     string Project,
     int Priority = 0,
     bool Force = false,
     string? SourcePath = null,
-    string? UploadSessionId = null) : JobArgsBase
+    string? UploadSessionId = null,
+    JobOrigin Origin = JobOrigin.Unspecified) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.CreatePlan;
 }

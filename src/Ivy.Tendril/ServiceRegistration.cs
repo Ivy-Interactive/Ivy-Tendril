@@ -214,7 +214,7 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<JobService>(sp =>
         {
             var cfg = sp.GetRequiredService<IConfigService>();
-            return new JobService(
+            var jobService = new JobService(
                 cfg,
                 sp.GetRequiredService<ILogger<JobService>>(),
                 sp.GetRequiredService<ModelPricingService>(),
@@ -225,6 +225,21 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<IAgentRunner>(),
                 sp.GetRequiredService<IModelPricingProvider>(),
                 sp.GetService<IChatHistoryService>());
+
+            // An orderly exit must not leave behind the breadcrumb of a job that was still in flight:
+            // the next start cannot tell that apart from a crash, and used to resubmit it as a brand new
+            // job (#2710). Dispose does this as well and the method is idempotent, so both is harmless.
+            var appLifetime = sp.GetService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+            appLifetime?.ApplicationStopping.Register(() =>
+            {
+                try
+                {
+                    jobService.ResolveInFlightInboxBreadcrumbs();
+                }
+                catch { }
+            });
+
+            return jobService;
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());
         server.Services.AddSingleton<PlanWatcherService>(sp =>

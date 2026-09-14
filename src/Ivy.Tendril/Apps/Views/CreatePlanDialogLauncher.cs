@@ -33,7 +33,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                 (description, project, priority, uploadSessionId) =>
                 {
                     preferences.LastSelectedProject = project;
-                    var args = new CreatePlanArgs(description, project, priority, Force: true, UploadSessionId: uploadSessionId);
+                    var args = new CreatePlanArgs(description, project, priority, Force: true, UploadSessionId: uploadSessionId, Origin: JobOrigin.Ui);
                     pendingJobArgs.Set(args);
                     isOpen.Set(false);
                     runPreflight(project, result =>
