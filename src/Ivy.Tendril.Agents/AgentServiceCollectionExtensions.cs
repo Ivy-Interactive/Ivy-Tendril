@@ -66,7 +66,8 @@ public static class AgentServiceCollectionExtensions
                 new ClaudeFailureAnalyzer(),
                 new ClaudeSessionCostParser(),
                 new ClaudePty(),
-                new ClaudeModelCatalog());
+                new ClaudeModelCatalog(),
+                new ClaudeUsageProvider());
             runner.Register(
                 new CodexCli(),
                 new CodexEventParser(),
