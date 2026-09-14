@@ -279,6 +279,71 @@ public class AntigravityEventParserTests
     }
 
     [Fact]
+    public void ParseLine_ResultJson_SuccessStatusWithEmptyResponseAfterUnrecoveredToolError_SetsIsSuccessFalse()
+    {
+        var parser = new AntigravityEventParser();
+        var activeJson = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"ACTIVE\",\"step_index\":1,\"tool_name\":\"write_file\"}}";
+        var failedJson = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"FAILED\",\"step_index\":1,\"tool_name\":\"write_file\",\"tool_info\":{\"error\":\"path is not valid\"}}}";
+        var resultJson = "{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"\",\"duration_seconds\":5.0}}";
+
+        parser.ParseLine(activeJson);
+        parser.ParseLine(failedJson);
+        var events = parser.ParseLine(resultJson);
+
+        Assert.Single(events);
+        var resultEvent = Assert.IsType<ResultEvent>(events[0]);
+        Assert.False(resultEvent.IsSuccess);
+        Assert.Contains("write_file", resultEvent.Error);
+        Assert.Contains("path is not valid", resultEvent.Error);
+    }
+
+    [Fact]
+    public void ParseLine_ResultJson_SuccessStatusAfterToolErrorFollowedByRecovery_StaysSuccess()
+    {
+        var parser = new AntigravityEventParser();
+        var activeJson1 = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"ACTIVE\",\"step_index\":1,\"tool_name\":\"write_file\"}}";
+        var failedJson = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"FAILED\",\"step_index\":1,\"tool_name\":\"write_file\",\"tool_info\":{\"error\":\"path is not valid\"}}}";
+        var activeJson2 = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"ACTIVE\",\"step_index\":2,\"tool_name\":\"write_file\"}}";
+        var doneJson = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"tool\",\"state\":\"DONE\",\"step_index\":2,\"tool_name\":\"write_file\",\"tool_info\":{\"output\":\"written\"}}}";
+        var resultJson = "{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"\",\"duration_seconds\":5.0}}";
+
+        parser.ParseLine(activeJson1);
+        parser.ParseLine(failedJson);
+        parser.ParseLine(activeJson2);
+        parser.ParseLine(doneJson);
+        var events = parser.ParseLine(resultJson);
+
+        Assert.Single(events);
+        var resultEvent = Assert.IsType<ResultEvent>(events[0]);
+        Assert.True(resultEvent.IsSuccess);
+        Assert.Null(resultEvent.Error);
+    }
+
+    [Fact]
+    public void BuildResult_TrailingToolError_MarksFailureEvenWithZeroExitCode()
+    {
+        var events = new List<AgentEvent>
+        {
+            new ToolCallEvent { Kind = AgentEventKind.ToolCall, ToolUseId = "t1", ToolName = "write_file" },
+            new ToolResultEvent
+            {
+                Kind = AgentEventKind.ToolResult,
+                ToolUseId = "t1",
+                ToolName = "write_file",
+                Output = "path is not valid",
+                IsError = true,
+            },
+        };
+
+        var result = _parser.BuildResult(events, 0);
+
+        Assert.NotNull(result);
+        Assert.False(result.IsSuccess);
+        Assert.Contains("write_file", result.Error);
+        Assert.Contains("path is not valid", result.Error);
+    }
+
+    [Fact]
     public void ParseLine_StepIndexAsJsonString_ParsesWithoutThrowing()
     {
         var parser = new AntigravityEventParser();

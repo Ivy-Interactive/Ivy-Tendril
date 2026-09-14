@@ -16,6 +16,10 @@ public sealed class AntigravityEventParser : IEventParser
     private readonly Dictionary<string, string> _stepIdMap = new(); // step_index -> unique tool_use_id
     private int _nextToolId;
 
+    // Tracks the most recent tool failure that hasn't been followed by a successful tool result,
+    // so a trailing `result` event with no response text can be attributed to it.
+    private ToolResultEvent? _unrecoveredToolError;
+
     public IReadOnlyList<AgentEvent> ParseLine(string rawLine)
     {
         if (string.IsNullOrWhiteSpace(rawLine)) return Empty;
@@ -61,6 +65,19 @@ public sealed class AntigravityEventParser : IEventParser
                 return result with { ExitCode = exitCode };
         }
 
+        // No explicit `result` event was ever emitted (e.g. the process exited mid-turn). If the
+        // agent's very last event was a tool failure, don't let a zero exit code mask it as success.
+        if (events.Count > 0 && events[^1] is ToolResultEvent { IsError: true } trailingError)
+        {
+            return new ResultEvent
+            {
+                Kind = AgentEventKind.Result,
+                IsSuccess = false,
+                Error = FormatToolError(trailingError),
+                ExitCode = exitCode,
+            };
+        }
+
         return new ResultEvent
         {
             Kind = AgentEventKind.Result,
@@ -68,6 +85,9 @@ public sealed class AntigravityEventParser : IEventParser
             ExitCode = exitCode,
         };
     }
+
+    private static string FormatToolError(ToolResultEvent toolError) =>
+        $"Tool '{toolError.ToolName}' failed: {toolError.Output}";
 
     public IEventParser CreateFresh() => new AntigravityEventParser();
 
@@ -193,6 +213,8 @@ public sealed class AntigravityEventParser : IEventParser
                     RawLine = rawLine,
                 };
 
+                _unrecoveredToolError = isError ? resultEvent : null;
+
                 // If this is an orphan result (no preceding ACTIVE), emit both call and result
                 if (isOrphanResult)
                 {
@@ -260,6 +282,15 @@ public sealed class AntigravityEventParser : IEventParser
         var hasResponse = !string.IsNullOrWhiteSpace(responseText);
         var isSuccess = !string.Equals(status, "ERROR", StringComparison.OrdinalIgnoreCase) || hasResponse;
         var effectiveError = isSuccess ? null : errorText;
+
+        // Antigravity can report an overall status of SUCCESS with no response text even though the
+        // agent actually died on an unrecovered tool failure. Attribute the failure to that tool
+        // instead of reporting a false success.
+        if (isSuccess && !hasResponse && _unrecoveredToolError is { } unrecovered)
+        {
+            isSuccess = false;
+            effectiveError = FormatToolError(unrecovered);
+        }
 
         decimal? costUsd = null;
         if (res.TryGetProperty("total_cost_usd", out var cp) ||
