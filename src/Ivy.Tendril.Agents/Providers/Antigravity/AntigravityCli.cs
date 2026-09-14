@@ -27,10 +27,17 @@ public sealed class AntigravityCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "gemini-3.7-flash", "medium"),
-        new(ProfileTier.Balanced, "gemini-3.7-flash", "medium"),
-        new(ProfileTier.Quick, "gemini-3.7-flash", "medium"),
+        new(ProfileTier.Deep, "gemini-3.8-flash", "medium"),
+        new(ProfileTier.Balanced, "gemini-3.8-flash", "medium"),
+        new(ProfileTier.Quick, "gemini-3.8-flash", "medium"),
     ];
+
+    // agy's built-in tool schemas are stricter than the model tends to assume, so remind it of the
+    // two most common mismatches up front rather than letting it discover them via failed tool calls.
+    internal const string ToolSchemaGuardrails =
+        "Tool usage notes:\n" +
+        "- `find_by_name` requires a `Pattern` argument; always pass one (e.g. \"*.cs\").\n" +
+        "- `grep_search`'s `Includes` argument must be a JSON array of strings (e.g. [\"*.cs\"]), never a comma-separated string.";
 
     public IReadOnlyList<EffortOption> SupportedEfforts => EffortLevels.Antigravity;
 
@@ -98,21 +105,17 @@ public sealed class AntigravityCli : IAgentCli
         var finalPrompt = !string.IsNullOrEmpty(config.SystemPrompt)
             ? config.SystemPrompt + "\n\n---\n\n" + config.Prompt
             : config.Prompt;
+        finalPrompt = ToolSchemaGuardrails + "\n\n---\n\n" + finalPrompt;
+
+        // Always write a fresh temp file so the guardrails above are injected even when the caller
+        // supplied a pre-written PromptFilePath (previously referenced directly via "@{path}").
+        var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-agy-prompt-{Guid.NewGuid():N}.md");
+        File.WriteAllText(tempFile, finalPrompt);
+        tempFiles.Add(tempFile);
+        var normalizedTemp = tempFile.Replace('\\', '/');
 
         args.Add("--print");
-        if (!string.IsNullOrEmpty(config.PromptFilePath) && string.IsNullOrEmpty(config.SystemPrompt))
-        {
-            var normalizedPath = config.PromptFilePath.Replace('\\', '/');
-            args.Add($"@{normalizedPath}");
-        }
-        else
-        {
-            var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-agy-prompt-{Guid.NewGuid():N}.md");
-            File.WriteAllText(tempFile, finalPrompt);
-            tempFiles.Add(tempFile);
-            var normalizedTemp = tempFile.Replace('\\', '/');
-            args.Add($"@{normalizedTemp}");
-        }
+        args.Add($"@{normalizedTemp}");
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         if (config.EnvironmentVariables is not null)
