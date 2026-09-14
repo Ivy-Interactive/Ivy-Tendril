@@ -955,6 +955,77 @@ public class DatabaseMigratorTests : IDisposable
         Assert.Equal(25, GetUserVersion());
     }
 
+    [Fact]
+    public void Migration_026_JobsInboxFileAndChatSessionId_AddsBothColumns()
+    {
+        ApplyMigrationsThrough025();
+        Assert.Equal(25, GetUserVersion());
+
+        new Migration_026_JobsInboxFileAndChatSessionId().Apply(_connection);
+
+        Assert.Equal(26, GetUserVersion());
+
+        var columns = GetColumns("Jobs");
+        Assert.Contains("InboxFile", columns);
+        Assert.Contains("ChatSessionId", columns);
+    }
+
+    [Fact]
+    public void Migration_026_JobsInboxFileAndChatSessionId_IsIdempotent()
+    {
+        ApplyMigrationsThrough025();
+
+        // Simulate a database where one of the two columns was already added by hand.
+        using (var alterCmd = _connection.CreateCommand())
+        {
+            alterCmd.CommandText = "ALTER TABLE Jobs ADD COLUMN InboxFile TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+
+        new Migration_026_JobsInboxFileAndChatSessionId().Apply(_connection);
+        new Migration_026_JobsInboxFileAndChatSessionId().Apply(_connection);
+
+        Assert.Equal(26, GetUserVersion());
+
+        var columns = GetColumns("Jobs");
+        Assert.Contains("InboxFile", columns);
+        Assert.Contains("ChatSessionId", columns);
+    }
+
+    [Fact]
+    public void Migration_026_JobsInboxFileAndChatSessionId_ColumnsRoundTrip()
+    {
+        ApplyMigrationsThrough025();
+        new Migration_026_JobsInboxFileAndChatSessionId().Apply(_connection);
+
+        using (var insertCmd = _connection.CreateCommand())
+        {
+            insertCmd.CommandText = """
+                INSERT INTO Jobs (Id, Type, PlanFile, Project, Status, InboxFile, ChatSessionId)
+                VALUES ('job-inbox', 'CreatePlan', 'CreatePlan', 'test-project', 'Running', '/inbox/pending-abc.md.processing', 'chat-7');
+                """;
+            insertCmd.ExecuteNonQuery();
+        }
+
+        using var selectCmd = _connection.CreateCommand();
+        selectCmd.CommandText = "SELECT InboxFile, ChatSessionId FROM Jobs WHERE Id = 'job-inbox';";
+        using var reader = selectCmd.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal("/inbox/pending-abc.md.processing", reader.GetString(0));
+        Assert.Equal("chat-7", reader.GetString(1));
+    }
+
+    private List<string> GetColumns(string tableName)
+    {
+        var columns = new List<string>();
+        using var pragmaCmd = _connection.CreateCommand();
+        pragmaCmd.CommandText = $"PRAGMA table_info({tableName});";
+        using var reader = pragmaCmd.ExecuteReader();
+        while (reader.Read())
+            columns.Add(reader.GetString(reader.GetOrdinal("name")));
+        return columns;
+    }
+
     private void ApplyMigrationsThrough021()
     {
         new Migration_001_InitialSchema().Apply(_connection);
@@ -986,6 +1057,12 @@ public class DatabaseMigratorTests : IDisposable
         new Migration_022_CostsNullableCostAndModel().Apply(_connection);
         new Migration_023_PlanChatSessionId().Apply(_connection);
         new Migration_024_CostsCostSource().Apply(_connection);
+    }
+
+    private void ApplyMigrationsThrough025()
+    {
+        ApplyMigrationsThrough024();
+        new Migration_025_CostsAgent().Apply(_connection);
     }
 
     private class FakeMigration : IMigration
