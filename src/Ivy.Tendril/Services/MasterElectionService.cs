@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Text.Json;
 using Ivy.Tendril.Helpers;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -8,9 +6,20 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
 
-public interface IMasterElectionService : IDisposable
+/// <summary>
+///     Extends <see cref="IStartable" /> because the election is the one background service whose
+///     start order matters: BackgroundServiceActivator has to run it, through this interface, before it
+///     resolves anything that a non-master must not construct.
+/// </summary>
+public interface IMasterElectionService : IStartable, IDisposable
 {
     bool IsMaster { get; }
+
+    /// <summary>
+    /// Raised on every transition of <see cref="IsMaster" />, so master-only background services can
+    /// be stopped when this instance is demoted and started again if it is promoted.
+    /// </summary>
+    event Action<bool>? MasterStatusChanged;
 }
 
 public class MasterElectionService(
@@ -20,16 +29,26 @@ public class MasterElectionService(
     ILogger<MasterElectionService> logger)
     : IMasterElectionService, IStartable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true
-    };
-
     private Timer? _heartbeatTimer;
-    private string? _masterFilePath;
+    private MasterLockHandle? _handle;
+    private bool _isMaster;
 
-    public bool IsMaster { get; private set; }
+    /// <summary>
+    ///     Set synchronously by <see cref="Start" />, before it returns, which is what lets
+    ///     BackgroundServiceActivator elect first and then decide what to start.
+    /// </summary>
+    public bool IsMaster
+    {
+        get => _isMaster;
+        private set
+        {
+            if (_isMaster == value) return;
+            _isMaster = value;
+            MasterStatusChanged?.Invoke(value);
+        }
+    }
+
+    public event Action<bool>? MasterStatusChanged;
 
     public void Start()
     {
@@ -42,9 +61,12 @@ public class MasterElectionService(
         if (string.IsNullOrEmpty(configService.TendrilHome))
             return;
 
-        _masterFilePath = Path.Combine(configService.TendrilHome, ".master");
+        // On the normal server-launch path the claim was already taken atomically by
+        // ServerInstanceGuard before anything bound, so adopt it rather than racing for it again.
+        // Tests, onboarding and embedded `tendril run` uses reach here with no handle and claim now.
+        _handle = MasterLock.Current ?? MasterLock.TryAcquire(configService.TendrilHome, logger);
 
-        if (!TryClaim())
+        if (_handle == null)
         {
             logger.LogWarning("Another Tendril master is running. This instance will not accept CLI commands.");
             return;
@@ -66,7 +88,9 @@ public class MasterElectionService(
             return;
         }
 
-        WriteMasterFile(bound.Value.Port, bound.Value.Scheme);
+        // The claim exists already with port 0; this is what turns it into one a sibling launch can
+        // attach to instead of starting a second server.
+        _handle?.Publish(bound.Value.Port, bound.Value.Scheme);
         _heartbeatTimer = new Timer(UpdateHeartbeat, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
         logger.LogInformation("Master election won, listening on port {Port}", bound.Value.Port);
     }
@@ -76,79 +100,24 @@ public class MasterElectionService(
         Cleanup();
     }
 
-    private bool TryClaim()
-    {
-        if (_masterFilePath == null) return false;
-
-        if (!File.Exists(_masterFilePath))
-            return true;
-
-        try
-        {
-            var json = File.ReadAllText(_masterFilePath);
-            var existing = JsonSerializer.Deserialize<MasterFileData>(json, JsonOptions);
-            if (existing == null)
-            {
-                File.Delete(_masterFilePath);
-                return true;
-            }
-
-            if (!IsProcessAlive(existing.Pid))
-            {
-                logger.LogInformation("Stale .master file (PID {Pid} is dead), claiming master", existing.Pid);
-                File.Delete(_masterFilePath);
-                return true;
-            }
-
-            if (DateTime.UtcNow - existing.Heartbeat > TimeSpan.FromSeconds(90))
-            {
-                logger.LogInformation("Stale .master file (heartbeat expired), claiming master");
-                File.Delete(_masterFilePath);
-                return true;
-            }
-
-            return false;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to read .master file, deleting and claiming");
-            try { File.Delete(_masterFilePath); } catch { }
-            return true;
-        }
-    }
-
-    private void WriteMasterFile(int port, string scheme)
-    {
-        if (_masterFilePath == null) return;
-
-        var data = new MasterFileData
-        {
-            Pid = Environment.ProcessId,
-            Port = port,
-            Scheme = scheme,
-            StartedAt = DateTime.UtcNow,
-            Heartbeat = DateTime.UtcNow
-        };
-
-        var json = JsonSerializer.Serialize(data, JsonOptions);
-        FileHelper.WriteAllText(_masterFilePath, json);
-    }
-
+    /// <summary>
+    ///     The heartbeat is also the demotion check: if the claim no longer names this process, another
+    ///     launch judged it stale and took it, and this instance must stop behaving like the master.
+    /// </summary>
     private void UpdateHeartbeat(object? state)
     {
-        if (_masterFilePath == null || !IsMaster) return;
+        if (_handle == null || !IsMaster) return;
 
         try
         {
-            if (!File.Exists(_masterFilePath)) return;
+            if (!_handle.StillOwned())
+            {
+                logger.LogWarning("Lost mastership: the .master file no longer names PID {Pid}", _handle.Pid);
+                IsMaster = false;
+                return;
+            }
 
-            var json = File.ReadAllText(_masterFilePath);
-            var data = JsonSerializer.Deserialize<MasterFileData>(json, JsonOptions);
-            if (data == null || data.Pid != Environment.ProcessId) return;
-
-            data.Heartbeat = DateTime.UtcNow;
-            json = JsonSerializer.Serialize(data, JsonOptions);
-            FileHelper.WriteAllText(_masterFilePath, json);
+            _handle.Heartbeat();
         }
         catch (Exception ex)
         {
@@ -177,41 +146,14 @@ public class MasterElectionService(
         _heartbeatTimer?.Dispose();
         _heartbeatTimer = null;
 
-        if (_masterFilePath != null && IsMaster)
-        {
-            try
-            {
-                if (File.Exists(_masterFilePath))
-                {
-                    var json = File.ReadAllText(_masterFilePath);
-                    var data = JsonSerializer.Deserialize<MasterFileData>(json, JsonOptions);
-                    if (data?.Pid == Environment.ProcessId)
-                        File.Delete(_masterFilePath);
-                }
-            }
-            catch
-            {
-                // ignored
-            }
-        }
+        if (IsMaster)
+            _handle?.Release();
 
+        _handle = null;
         IsMaster = false;
     }
 
     public void Dispose() => Cleanup();
-
-    private static bool IsProcessAlive(int pid)
-    {
-        try
-        {
-            var proc = Process.GetProcessById(pid);
-            return !proc.HasExited;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 
     public record MasterFileData
     {

@@ -418,6 +418,52 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         Assert.NotEqual(raisingThreadId, _syncService.LastSyncThreadId);
     }
 
+    /// <summary>
+    ///     Two instances upserting identical rows is idempotent but pointless lock contention on one
+    ///     SQLite file, so only the master writes. A non-master still reads through this service, which is
+    ///     why the gate is on the writes rather than on the registration.
+    /// </summary>
+    [Fact]
+    public void PerformInitialSync_WritesNothing_WhenNotMaster()
+    {
+        CreatePlan("01500-TestPlan", DraftYaml, "# Test");
+
+        var configService = new ConfigService(new TendrilSettings(), _tempDir.Path);
+        using var sync = new PlanDatabaseSyncService(_planReader, _database, _watcher, configService,
+            NullLogger<PlanDatabaseSyncService>.Instance, () => false);
+
+        sync.PerformInitialSync();
+
+        Assert.False(sync.IsInitialSyncComplete);
+        Assert.Empty(_database.GetPlans());
+    }
+
+    [Fact]
+    public async Task OnPlansChanged_StopsSyncing_AfterDemotion()
+    {
+        CreatePlan("01500-TestPlan", DraftYaml, "# Test");
+
+        var isMaster = true;
+        var configService = new ConfigService(new TendrilSettings(), _tempDir.Path);
+        using var sync = new PlanDatabaseSyncService(_planReader, _database, _watcher, configService,
+            NullLogger<PlanDatabaseSyncService>.Instance, () => isMaster);
+
+        sync.PerformInitialSync();
+        sync.OnPlansChanged(null);
+        await sync.DrainAsync();
+        var syncsWhileMaster = sync.SyncCount;
+        Assert.True(syncsWhileMaster >= 1);
+
+        // Another launch took our claim, so this instance must stop writing even though its watcher keeps
+        // raising events.
+        isMaster = false;
+        for (var i = 0; i < 5; i++)
+            sync.OnPlansChanged(null);
+        await sync.DrainAsync();
+
+        Assert.Equal(syncsWhileMaster, sync.SyncCount);
+    }
+
     [Fact]
     public void TakeWork_FullRescanRequest_SupersedesPendingFolders()
     {

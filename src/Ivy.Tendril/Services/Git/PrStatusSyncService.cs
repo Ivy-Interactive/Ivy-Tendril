@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Git;
 
-public class PrStatusSyncService : IStartable, IDisposable
+public class PrStatusSyncService : IMasterOnlyStartable, IDisposable
 {
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(10);
 
@@ -32,9 +32,16 @@ public class PrStatusSyncService : IStartable, IDisposable
         _timer = new Timer(_ => _ = RunSyncAsync(), null, TimeSpan.FromSeconds(5), CheckInterval);
     }
 
-    public void Dispose()
+    /// <summary>Disarms the sync timer, so a demoted instance stops writing PR statuses to the shared db.</summary>
+    public void Stop()
     {
         _timer?.Dispose();
+        _timer = null;
+    }
+
+    public void Dispose()
+    {
+        Stop();
     }
 
     public async Task RunSyncAsync()

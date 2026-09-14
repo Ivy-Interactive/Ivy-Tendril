@@ -11,7 +11,7 @@ namespace Ivy.Tendril.Services.Telemetry;
 /// </summary>
 public sealed class ModelPricingWarmupService(
     IModelPricingRefresher refresher,
-    ILogger<ModelPricingWarmupService> logger) : IStartable, IDisposable
+    ILogger<ModelPricingWarmupService> logger) : IMasterOnlyStartable, IDisposable
 {
     // Late enough not to compete with the rest of startup for the first request; repeated because
     // the app runs for days and the underlying models.dev response is cached for 24 hours.
@@ -45,9 +45,15 @@ public sealed class ModelPricingWarmupService(
         }
     }
 
-    public void Dispose()
+    /// <summary>Disarms the refresh timer, so a demoted instance stops writing prices to the shared db.</summary>
+    public void Stop()
     {
         _timer?.Dispose();
         _timer = null;
+    }
+
+    public void Dispose()
+    {
+        Stop();
     }
 }

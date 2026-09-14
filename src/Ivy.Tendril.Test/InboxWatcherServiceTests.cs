@@ -131,6 +131,7 @@ public class InboxWatcherServiceTests : IDisposable
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
         var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
         using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+        watcher.Start();
 
         // Wait for async processing to complete
         await RetryHelper.WaitUntilAsync(
@@ -160,6 +161,7 @@ public class InboxWatcherServiceTests : IDisposable
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
         var jobService = new TrackedStubJobService { TrackedReturnValue = true };
         using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+        watcher.Start();
 
         // Wait for processing to be attempted and skipped
         await RetryHelper.WaitUntilAsync(
@@ -193,6 +195,7 @@ public class InboxWatcherServiceTests : IDisposable
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
         var jobService = new TrackedStubJobService { TrackedReturnValue = false };
         using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+        watcher.Start();
 
         // Wait for processing to complete (job started, file renamed)
         await RetryHelper.WaitUntilAsync(
@@ -257,14 +260,15 @@ public class InboxWatcherServiceTests : IDisposable
         var inboxDir = Path.Combine(_tempDir.Path, "Inbox");
         Directory.CreateDirectory(inboxDir);
 
-        // Place a file in the inbox before creating the service
+        // Place a file in the inbox before starting the service
         File.WriteAllText(Path.Combine(inboxDir, "test-entry.md"), "Test inbox entry");
 
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
         var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
         using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+        watcher.Start();
 
-        // The constructor calls ProcessExistingFiles, which dispatches async processing.
+        // Start() calls ProcessExistingFiles, which dispatches async processing.
         // Wait for the file to be processed and renamed to .processing.
         await RetryHelper.WaitUntilAsync(
             async () =>
@@ -294,6 +298,7 @@ public class InboxWatcherServiceTests : IDisposable
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
         var jobService = new DeleteBeforeRenameJobService(filePath);
         using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+        watcher.Start();
 
         // The fake deletes the file during the watcher's tracked-check; once it's gone, processing
         // has reached (and handled) the race. Poll for that instead of guessing a fixed delay.
@@ -324,10 +329,11 @@ public class InboxWatcherServiceTests : IDisposable
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
         var jobService = new TimestampedJobService();
 
-        // The constructor runs ProcessExistingFiles, which launches the 5 files with a 2s
-        // Thread.Sleep between each — so construction alone blocks ~8s.
-        var constructionStart = DateTime.UtcNow;
+        // Start() runs ProcessExistingFiles, which launches the 5 files with a 2s Thread.Sleep between
+        // each, so the sweep takes ~8s from here.
         using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+        var sweepStart = DateTime.UtcNow;
+        watcher.Start();
 
         // Wait for all jobs to be started
         RetryHelper.WaitUntil(() => jobService.StartedJobs.Count >= 5, TimeSpan.FromSeconds(30));
@@ -347,7 +353,7 @@ public class InboxWatcherServiceTests : IDisposable
         // continuation can be scheduled with arbitrary jitter under a loaded thread pool. What IS
         // deterministic is the cumulative floor — the 4 × Thread.Sleep(2000) between launches is a
         // wall-clock minimum (load can only lengthen it), so the 5 jobs must span at least ~8s.
-        var span = (jobService.StartJobTimestamps.Last() - constructionStart).TotalMilliseconds;
+        var span = (jobService.StartJobTimestamps.Last() - sweepStart).TotalMilliseconds;
         Assert.True(span >= 7000,
             $"Expected staggered startup to span >= ~8s, but the 5 jobs started within {span}ms");
     }

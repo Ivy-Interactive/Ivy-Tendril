@@ -68,7 +68,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         }
     }
 
-    private ServiceProvider BuildServiceProvider()
+    private ServiceProvider BuildServiceProvider(bool isMaster = true, MockMasterElection? election = null)
     {
         var settings = new TendrilSettings();
         var config = new ConfigService(settings, _tempDir);
@@ -76,6 +76,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddSingleton<IConfigService>(config);
         services.AddSingleton<ConfigService>(config);
+        services.AddSingleton<IMasterElectionService>(election ?? new MockMasterElection(isMaster));
         services.AddSingleton<IPlanWatcherService>(new PlanWatcherService(config));
         services.AddSingleton<IInboxWatcherService>(sp =>
         {
@@ -86,6 +87,9 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         services.AddSingleton<WorktreeCleanupService>(sp =>
             new WorktreeCleanupService(Path.Combine(_tempDir, "Plans"), NullLogger<WorktreeCleanupService>.Instance));
         services.AddSingleton<IStartable>(sp => sp.GetRequiredService<WorktreeCleanupService>());
+
+        // A factory rather than an instance, so "was it ever constructed" is a meaningful assertion.
+        services.AddSingleton<IMasterOnlyStartable>(sp => new MockMasterOnlyStartable());
         services.AddSingleton<IPlanDatabaseService>(sp =>
         {
             var dbPath = Path.Combine(_tempDir, "tendril.db");
@@ -205,6 +209,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddSingleton<IConfigService>(config);
         services.AddSingleton<ConfigService>(config);
+        services.AddSingleton<IMasterElectionService>(new MockMasterElection());
         services.AddSingleton<IPlanWatcherService>(new PlanWatcherService(config));
         services.AddSingleton<IInboxWatcherService>(sp =>
         {
@@ -361,5 +366,120 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         {
             Started = true;
         }
+    }
+
+    /// <summary>
+    ///     Stands in for the real election so a test can decide the verdict without a .master file, and
+    ///     can force a demotion afterwards.
+    /// </summary>
+    private sealed class MockMasterElection(bool isMaster = true) : IMasterElectionService
+    {
+        public bool Started { get; private set; }
+        public bool IsMaster { get; private set; } = isMaster;
+
+        public event Action<bool>? MasterStatusChanged;
+
+        public void Start()
+        {
+            Started = true;
+        }
+
+        public void Demote()
+        {
+            IsMaster = false;
+            MasterStatusChanged?.Invoke(false);
+        }
+
+        public void Promote()
+        {
+            IsMaster = true;
+            MasterStatusChanged?.Invoke(true);
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    /// <summary>
+    ///     Records construction as well as Start/Stop: the point of the gate is that a non-master never
+    ///     even constructs one of these, because construction is itself a side effect on shared state.
+    /// </summary>
+    private sealed class MockMasterOnlyStartable : IMasterOnlyStartable
+    {
+        public static int Constructions;
+
+        public MockMasterOnlyStartable()
+        {
+            Interlocked.Increment(ref Constructions);
+        }
+
+        public int StartCount { get; private set; }
+        public int StopCount { get; private set; }
+
+        public void Start()
+        {
+            StartCount++;
+        }
+
+        public void Stop()
+        {
+            StopCount++;
+        }
+    }
+
+    [Fact]
+    public void Start_StartsMasterOnlyServices_WhenMaster()
+    {
+        MockMasterOnlyStartable.Constructions = 0;
+        var sp = BuildServiceProvider();
+
+        BackgroundServiceActivator.Start(sp);
+
+        var masterOnly = Assert.IsType<MockMasterOnlyStartable>(sp.GetRequiredService<IMasterOnlyStartable>());
+        Assert.Equal(1, masterOnly.StartCount);
+        Assert.Equal(0, masterOnly.StopCount);
+    }
+
+    [Fact]
+    public void Start_DoesNotConstructMasterOnlyServices_WhenNotMaster()
+    {
+        MockMasterOnlyStartable.Constructions = 0;
+        var sp = BuildServiceProvider(isMaster: false);
+
+        BackgroundServiceActivator.Start(sp);
+
+        // Not "was not started" but "was not built": the defect was a constructor that swept the
+        // shared inbox as a side effect of the DI resolve.
+        Assert.Equal(0, MockMasterOnlyStartable.Constructions);
+    }
+
+    [Fact]
+    public void Start_StopsMasterOnlyServices_OnDemotion()
+    {
+        MockMasterOnlyStartable.Constructions = 0;
+        var election = new MockMasterElection();
+        var sp = BuildServiceProvider(election: election);
+
+        BackgroundServiceActivator.Start(sp);
+        var masterOnly = (MockMasterOnlyStartable)sp.GetRequiredService<IMasterOnlyStartable>();
+        Assert.Equal(1, masterOnly.StartCount);
+
+        election.Demote();
+        Assert.Equal(1, masterOnly.StopCount);
+
+        election.Promote();
+        Assert.Equal(2, masterOnly.StartCount);
+    }
+
+    [Fact]
+    public void Start_ElectsBeforeStartingAnything()
+    {
+        var election = new MockMasterElection();
+        var sp = BuildServiceProvider(election: election);
+
+        BackgroundServiceActivator.Start(sp);
+
+        Assert.True(election.Started);
     }
 }

@@ -23,12 +23,130 @@ public class InboxRecoveryTests
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            // Create InboxWatcherService — constructor calls RecoverProcessingFiles
+            // Recovery happens in Start(), not in the constructor: a non-master must be able to resolve
+            // this service without sweeping the shared inbox.
             using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+            watcher.Start();
 
             // .processing file should be gone, .md file should exist
             Assert.False(File.Exists(processingFile));
             Assert.True(File.Exists(Path.Combine(inboxDir, "pending-job-001.md")));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Constructor_HasNoSideEffects()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-ctor-{Guid.NewGuid():N}");
+        var inboxDir = Path.Combine(tempDir, "Inbox");
+        Directory.CreateDirectory(inboxDir);
+
+        try
+        {
+            var processingFile = Path.Combine(inboxDir, "pending-job-001.md.processing");
+            File.WriteAllText(processingFile, "---\nproject: Tendril\n---\nSome task");
+
+            var config = new ConfigService(new TendrilSettings(), tempDir);
+            var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
+
+            // This is the regression under test: a duplicate instance resolved this service from DI and
+            // resurrected every breadcrumb in the shared inbox before it knew it was not the master.
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+
+            Assert.True(File.Exists(processingFile));
+            Assert.Empty(Directory.GetFiles(inboxDir, "*.md"));
+            Assert.Empty(jobService.GetJobs());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Constructor_DoesNotCreateInboxDirectory()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-nodir-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var inboxDir = Path.Combine(tempDir, "Inbox");
+
+        try
+        {
+            var config = new ConfigService(new TendrilSettings(), tempDir);
+            var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
+
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+            Assert.False(Directory.Exists(inboxDir));
+
+            watcher.Start();
+            Assert.True(Directory.Exists(inboxDir));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void StartAndStop_AreIdempotent()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-idem-{Guid.NewGuid():N}");
+        var inboxDir = Path.Combine(tempDir, "Inbox");
+        Directory.CreateDirectory(inboxDir);
+
+        try
+        {
+            var config = new ConfigService(new TendrilSettings(), tempDir);
+            var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+
+            // A demotion followed by a promotion goes through these in pairs, and BackgroundServiceActivator
+            // makes no attempt to track which of the two happened last.
+            watcher.Start();
+            watcher.Start();
+            watcher.Stop();
+            watcher.Stop();
+            watcher.Start();
+            watcher.Stop();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task Stop_StopsProcessingNewFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"inbox-stopped-{Guid.NewGuid():N}");
+        var inboxDir = Path.Combine(tempDir, "Inbox");
+        Directory.CreateDirectory(inboxDir);
+
+        try
+        {
+            var config = new ConfigService(new TendrilSettings(), tempDir);
+            var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
+            using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+
+            watcher.Start();
+            watcher.Stop();
+
+            File.WriteAllText(Path.Combine(inboxDir, "after-stop.md"), "---\nproject: Tendril\n---\nAfter stop");
+
+            // Nothing to wait for, so this is a bounded window rather than a condition: long enough for
+            // a live FileSystemWatcher to have fired, short enough not to slow the suite down.
+            await Task.Delay(500);
+
+            Assert.Empty(jobService.GetJobs());
+            Assert.True(File.Exists(Path.Combine(inboxDir, "after-stop.md")));
         }
         finally
         {
@@ -55,6 +173,7 @@ public class InboxRecoveryTests
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
             using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+            watcher.Start();
 
             // .processing should be deleted, .md preserved
             Assert.False(File.Exists(processingFile));
@@ -273,6 +392,7 @@ public class InboxRecoveryTests
             var config = new ConfigService(new TendrilSettings(), tempDir);
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
             using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
+            watcher.Start();
 
             // Step 3: Wait for recovery and processing to complete
             await RetryHelper.WaitUntilAsync(

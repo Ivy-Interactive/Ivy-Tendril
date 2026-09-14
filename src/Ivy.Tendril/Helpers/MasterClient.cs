@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -184,33 +183,32 @@ public static class MasterClient
         if (string.IsNullOrEmpty(tendrilHome))
             throw new InvalidOperationException("TENDRIL_HOME environment variable is not set.");
 
-        var masterFilePath = Path.Combine(tendrilHome, ".master");
+        var masterFilePath = MasterLock.GetMasterFilePath(tendrilHome);
         if (!File.Exists(masterFilePath))
             throw new InvalidOperationException("No Tendril server is running (no .master file found). Start with 'tendril' or 'tendril run'.");
 
-        MasterElectionService.MasterFileData data;
-        try
+        // One shared liveness test rather than a third copy of it: MasterLock decides what a live
+        // claim is, and this method only turns its verdict into the CLI's wording.
+        // excludeSelf: false - an embedded server discovering its own API is a legitimate case, which
+        // is what the pre-MasterLock code did too.
+        var data = MasterLock.ReadLiveMaster(tendrilHome, out var rejectReason, excludeSelf: false);
+        if (data == null)
         {
-            var json = File.ReadAllText(masterFilePath);
-            data = JsonSerializer.Deserialize<MasterElectionService.MasterFileData>(json, JsonOptions)!;
-        }
-        catch (Exception ex)
-        {
-            TryDelete(masterFilePath);
-            throw new InvalidOperationException($"Failed to read .master file (deleted): {ex.Message}");
+            MasterLock.TryReclaimStale(tendrilHome);
+            throw new InvalidOperationException(rejectReason switch
+            {
+                not null when rejectReason.StartsWith("PID ", StringComparison.Ordinal) =>
+                    $"Tendril server is not running (stale .master file, {rejectReason}). Cleaned up.",
+                not null when rejectReason.StartsWith("heartbeat", StringComparison.Ordinal) =>
+                    "Tendril server appears hung (heartbeat stale). Cleaned up .master file.",
+                _ => $"Failed to read .master file (deleted): {rejectReason}"
+            });
         }
 
-        if (!IsProcessAlive(data.Pid))
-        {
-            TryDelete(masterFilePath);
-            throw new InvalidOperationException($"Tendril server is not running (stale .master file, PID {data.Pid} is dead). Cleaned up.");
-        }
-
-        if (DateTime.UtcNow - data.Heartbeat > TimeSpan.FromSeconds(90))
-        {
-            TryDelete(masterFilePath);
-            throw new InvalidOperationException("Tendril server appears hung (heartbeat stale). Cleaned up .master file.");
-        }
+        // A claim exists but no port has been published yet: the server took the lock and has not
+        // finished binding. Retrying in a moment is the right answer, not deleting its claim.
+        if (data.Port == 0)
+            throw new InvalidOperationException("Tendril server is still starting up, try again in a moment.");
 
         var scheme = string.IsNullOrEmpty(data.Scheme) ? "http" : data.Scheme;
         var apiKey = ReadApiKeyFromConfig(tendrilHome);
@@ -288,21 +286,4 @@ public static class MasterClient
         return null;
     }
 
-    private static bool IsProcessAlive(int pid)
-    {
-        try
-        {
-            var proc = Process.GetProcessById(pid);
-            return !proc.HasExited;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try { File.Delete(path); } catch { }
-    }
 }

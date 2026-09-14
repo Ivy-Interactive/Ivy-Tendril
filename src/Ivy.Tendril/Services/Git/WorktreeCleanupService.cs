@@ -34,7 +34,7 @@ internal enum BranchDeleteMode
     PreserveUnpushed
 }
 
-public class WorktreeCleanupService : IStartable, IDisposable
+public class WorktreeCleanupService : IMasterOnlyStartable, IDisposable
 {
     private static readonly Regex SafeTitleRegex = new(@"^\d{5}-(.+)", RegexOptions.Compiled);
 
@@ -97,9 +97,16 @@ public class WorktreeCleanupService : IStartable, IDisposable
         return null;
     }
 
-    public void Dispose()
+    /// <summary>Disarms the cleanup timer, so a demoted instance stops deleting shared worktrees.</summary>
+    public void Stop()
     {
         _timer?.Dispose();
+        _timer = null;
+    }
+
+    public void Dispose()
+    {
+        Stop();
     }
 
     internal void RunCleanup()
