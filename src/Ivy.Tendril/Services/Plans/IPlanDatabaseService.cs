@@ -86,14 +86,15 @@ public interface IPlanDatabaseService : IDisposable
     ///     instances cannot both read <c>max - 1</c>. Idempotent per job id, so a retry after a partial
     ///     failure cannot double count.
     /// </summary>
-    /// <param name="isPidAlive">
-    ///     Liveness test for a recorded pid, injected because staleness is a policy question the caller
-    ///     owns and reclaim has to happen inside the acquiring transaction to be race free.
+    /// <param name="isPidAliveSince">
+    ///     Whether a recorded pid is alive and started no later than the given instant, the lease's
+    ///     <c>AcquiredAt</c>. Injected because staleness is a policy question the caller owns, and
+    ///     reclaim has to happen inside the acquiring transaction to be race free.
     /// </param>
     /// <param name="liveCount">Slots live after this call, for the queued job's status message.</param>
     /// <remarks>Default admits everything: an implementation with no database cannot cap anything.</remarks>
     bool TryAcquireJobSlot(string jobId, int maxConcurrentJobs, int ownerPid, string machineName,
-        TimeSpan leaseTtl, Func<int, bool> isPidAlive, out int liveCount)
+        TimeSpan leaseTtl, Func<int, DateTime, bool> isPidAliveSince, out int liveCount)
     {
         liveCount = 0;
         return true;
@@ -118,7 +119,7 @@ public interface IPlanDatabaseService : IDisposable
     ///     on TTL alone, since a pid there means nothing here.
     /// </summary>
     /// <returns>How many were reclaimed.</returns>
-    int ReclaimStaleJobSlots(Func<int, bool> isPidAlive, TimeSpan ttl, string machineName) => 0;
+    int ReclaimStaleJobSlots(Func<int, DateTime, bool> isPidAliveSince, TimeSpan ttl, string machineName) => 0;
 
     /// <summary>Live lease count, for diagnostics and tests.</summary>
     int CountLiveJobSlots() => 0;

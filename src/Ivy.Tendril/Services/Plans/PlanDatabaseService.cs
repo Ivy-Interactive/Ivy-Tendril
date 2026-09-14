@@ -1144,7 +1144,7 @@ public class PlanDatabaseService : IPlanDatabaseService
 
     /// <inheritdoc />
     public bool TryAcquireJobSlot(string jobId, int maxConcurrentJobs, int ownerPid, string machineName,
-        TimeSpan leaseTtl, Func<int, bool> isPidAlive, out int liveCount)
+        TimeSpan leaseTtl, Func<int, DateTime, bool> isPidAliveSince, out int liveCount)
     {
         using (new WriteLockHandle(_lock))
         {
@@ -1153,7 +1153,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             using var transaction = _batchTransaction == null ? _connection.BeginTransaction(deferred: false) : null;
             try
             {
-                ReclaimStaleJobSlotsInternal(isPidAlive, leaseTtl, machineName);
+                ReclaimStaleJobSlotsInternal(isPidAliveSince, leaseTtl, machineName);
 
                 var held = ExecuteScalar<long>("SELECT COUNT(*) FROM JobSlots WHERE JobId = @id",
                     new SqliteParameter("@id", jobId)) > 0;
@@ -1242,14 +1242,14 @@ public class PlanDatabaseService : IPlanDatabaseService
     }
 
     /// <inheritdoc />
-    public int ReclaimStaleJobSlots(Func<int, bool> isPidAlive, TimeSpan ttl, string machineName)
+    public int ReclaimStaleJobSlots(Func<int, DateTime, bool> isPidAliveSince, TimeSpan ttl, string machineName)
     {
         using (new WriteLockHandle(_lock))
         {
             using var transaction = _batchTransaction == null ? _connection.BeginTransaction() : null;
             try
             {
-                var reclaimed = ReclaimStaleJobSlotsInternal(isPidAlive, ttl, machineName);
+                var reclaimed = ReclaimStaleJobSlotsInternal(isPidAliveSince, ttl, machineName);
                 transaction?.Commit();
                 return reclaimed;
             }
@@ -1295,7 +1295,7 @@ public class PlanDatabaseService : IPlanDatabaseService
     ///     and from inside <see cref="TryAcquireJobSlot" />, where it has to run in the same transaction
     ///     as the count it affects.
     /// </summary>
-    private int ReclaimStaleJobSlotsInternal(Func<int, bool> isPidAlive, TimeSpan ttl, string machineName)
+    private int ReclaimStaleJobSlotsInternal(Func<int, DateTime, bool> isPidAliveSince, TimeSpan ttl, string machineName)
     {
         var expired = new List<string>();
         var terminal = new List<string>();
@@ -1304,14 +1304,14 @@ public class PlanDatabaseService : IPlanDatabaseService
         using (var cmd = _connection.CreateCommand())
         {
             cmd.CommandText = """
-                              SELECT s.JobId, s.OwnerPid, s.AgentPid, s.MachineName, s.Heartbeat, j.Status
+                              SELECT s.JobId, s.OwnerPid, s.AgentPid, s.MachineName, s.Heartbeat, s.AcquiredAt, j.Status
                               FROM JobSlots s LEFT JOIN Jobs j ON j.Id = s.JobId
                               """;
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
                 var jobId = reader.GetString(0);
-                var status = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var status = reader.IsDBNull(6) ? null : reader.GetString(6);
 
                 // Defence in depth: a lease outliving its own job's completion is nobody's slot.
                 if (status is "Completed" or "Failed" or "Stopped" or "Timeout")
@@ -1329,9 +1329,14 @@ public class PlanDatabaseService : IPlanDatabaseService
                 // resource being capped, so a live AgentPid keeps the lease with nobody renewing it.
                 if (string.Equals(reader.GetString(3), machineName, StringComparison.OrdinalIgnoreCase))
                 {
+                    if (!DateTime.TryParse(reader.GetString(5), CultureInfo.InvariantCulture,
+                            DateTimeStyles.RoundtripKind, out var acquiredAt))
+                        acquiredAt = heartbeat;
+
                     var ownerPid = reader.GetInt32(1);
                     var agentPid = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2);
-                    if (isPidAlive(ownerPid) || (agentPid.HasValue && isPidAlive(agentPid.Value)))
+                    if (isPidAliveSince(ownerPid, acquiredAt)
+                        || (agentPid.HasValue && isPidAliveSince(agentPid.Value, acquiredAt)))
                         continue;
                 }
 
