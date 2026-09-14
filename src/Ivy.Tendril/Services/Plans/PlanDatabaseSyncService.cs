@@ -34,18 +34,27 @@ public class PlanDatabaseSyncService : IDisposable
     private int _singlePlanSyncCount;
     private int _lastSyncThreadId;
 
+    /// <summary>
+    ///     How this service decides it may write. A seam rather than a direct read of
+    ///     <see cref="IMasterElectionService" /> so the sync can be constructed in tests without an
+    ///     election, and so an unwired caller keeps the pre-gating behaviour of always writing.
+    /// </summary>
+    private readonly Func<bool> _isMaster;
+
     public PlanDatabaseSyncService(
         PlanReaderService planReader,
         IPlanDatabaseService database,
         IPlanWatcherService watcher,
         IConfigService configService,
-        ILogger<PlanDatabaseSyncService> logger)
+        ILogger<PlanDatabaseSyncService> logger,
+        Func<bool>? isMaster = null)
     {
         _planReader = planReader;
         _database = database;
         _watcher = watcher;
         _configService = configService;
         _logger = logger;
+        _isMaster = isMaster ?? (static () => true);
 
         // Long-running rather than a pooled task: the loop is parked on the channel for the life of
         // the process, and a full rescan is minutes of I/O on a large store — neither belongs on a
@@ -107,6 +116,14 @@ public class PlanDatabaseSyncService : IDisposable
 
     public void PerformInitialSync()
     {
+        if (!_isMaster())
+        {
+            // A non-master's UI reads this database and has its own ungated plan watcher, so it still
+            // sees whatever the master wrote. What it must not do is become a second writer.
+            _logger.LogInformation("Skipping initial database sync (this instance is not master)");
+            return;
+        }
+
         try
         {
             _logger.LogInformation("Starting initial database sync...");
@@ -157,6 +174,7 @@ public class PlanDatabaseSyncService : IDisposable
     internal void OnPlansChanged(string? changedPlanFolder)
     {
         if (!_isInitialSyncComplete || !_isDatabaseAvailable) return;
+        if (!_isMaster()) return;
 
         RecordPending(changedPlanFolder);
 

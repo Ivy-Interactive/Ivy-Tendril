@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Inbox;
 
-public class AssignedIssuesAutoImportService : IStartable, IDisposable
+public class AssignedIssuesAutoImportService : IMasterOnlyStartable, IDisposable
 {
     private readonly IConfigService _config;
     private readonly IGithubService _githubService;
@@ -43,9 +43,16 @@ public class AssignedIssuesAutoImportService : IStartable, IDisposable
         _timer = new Timer(_ => _ = RunSyncAsync(), null, TimeSpan.FromSeconds(90), interval);
     }
 
-    public void Dispose()
+    /// <summary>Disarms the import timer, so a demoted instance stops writing issues into the shared inbox.</summary>
+    public void Stop()
     {
         _timer?.Dispose();
+        _timer = null;
+    }
+
+    public void Dispose()
+    {
+        Stop();
         _syncLock.Dispose();
     }
 

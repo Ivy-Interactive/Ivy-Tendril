@@ -12,46 +12,86 @@ public class InboxWatcherService : IInboxWatcherService
     private readonly string _inboxPath;
     private readonly IJobService _jobService;
     private readonly ILogger<InboxWatcherService> _logger;
-    private readonly Timer _pollTimer;
     private readonly ConcurrentDictionary<string, byte> _processing = new();
-    private readonly FileSystemWatcher? _watcher;
+    private readonly object _startLock = new();
+    private Timer? _pollTimer;
+    private FileSystemWatcher? _watcher;
+    private volatile bool _started;
 
+    /// <summary>
+    ///     Assigns dependencies and nothing else. Resolving this type from DI used to create the inbox
+    ///     directory, rename every <c>.processing</c> file back to <c>.md</c> and arm a watcher plus a
+    ///     poll timer, which meant a non-master instance resurrected the whole shared inbox merely by
+    ///     being constructed. All of that now waits for <see cref="Start" />.
+    /// </summary>
     public InboxWatcherService(IConfigService config, IJobService jobService, ILogger<InboxWatcherService> logger)
     {
         _jobService = jobService;
         _logger = logger;
         _inboxPath = Path.Combine(config.TendrilHome, "Inbox");
+    }
 
-        if (!Directory.Exists(_inboxPath))
-            Directory.CreateDirectory(_inboxPath);
-
-        // Recover crashed CreatePlan jobs: rename .processing files back to .md
-        RecoverProcessingFiles();
-
-        _watcher = new FileSystemWatcher(_inboxPath, "*.md")
+    /// <summary>Idempotent: starting an already started watcher is a no-op.</summary>
+    public void Start()
+    {
+        lock (_startLock)
         {
-            InternalBufferSize = 65536,
-            NotifyFilter = NotifyFilters.FileName,
-            EnableRaisingEvents = true
-        };
+            if (_started)
+                return;
 
-        _watcher.Created += OnFileCreated;
-        _watcher.Error += (_, e) =>
-            CrashLog.Write($"[{DateTime.UtcNow:O}] InboxWatcher FSW error: {e.GetException()}");
+            if (!Directory.Exists(_inboxPath))
+                Directory.CreateDirectory(_inboxPath);
 
-        _pollTimer = new Timer(OnPollTimer, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+            // Recover crashed CreatePlan jobs: rename .processing files back to .md
+            RecoverProcessingFiles();
+
+            _watcher = new FileSystemWatcher(_inboxPath, "*.md")
+            {
+                InternalBufferSize = 65536,
+                NotifyFilter = NotifyFilters.FileName,
+                EnableRaisingEvents = true
+            };
+
+            _watcher.Created += OnFileCreated;
+            _watcher.Error += (_, e) =>
+                CrashLog.Write($"[{DateTime.UtcNow:O}] InboxWatcher FSW error: {e.GetException()}");
+
+            _pollTimer = new Timer(OnPollTimer, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+            _started = true;
+        }
 
         _ = Task.Run(ProcessExistingFilesAsync);
     }
 
-    public void Dispose()
+    /// <summary>Idempotent: releases the watcher and the poll timer so this instance stops touching the shared inbox.</summary>
+    public void Stop()
     {
-        _pollTimer.Dispose();
-        _watcher?.Dispose();
+        lock (_startLock)
+        {
+            if (!_started)
+                return;
+
+            _started = false;
+
+            _pollTimer?.Dispose();
+            _pollTimer = null;
+
+            if (_watcher != null)
+            {
+                _watcher.Created -= OnFileCreated;
+                _watcher.Dispose();
+                _watcher = null;
+            }
+        }
     }
+
+    public void Dispose() => Stop();
 
     private void OnFileCreated(object sender, FileSystemEventArgs e)
     {
+        // An event queued before Stop() must not process a file afterwards.
+        if (!_started) return;
+
         try
         {
             _ = ProcessFileAsync(e.FullPath);
@@ -64,6 +104,8 @@ public class InboxWatcherService : IInboxWatcherService
 
     private void OnPollTimer(object? state)
     {
+        if (!_started) return;
+
         try
         {
             _ = ProcessExistingFilesAsync();

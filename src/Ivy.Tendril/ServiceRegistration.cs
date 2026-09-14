@@ -199,8 +199,9 @@ internal static class ServiceRegistration
             var watcher = sp.GetRequiredService<IPlanWatcherService>();
             var configService = sp.GetRequiredService<IConfigService>();
             var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+            var election = sp.GetRequiredService<IMasterElectionService>();
             return new PlanDatabaseSyncService(planReader, database, watcher, configService,
-                loggerFactory.CreateLogger<PlanDatabaseSyncService>());
+                loggerFactory.CreateLogger<PlanDatabaseSyncService>(), () => election.IsMaster);
         });
         server.Services.AddSingleton<ITelemetryService>(sp =>
         {
@@ -250,8 +251,11 @@ internal static class ServiceRegistration
             return new InboxWatcherService(config, jobService, sp.GetRequiredService<ILogger<InboxWatcherService>>());
         });
         server.Services.AddSingleton<IInboxWatcherService>(sp => sp.GetRequiredService<InboxWatcherService>());
+        // Registered as IMasterOnlyStartable rather than IStartable so a non-master never resolves it:
+        // constructing one used to sweep the shared inbox as a side effect of the resolve itself.
+        server.Services.AddSingleton<IMasterOnlyStartable>(sp => sp.GetRequiredService<InboxWatcherService>());
         server.Services.AddSingleton<Services.Inbox.AssignedIssuesAutoImportService>();
-        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<Services.Inbox.AssignedIssuesAutoImportService>());
+        server.Services.AddSingleton<IMasterOnlyStartable>(sp => sp.GetRequiredService<Services.Inbox.AssignedIssuesAutoImportService>());
         server.Services.AddSingleton<WorktreeCleanupService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
@@ -259,7 +263,7 @@ internal static class ServiceRegistration
             var lifecycleLogger = sp.GetRequiredService<IWorktreeLifecycleLogger>();
             return new WorktreeCleanupService(config.PlanFolder, logger, lifecycleLogger);
         });
-        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<WorktreeCleanupService>());
+        server.Services.AddSingleton<IMasterOnlyStartable>(sp => sp.GetRequiredService<WorktreeCleanupService>());
         server.Services.AddSingleton<PrStatusSyncService>(sp =>
         {
             var database = sp.GetRequiredService<IPlanDatabaseService>();
@@ -268,7 +272,7 @@ internal static class ServiceRegistration
             var logger = sp.GetRequiredService<ILogger<PrStatusSyncService>>();
             return new PrStatusSyncService(database, githubService, planReader, logger);
         });
-        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
+        server.Services.AddSingleton<IMasterOnlyStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
 
         server.Services.AddSingleton<MasterElectionService>(sp =>
         {
@@ -316,7 +320,7 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<Themes.IThemeSerializationService, Themes.ThemeSerializationService>();
 
         server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();
-        server.Services.AddSingleton<IStartable>(sp =>
+        server.Services.AddSingleton<IMasterOnlyStartable>(sp =>
             sp.GetRequiredService<Services.Telemetry.ModelPricingWarmupService>());
 
         server.Services.AddSingleton<Services.Telemetry.CostBackfillService>(sp =>
@@ -325,7 +329,7 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<IModelPricingProvider>(),
                 sp.GetRequiredService<ILogger<Services.Telemetry.CostBackfillService>>(),
                 sp.GetRequiredService<JobService>()));
-        server.Services.AddSingleton<IStartable>(sp =>
+        server.Services.AddSingleton<IMasterOnlyStartable>(sp =>
             sp.GetRequiredService<Services.Telemetry.CostBackfillService>());
     }
 }

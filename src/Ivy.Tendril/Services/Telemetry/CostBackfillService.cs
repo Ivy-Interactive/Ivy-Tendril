@@ -25,7 +25,7 @@ public sealed class CostBackfillService(
     IPlanDatabaseService database,
     IModelPricingProvider pricingProvider,
     ILogger<CostBackfillService> logger,
-    JobService? jobService = null) : IStartable, IDisposable
+    JobService? jobService = null) : IMasterOnlyStartable, IDisposable
 {
     // Comfortably after ModelPricingWarmupService's 15 seconds, so the first pass prices against
     // models.dev rather than the hardcoded catalogs where the two disagree.
@@ -188,9 +188,15 @@ public sealed class CostBackfillService(
                    && value == 0m);
     }
 
-    public void Dispose()
+    /// <summary>Disarms the backfill timer, so a demoted instance stops writing cost rows to the shared db.</summary>
+    public void Stop()
     {
         _timer?.Dispose();
         _timer = null;
+    }
+
+    public void Dispose()
+    {
+        Stop();
     }
 }
