@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -18,6 +19,7 @@ public class MasterElectionServiceTests : IDisposable
 {
     private readonly string _home;
     private readonly string? _originalNotMaster;
+    private readonly List<Process> _spawned = new();
 
     public MasterElectionServiceTests()
     {
@@ -34,6 +36,21 @@ public class MasterElectionServiceTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_NOT_MASTER", _originalNotMaster);
         MasterLock.Current = null;
 
+        foreach (var process in _spawned)
+        {
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(true);
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+
+            process.Dispose();
+        }
+
         try
         {
             if (Directory.Exists(_home))
@@ -46,6 +63,30 @@ public class MasterElectionServiceTests : IDisposable
     }
 
     private string MasterFile => Path.Combine(_home, ".master");
+
+    /// <summary>A real, live process that is not this one, so its PID passes the liveness test.</summary>
+    private Process StartIdleProcess()
+    {
+        var psi = OperatingSystem.IsWindows()
+            ? new ProcessStartInfo("cmd.exe", "/c ping -n 60 127.0.0.1")
+            : new ProcessStartInfo("/bin/sh", "-c \"sleep 60\"");
+        psi.CreateNoWindow = true;
+        psi.RedirectStandardOutput = true;
+
+        var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start a helper process.");
+        _spawned.Add(process);
+        return process;
+    }
+
+    /// <summary>A PID that is certain not to be running.</summary>
+    private static int DeadPid()
+    {
+        for (var candidate = 999_999; candidate > 1000; candidate--)
+            if (!MasterLock.IsProcessAlive(candidate))
+                return candidate;
+
+        throw new InvalidOperationException("Could not find a dead PID to test with.");
+    }
 
     private (MasterElectionService Election, FakeLifetime Lifetime) CreateElection(string scheme = "http", int port = 5010)
     {
@@ -142,7 +183,78 @@ public class MasterElectionServiceTests : IDisposable
     }
 
     [Fact]
-    public void Heartbeat_DemotesWhenTheClaimNoLongerNamesThisProcess()
+    public void Heartbeat_ReassertsTheClaimWhenTheFileDisappears()
+    {
+        var (election, lifetime) = CreateElection(scheme: "https", port: 5099);
+        election.Start();
+        lifetime.TriggerStarted();
+
+        var transitions = new List<bool>();
+        election.MasterStatusChanged += transitions.Add;
+
+        // The 2026-09-14 14:57 incident: something deleted the claim of a master that was alive, bound and
+        // running 28 agents. Demoting over that stops the inbox watcher and job services and leaves nobody
+        // in charge; the CLI stays broken until a human hand-writes the file. Self-healing is the fix.
+        File.Delete(MasterFile);
+
+        InvokeHeartbeat(election);
+
+        Assert.True(File.Exists(MasterFile));
+        var restored = MasterLock.Read(MasterFile)!;
+        Assert.Equal(Environment.ProcessId, restored.Pid);
+        Assert.Equal(5099, restored.Port);
+        Assert.Equal("https", restored.Scheme);
+
+        // Still the master, and no transition at all: background services are never stopped and restarted
+        // over a file blip.
+        Assert.True(election.IsMaster);
+        Assert.Empty(transitions);
+
+        election.Dispose();
+    }
+
+    [Fact]
+    public void Heartbeat_DoesNotSilentlyReturnWhenTheFileDisappears()
+    {
+        var (election, lifetime) = CreateElection();
+        election.Start();
+        lifetime.TriggerStarted();
+
+        File.Delete(MasterFile);
+        var before = DateTime.UtcNow;
+        InvokeHeartbeat(election);
+
+        // The "does something" half of the requirement, independent of what it wrote: the claim on disk is
+        // beating again rather than the heartbeat having quietly given up.
+        var restored = MasterLock.Read(MasterFile)!;
+        Assert.True(restored.Heartbeat >= before.AddSeconds(-1));
+        Assert.True(DateTime.UtcNow - restored.Heartbeat < TimeSpan.FromSeconds(10));
+
+        election.Dispose();
+    }
+
+    [Fact]
+    public void Heartbeat_ReassertsWhenTheClaimIsEmpty()
+    {
+        var (election, lifetime) = CreateElection();
+        election.Start();
+        lifetime.TriggerStarted();
+
+        // The exact 13:52Z state: the file was empty, not missing, before it was deleted. A truncating
+        // write publishes a zero-byte claim mid-flight, and reading it as "someone else has the claim"
+        // would demote a master over its own write.
+        File.WriteAllText(MasterFile, "");
+
+        InvokeHeartbeat(election);
+
+        Assert.Equal(Environment.ProcessId, MasterLock.Read(MasterFile)!.Pid);
+        Assert.True(election.IsMaster);
+
+        election.Dispose();
+    }
+
+    [Fact]
+    public void Heartbeat_ReclaimsAClaimNamingADeadProcess()
     {
         var (election, lifetime) = CreateElection();
         election.Start();
@@ -151,11 +263,40 @@ public class MasterElectionServiceTests : IDisposable
         var transitions = new List<bool>();
         election.MasterStatusChanged += transitions.Add;
 
-        // Another launch judged our claim stale and took it. The heartbeat is where a running instance
-        // finds out, and it must stop behaving like the master.
         MasterLock.Write(MasterFile, new MasterElectionService.MasterFileData
         {
-            Pid = Environment.ProcessId + 1,
+            Pid = DeadPid(),
+            Port = 5010,
+            Scheme = "http",
+            StartedAt = DateTime.UtcNow,
+            Heartbeat = DateTime.UtcNow
+        });
+
+        InvokeHeartbeat(election);
+
+        // Nobody is holding a claim whose PID is dead, so there is no dispossession to accept.
+        Assert.Equal(Environment.ProcessId, MasterLock.Read(MasterFile)!.Pid);
+        Assert.True(election.IsMaster);
+        Assert.Empty(transitions);
+
+        election.Dispose();
+    }
+
+    [Fact]
+    public void Heartbeat_DemotesWhenTheClaimNamesADifferentLiveProcess()
+    {
+        var (election, lifetime) = CreateElection();
+        election.Start();
+        lifetime.TriggerStarted();
+
+        var transitions = new List<bool>();
+        election.MasterStatusChanged += transitions.Add;
+
+        // The one case that is a real loss of mastership: another launch took the claim and is running.
+        var alive = StartIdleProcess();
+        MasterLock.Write(MasterFile, new MasterElectionService.MasterFileData
+        {
+            Pid = alive.Id,
             Port = 5010,
             Scheme = "http",
             StartedAt = DateTime.UtcNow,
@@ -167,7 +308,38 @@ public class MasterElectionServiceTests : IDisposable
         Assert.False(election.IsMaster);
         Assert.Equal(new[] { false }, transitions);
 
+        // The foreign claim is left exactly as it was: it belongs to a live master now.
+        Assert.Equal(alive.Id, MasterLock.Read(MasterFile)!.Pid);
+
         election.Dispose();
+    }
+
+    [Fact]
+    public void Dispose_AfterDemotion_LeavesTheForeignClaimInPlace()
+    {
+        var (election, lifetime) = CreateElection();
+        election.Start();
+        lifetime.TriggerStarted();
+
+        var alive = StartIdleProcess();
+        MasterLock.Write(MasterFile, new MasterElectionService.MasterFileData
+        {
+            Pid = alive.Id,
+            Port = 5010,
+            Scheme = "http",
+            StartedAt = DateTime.UtcNow,
+            Heartbeat = DateTime.UtcNow
+        });
+
+        InvokeHeartbeat(election);
+        Assert.False(election.IsMaster);
+
+        // Shutdown must never delete the claim it was dispossessed of: Cleanup only releases while
+        // IsMaster, which the demotion cleared.
+        election.Dispose();
+
+        Assert.True(File.Exists(MasterFile));
+        Assert.Equal(alive.Id, MasterLock.Read(MasterFile)!.Pid);
     }
 
     [Fact]

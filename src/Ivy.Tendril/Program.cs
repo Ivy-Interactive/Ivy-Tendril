@@ -695,6 +695,16 @@ public class Program
             config.AddCommand<ResetCommand>("reset")
                 .WithDescription("Remove all Tendril data and environment variables");
 
+            // Master claim commands: the documented recovery path for a missing or wedged .master, so
+            // nobody has to hand-write pid/port/scheme into it again.
+            config.AddBranch("master", master =>
+            {
+                master.AddCommand<MasterStatusCommand>("status")
+                    .WithDescription("Show the master claim and whether the process it names is serving");
+                master.AddCommand<MasterReleaseCommand>("release")
+                    .WithDescription("Break a wedged master claim");
+            });
+
             // Other commands
             config.AddCommand<UpdatePromptwaresCliCommand>("update-promptwares")
                 .WithDescription("Update embedded promptwares");

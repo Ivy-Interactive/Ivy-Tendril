@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -13,6 +14,7 @@ namespace Ivy.Tendril.Test;
 public class MasterLockTests : IDisposable
 {
     private readonly string _home;
+    private readonly List<Process> _spawned = new();
 
     public MasterLockTests()
     {
@@ -24,6 +26,21 @@ public class MasterLockTests : IDisposable
     public void Dispose()
     {
         MasterLock.Current = null;
+
+        foreach (var process in _spawned)
+        {
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(true);
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+
+            process.Dispose();
+        }
 
         try
         {
@@ -65,6 +82,24 @@ public class MasterLockTests : IDisposable
                 return candidate;
 
         throw new InvalidOperationException("Could not find a dead PID to test with.");
+    }
+
+    /// <summary>
+    ///     A real, live process that is not this one, so its PID passes the liveness test. Using this
+    ///     process's own PID would instead exercise the self-claim path.
+    /// </summary>
+    private Process StartIdleProcess()
+    {
+        // Loopback ping on Windows purely because it idles without needing a console; sleep elsewhere.
+        var psi = OperatingSystem.IsWindows()
+            ? new ProcessStartInfo("cmd.exe", "/c ping -n 60 127.0.0.1")
+            : new ProcessStartInfo("/bin/sh", "-c \"sleep 60\"");
+        psi.CreateNoWindow = true;
+        psi.RedirectStandardOutput = true;
+
+        var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start a helper process.");
+        _spawned.Add(process);
+        return process;
     }
 
     [Fact]
@@ -225,12 +260,77 @@ public class MasterLockTests : IDisposable
     }
 
     [Fact]
-    public void TryReclaimStale_DeletesAStaleHeartbeat()
+    public void TryReclaimStale_RefusesToDeleteAStaleClaimHeldByALiveProcess()
+    {
+        var alive = StartIdleProcess();
+        WriteClaim(alive.Id, heartbeatAge: MasterLock.StaleAfter + TimeSpan.FromSeconds(30));
+
+        // The 2026-09-14 14:57 trigger: at load average 33-56 a starved 30s timer overshoots the 90s
+        // window, and every CLI command then deleted the claim of a PID that was alive and listening.
+        // A late heartbeat means "busy", not "dead", while the process is demonstrably running.
+        Assert.False(MasterLock.TryReclaimStale(_home));
+        Assert.True(File.Exists(MasterFile));
+        Assert.Equal(alive.Id, MasterLock.Read(MasterFile)!.Pid);
+    }
+
+    [Fact]
+    public void TryReclaimStale_RefusesToDeleteOurOwnStaleClaim()
     {
         WriteClaim(Environment.ProcessId, heartbeatAge: MasterLock.StaleAfter + TimeSpan.FromSeconds(30));
 
+        Assert.False(MasterLock.TryReclaimStale(_home));
+        Assert.True(File.Exists(MasterFile));
+    }
+
+    [Fact]
+    public void TryReclaimStale_DeletesAStaleLiveClaimWhenForced()
+    {
+        var alive = StartIdleProcess();
+        WriteClaim(alive.Id, heartbeatAge: MasterLock.StaleAfter + TimeSpan.FromSeconds(30));
+
+        // The launch guard's eviction, which is legitimate because it has already probed the holder and
+        // found it silent: a genuinely hung master must not block every launch forever.
+        Assert.True(MasterLock.TryReclaimStale(_home, null, ReclaimPolicy.ForceEvictLiveProcess));
+        Assert.False(File.Exists(MasterFile));
+    }
+
+    [Fact]
+    public void TryReclaimStale_StillDeletesADeadHoldersStaleClaim()
+    {
+        WriteClaim(DeadPid(), heartbeatAge: MasterLock.StaleAfter + TimeSpan.FromSeconds(30));
+
+        // No live process to respect, so the policy is moot and the behaviour is unchanged.
         Assert.True(MasterLock.TryReclaimStale(_home));
         Assert.False(File.Exists(MasterFile));
+    }
+
+    [Fact]
+    public void StaleAfter_IsThreeHeartbeatPeriods()
+    {
+        // Pinned so the threshold cannot drift away from the timer that is supposed to satisfy it.
+        Assert.Equal(TimeSpan.FromSeconds(30), MasterLock.HeartbeatPeriod);
+        Assert.Equal(3, MasterLock.MissedBeatsBeforeStale);
+        Assert.Equal(MasterLock.HeartbeatPeriod * MasterLock.MissedBeatsBeforeStale, MasterLock.StaleAfter);
+        Assert.Equal(TimeSpan.FromSeconds(90), MasterLock.StaleAfter);
+    }
+
+    [Fact]
+    public void ForceRelease_DeletesALiveBeatingClaim()
+    {
+        var alive = StartIdleProcess();
+        WriteClaim(alive.Id);
+
+        // What 'tendril master release --force' is for: TryReclaimStale would refuse this claim at every
+        // policy, because ReadLiveMaster accepts it.
+        Assert.False(MasterLock.TryReclaimStale(_home, null, ReclaimPolicy.ForceEvictLiveProcess));
+        Assert.True(MasterLock.ForceRelease(_home));
+        Assert.False(File.Exists(MasterFile));
+    }
+
+    [Fact]
+    public void ForceRelease_ReportsSuccess_WhenThereIsNoClaim()
+    {
+        Assert.True(MasterLock.ForceRelease(_home));
     }
 
     [Fact]
@@ -330,6 +430,115 @@ public class MasterLockTests : IDisposable
 
         Assert.True(File.Exists(MasterFile));
         Assert.Equal(otherPid, MasterLock.Read(MasterFile)!.Pid);
+    }
+
+    [Fact]
+    public void Release_LeavesAnUnreadableClaimAlone()
+    {
+        var handle = MasterLock.TryAcquire(_home)!;
+        File.WriteAllText(MasterFile, "{ not json");
+
+        // Release requires positive ownership. A claim we cannot read is one we cannot prove is ours, and
+        // deleting it is how a shutdown ends up leaving no master behind at all. Left in place it is still
+        // recoverable: the next reader rejects it as unreadable and reclaims it with no live PID to respect.
+        handle.Release();
+
+        Assert.True(File.Exists(MasterFile));
+    }
+
+    [Fact]
+    public void BeatOrReassert_ReturnsBeatReassertedAndDispossessed()
+    {
+        var handle = MasterLock.TryAcquire(_home)!;
+        handle.Publish(5010, "https");
+
+        Assert.Equal(MasterLockHandle.HeartbeatOutcome.Beat, handle.BeatOrReassert());
+
+        File.Delete(MasterFile);
+        Assert.Equal(MasterLockHandle.HeartbeatOutcome.Reasserted, handle.BeatOrReassert());
+        var restored = MasterLock.Read(MasterFile)!;
+        Assert.Equal(Environment.ProcessId, restored.Pid);
+        Assert.Equal(5010, restored.Port);
+        Assert.Equal("https", restored.Scheme);
+
+        WriteClaim(DeadPid());
+        Assert.Equal(MasterLockHandle.HeartbeatOutcome.Reasserted, handle.BeatOrReassert());
+        Assert.Equal(Environment.ProcessId, MasterLock.Read(MasterFile)!.Pid);
+
+        var alive = StartIdleProcess();
+        WriteClaim(alive.Id);
+        Assert.Equal(MasterLockHandle.HeartbeatOutcome.Dispossessed, handle.BeatOrReassert(out var foreignPid));
+        Assert.Equal(alive.Id, foreignPid);
+
+        // Dispossession writes nothing and deletes nothing: a live foreign master owns this claim.
+        Assert.Equal(alive.Id, MasterLock.Read(MasterFile)!.Pid);
+    }
+
+    [Fact]
+    public void BeatOrReassert_KeepsTheOriginalStartedAtAcrossAReassert()
+    {
+        var handle = MasterLock.TryAcquire(_home)!;
+        var startedAt = MasterLock.Read(MasterFile)!.StartedAt;
+
+        File.Delete(MasterFile);
+        Assert.Equal(MasterLockHandle.HeartbeatOutcome.Reasserted, handle.BeatOrReassert());
+
+        // Re-asserting is not a restart, and an uptime that resets on every file blip is a lie.
+        Assert.Equal(startedAt, MasterLock.Read(MasterFile)!.StartedAt);
+        Assert.Same(handle, MasterLock.Current);
+    }
+
+    [Fact]
+    public void BeatOrReassert_ReassertsAnEmptyClaim()
+    {
+        var handle = MasterLock.TryAcquire(_home)!;
+        File.WriteAllText(MasterFile, "");
+
+        // The exact 2026-09-14 13:52Z state: a zero-byte .master, mid-write. It is a transient state of
+        // our own file, not evidence that anyone took the claim.
+        Assert.Equal(MasterLockHandle.HeartbeatOutcome.Reasserted, handle.BeatOrReassert());
+        Assert.Equal(Environment.ProcessId, MasterLock.Read(MasterFile)!.Pid);
+    }
+
+    [Fact]
+    public void Write_IsAtomicUnderConcurrentReaders()
+    {
+        MasterLock.TryAcquire(_home);
+        var data = MasterLock.Read(MasterFile)!;
+
+        var stop = false;
+        var nulls = 0;
+        var badPids = 0;
+        var reads = 0;
+
+        var reader = new Thread(() =>
+        {
+            while (!Volatile.Read(ref stop))
+            {
+                var seen = MasterLock.Read(MasterFile);
+                reads++;
+                if (seen == null) nulls++;
+                else if (seen.Pid != Environment.ProcessId) badPids++;
+            }
+        });
+
+        reader.Start();
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(200);
+        while (DateTime.UtcNow < deadline)
+        {
+            data.Heartbeat = DateTime.UtcNow;
+            MasterLock.Write(MasterFile, data);
+        }
+
+        Volatile.Write(ref stop, true);
+        reader.Join();
+
+        // A truncate-in-place write publishes a zero-byte claim for the width of the write, and a reader
+        // landing in that window reads "unreadable" - which is what made the CLI delete a live master's
+        // claim. Every read must see either the old claim or the new one.
+        Assert.True(reads > 0, "The reader thread never ran.");
+        Assert.Equal(0, nulls);
+        Assert.Equal(0, badPids);
     }
 
     [Fact]

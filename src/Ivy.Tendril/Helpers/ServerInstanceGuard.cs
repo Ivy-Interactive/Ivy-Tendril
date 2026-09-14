@@ -89,7 +89,18 @@ internal static class ServerInstanceGuard
 
         var live = MasterLock.ReadLiveMaster(tendrilHome, out var rejectReason);
         if (live == null)
+        {
+            // A stale heartbeat from a PID that is still running is the one rejection the file cannot
+            // settle on its own: a saturated master looks exactly like a hung one. Let the health probe
+            // decide before anything is deleted, or a busy master loses its claim to this launch and two
+            // instances end up running jobs against the same TENDRIL_HOME.
+            var saturated = DeferToSaturatedMaster(tendrilHome, rejectReason, useDesktop, out masterUrl,
+                healthProbe, logger, timing);
+            if (saturated != null)
+                return saturated.Value;
+
             return ReclaimAndRetry(tendrilHome, rejectReason, logger);
+        }
 
         // A sibling that claimed but has not bound yet: the 15-40ms pairing seen in crash.log. Wait
         // for its port rather than declaring it dead, since it is very much alive.
@@ -124,6 +135,59 @@ internal static class ServerInstanceGuard
         }
 
         Log(logger, $"Refuse: healthy master (PID {live.Pid}) at {url}.");
+        return ServerLaunchDecision.Refuse;
+    }
+
+    /// <summary>
+    ///     Handles the "stale heartbeat, live PID" rejection: probe the recorded address, defer to the
+    ///     holder when it answers, and evict it only once it has been proved silent. Returns <c>null</c>
+    ///     when this is not that case, leaving the caller to reclaim as before.
+    /// </summary>
+    private static ServerLaunchDecision? DeferToSaturatedMaster(
+        string tendrilHome, string? rejectReason, bool useDesktop, out string? masterUrl,
+        Func<string, bool> healthProbe, ILogger? logger, ProbeTiming timing)
+    {
+        masterUrl = null;
+
+        if (rejectReason?.StartsWith("heartbeat", StringComparison.Ordinal) != true)
+            return null;
+
+        var stale = MasterLock.Read(MasterLock.GetMasterFilePath(tendrilHome));
+
+        // Port 0 leaves nothing to probe, and a dead PID is nobody's claim to defend: both fall through
+        // to the ordinary reclaim, where no live process is involved and the policy is moot.
+        if (stale == null || stale.Port == 0 || !MasterLock.IsProcessAlive(stale.Pid))
+            return null;
+
+        var scheme = string.IsNullOrEmpty(stale.Scheme) ? "http" : stale.Scheme;
+        var url = $"{scheme}://localhost:{stale.Port}";
+
+        if (!ProbeHealth(url, healthProbe, timing, logger))
+        {
+            // Proved not serving, so this is the one caller entitled to evict a running process: a hung
+            // master must not block every launch forever.
+            Log(logger, $"PID {stale.Pid} stopped beating and did not answer {url}/ivy/health after {timing.HealthAttempts} attempts: evicting it.");
+            MasterLock.TryReclaimStale(tendrilHome, logger, ReclaimPolicy.ForceEvictLiveProcess);
+
+            if (MasterLock.TryAcquire(tendrilHome, logger) != null)
+            {
+                Log(logger, $"Proceed: evicted a hung master (PID {stale.Pid}, {rejectReason}).");
+                return ServerLaunchDecision.Proceed;
+            }
+
+            Log(logger, $"Refuse: a sibling took the master lock while we were evicting PID {stale.Pid}.");
+            return ServerLaunchDecision.Refuse;
+        }
+
+        masterUrl = url;
+
+        if (useDesktop)
+        {
+            Log(logger, $"AttachToExisting: PID {stale.Pid} answered {url}/ivy/health with a stale heartbeat ({rejectReason}): saturated, not hung. Its claim is left alone.");
+            return ServerLaunchDecision.AttachToExisting;
+        }
+
+        Log(logger, $"Refuse: PID {stale.Pid} answered {url}/ivy/health with a stale heartbeat ({rejectReason}): saturated, not hung. Its claim is left alone.");
         return ServerLaunchDecision.Refuse;
     }
 
@@ -189,7 +253,7 @@ internal static class ServerInstanceGuard
     ///     listening, not whether it is happy. The certificate check is waived because a desktop
     ///     instance serves HTTPS with a self-signed cert.
     /// </summary>
-    private static bool DefaultHealthProbe(string url)
+    internal static bool DefaultHealthProbe(string url)
     {
         try
         {
