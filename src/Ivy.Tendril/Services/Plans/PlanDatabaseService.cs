@@ -839,8 +839,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason, Model, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, ReasoningTokens, CostSource, ExecutionProfile, Effort)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason, @model, @inputTokens, @outputTokens, @cacheReadTokens, @cacheWriteTokens, @reasoningTokens, @costSource, @executionProfile, @effort)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason, Model, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, ReasoningTokens, CostSource, ExecutionProfile, Effort, InboxFile, ChatSessionId)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason, @model, @inputTokens, @outputTokens, @cacheReadTokens, @cacheWriteTokens, @reasoningTokens, @costSource, @executionProfile, @effort, @inboxFile, @chatSessionId)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -878,6 +878,10 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@costSource", (object?)job.CostSource ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@executionProfile", (object?)job.ExecutionProfile ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@effort", (object?)job.Effort ?? DBNull.Value);
+            // The inbox breadcrumb link was memory only, so a restart could not tell which job owned a
+            // breadcrumb and resurrected all of them (#2710).
+            cmd.Parameters.AddWithValue("@inboxFile", (object?)job.InboxFile ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@chatSessionId", (object?)job.ChatSessionId ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -921,6 +925,24 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
+    /// <summary>
+    ///     Reads a nullable text column by name, treating an absent column as null. Tolerating the
+    ///     absence matters for columns added late: a reader over a schema that predates them should see
+    ///     no value rather than throw.
+    /// </summary>
+    private static string? ReadOptionalString(SqliteDataReader reader, string column)
+    {
+        for (var i = 0; i < reader.FieldCount; i++)
+        {
+            if (!string.Equals(reader.GetName(i), column, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            return reader.IsDBNull(i) ? null : reader.GetString(i);
+        }
+
+        return null;
+    }
+
     private JobItem MapJobRow(SqliteDataReader reader)
     {
         var typedArgs = ReadTypedArgs(reader);
@@ -956,7 +978,10 @@ public class PlanDatabaseService : IPlanDatabaseService
                 ? null
                 : reader.GetString(reader.GetOrdinal("StatusMessage")),
             TypedArgs = typedArgs,
-            ChatSessionId = typedArgs?.ChatSessionId,
+            // The column wins, the TypedArgs blob is the fallback: rows written before migration 026
+            // only ever carried this inside the blob.
+            ChatSessionId = ReadOptionalString(reader, "ChatSessionId") ?? typedArgs?.ChatSessionId,
+            InboxFile = ReadOptionalString(reader, "InboxFile"),
             WorkingDirectory = reader.IsDBNull(reader.GetOrdinal("WorkingDirectory"))
                 ? null
                 : reader.GetString(reader.GetOrdinal("WorkingDirectory")),
