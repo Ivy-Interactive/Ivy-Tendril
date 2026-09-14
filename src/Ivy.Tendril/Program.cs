@@ -220,9 +220,28 @@ public class Program
 
         // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
         bool isServerLaunch = invocationKind == CliInvocationKind.ServerLaunch;
+
+        // This process is about to hand the launch to a detached child and exit, so it must not take
+        // the master lock: the child takes it, and a claim left behind by a parent that is still
+        // exiting would make the child wait on a sibling that is really itself.
+        bool willRelaunchDetached = (isTool || isPackagedApp) && useDesktop && !isDetachedChild
+            && ShouldDetachDesktopLaunch(filteredArgs, verbose);
+
         if (isServerLaunch && !isDetachedChild)
         {
             CrashLog.Write($"[{DateTime.UtcNow:O}] Server launch (kind={invocationKind}) | raw args: {string.Join(" ", Environment.GetCommandLineArgs())}");
+
+            // Duplicate-instance check first, and unconditionally: the port check below only ever
+            // fires when FindAvailablePort is false, which the desktop path sets to true two lines
+            // down, so it can never see a sibling Tendril. It stays for a genuine third-party port
+            // collision, which is a different problem.
+            if (!willRelaunchDetached)
+            {
+                var duplicateExit = HandleServerInstanceGuard(useDesktop);
+                if (duplicateExit >= 0)
+                    return duplicateExit;
+            }
+
             var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
             var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
             if (useDesktop)
@@ -248,7 +267,7 @@ public class Program
             }
         }
 
-        if ((isTool || isPackagedApp) && useDesktop && !isDetachedChild && ShouldDetachDesktopLaunch(filteredArgs, verbose))
+        if (willRelaunchDetached)
             return RelaunchDesktopDetached(filteredArgs);
 
         if (isDetachedChild && useDesktop)
@@ -362,6 +381,14 @@ public class Program
 
         ConfigureExceptionHandlers();
         StartMemoryWatchdog();
+
+        // The second launch site. A detached desktop child skips the check above (it runs with
+        // isDetachedChild set), so this is the only place it is guarded, and it is where the parent's
+        // claim is inherited by nobody: the child takes its own. A no-op when this process already
+        // holds the claim from the first site.
+        var duplicateInstanceExit = HandleServerInstanceGuard(useDesktop);
+        if (duplicateInstanceExit >= 0)
+            return duplicateInstanceExit;
 
         var tendrilArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
         var server = TendrilServer.Create(filteredArgs, tendrilArgs);
@@ -1056,6 +1083,66 @@ public class Program
             window.SetBadgeCount(activeJobs, background: "#5B21B6", foreground: "#FFFFFF");
         else
             window.ClearBadge();
+    }
+
+    /// <summary>
+    ///     Runs the duplicate-instance guard and turns its verdict into an exit code: <c>-1</c> to carry
+    ///     on with this launch, otherwise the code to return from <c>Main</c>.
+    /// </summary>
+    /// <remarks>
+    ///     Resolves TENDRIL_HOME through <see cref="PathHelper" /> rather than the config service,
+    ///     because both call sites run long before the DI container exists.
+    /// </remarks>
+    private static int HandleServerInstanceGuard(bool useDesktop)
+    {
+        string tendrilHome;
+        try
+        {
+            tendrilHome = PathHelper.GetDefaultTendrilHome();
+        }
+        catch (Exception ex)
+        {
+            // No home means no shared state to collide over, so a launch is safe. Refusing here would
+            // turn a resolution problem into "Tendril will not start" with no way to fix it.
+            CrashLog.Write($"[{DateTime.UtcNow:O}] ServerInstanceGuard: could not resolve TENDRIL_HOME, skipping the duplicate check: {ex.Message}");
+            return -1;
+        }
+
+        var decision = ServerInstanceGuard.Evaluate(tendrilHome, useDesktop, out var masterUrl);
+
+        switch (decision)
+        {
+            case ServerLaunchDecision.Proceed:
+                return -1;
+
+            case ServerLaunchDecision.AttachToExisting when masterUrl != null:
+                AnsiConsole.MarkupLine($"[yellow]Tendril is already running.[/] Opening [blue]{masterUrl.EscapeMarkup()}[/] instead of starting a second instance.");
+                try
+                {
+                    ProcessHelper.OpenBrowser(masterUrl);
+                }
+                catch (Exception ex)
+                {
+                    // The URL is already on screen, so a browser that refuses to open is not a failure
+                    // worth a non-zero exit.
+                    CrashLog.Write($"[{DateTime.UtcNow:O}] ServerInstanceGuard: failed to open {masterUrl}: {ex.Message}");
+                }
+                return 0;
+
+            default:
+                // Re-read the claim purely for the message. Only on the refuse path, so the extra file
+                // read costs nothing on a normal launch.
+                var live = MasterLock.ReadLiveMaster(tendrilHome);
+                AnsiConsole.MarkupLine(live != null
+                    ? $"[red]Error: another instance of Tendril (PID {live.Pid}) is already running against this TENDRIL_HOME.[/]"
+                    : "[red]Error: another instance of Tendril is already running against this TENDRIL_HOME.[/]");
+                if (masterUrl != null)
+                    AnsiConsole.MarkupLine($"It is serving [blue]{masterUrl.EscapeMarkup()}[/]. Open that instead of starting a second instance.");
+                AnsiConsole.MarkupLine("");
+                AnsiConsole.MarkupLine($"Two instances sharing [green]{tendrilHome.EscapeMarkup()}[/] both run jobs, so a single request is started twice.");
+                AnsiConsole.MarkupLine("To run a second UI on purpose (read-only, no background work), start it with [green]tendril --not-master[/].");
+                return 1;
+        }
     }
 
     internal static bool IsPortInUse(int port)
