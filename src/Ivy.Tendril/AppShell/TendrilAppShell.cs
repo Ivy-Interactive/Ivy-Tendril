@@ -320,6 +320,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var deletingSessionId = UseState<string?>(null);
         var sessionsSignature = UseRef<string?>(null);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        Context.TryUseService<IInboxWatcherService>(out var inboxWatcher);
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
 
         var (updateDialog, showUpdateDialog) = UseTrigger<VersionInfo>((isOpen, info) =>
@@ -451,10 +452,39 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 summarizer.Add(notification);
             }
 
+            void OnRecovery(InboxRecoverySummary recovery)
+            {
+                // Nothing recovered is the normal case, and it must not toast on every start.
+                if (recovery.IsEmpty) return;
+
+                if (recovery.Resurrected > 0 || recovery.Orphaned > 0)
+                    ShowToast(new JobNotification(
+                        "Inbox Recovered",
+                        $"{recovery.Resurrected + recovery.Orphaned} inbox items recovered",
+                        true));
+
+                if (recovery.BulkRefused || recovery.DeadLettered > 0)
+                    ShowToast(new JobNotification(
+                        "Inbox Needs Attention",
+                        recovery.BulkRefused
+                            ? "Too many inbox items to recover at once, so none were. They are waiting in ~/.tendril/Inbox."
+                            : $"{recovery.DeadLettered} inbox items gave up after repeated recovery attempts. See ~/.tendril/Inbox/DeadLetter.",
+                        false));
+            }
+
+            // Recovery runs in the watcher's Start(), which is before this shell mounts, so the first
+            // pass is read rather than waited for. Later passes arrive on the event.
+            if (inboxWatcher?.LastRecovery != null)
+                OnRecovery(inboxWatcher.LastRecovery);
+            if (inboxWatcher != null)
+                inboxWatcher.RecoveryCompleted += OnRecovery;
+
             jobService.NotificationReady += OnNotification;
             return Disposable.Create(() =>
             {
                 jobService.NotificationReady -= OnNotification;
+                if (inboxWatcher != null)
+                    inboxWatcher.RecoveryCompleted -= OnRecovery;
                 summarizer.Dispose();
             });
         });
