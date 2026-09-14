@@ -13,6 +13,7 @@ import { getMarkdownPlugins } from "../math";
 import { tagQuestionBlocks } from "./questionsSource";
 import { QuestionsAnswerContext } from "./questionsContext";
 import type { AnswerCallback } from "./questionsContext";
+import { WireframeBaseContext } from "./wireframeContext";
 import { useAnchoredPosition } from "./useAnchoredPosition";
 import { SearchOverlay } from "./SearchOverlay";
 import { applySearchHighlights, clearSearchHighlights } from "./searchUtils";
@@ -29,6 +30,8 @@ interface PlanMarkdownProps {
   annotations?: MarkdownAnnotation[];
   scrollTo?: { questionId: string; token: number } | null;
   currentAuthor?: string;
+  /** Where this plan's wireframes are served. Unset outside a plan: `wireframe` fences show a placeholder. */
+  wireframeBaseUrl?: string;
   events?: string[];
   eventHandler?: IvyEventHandler;
   slots?: {
@@ -55,6 +58,7 @@ export const PlanMarkdown: React.FC<PlanMarkdownProps> = ({
   annotations = EMPTY_ANNOTATIONS,
   scrollTo,
   currentAuthor,
+  wireframeBaseUrl,
   events = EMPTY_EVENTS,
   eventHandler,
   slots,
@@ -362,7 +366,6 @@ export const PlanMarkdown: React.FC<PlanMarkdownProps> = ({
     },
     [events, eventHandler, id],
   );
-
   const anchor = useCallback(
     (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
       const { href, children, ...rest } = props;
@@ -469,7 +472,9 @@ export const PlanMarkdown: React.FC<PlanMarkdownProps> = ({
       <div ref={shellRef} className="pmv-shell">
         <div className="pmv-body">
           <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
-            <QuestionsAnswerContext.Provider value={answerCallback}>{markdownTree}</QuestionsAnswerContext.Provider>
+            <WireframeBaseContext.Provider value={wireframeBaseUrl || undefined}>
+              <QuestionsAnswerContext.Provider value={answerCallback}>{markdownTree}</QuestionsAnswerContext.Provider>
+            </WireframeBaseContext.Provider>
           </div>
         </div>
         {hasFixed && <div className="pmv-sticky">{fixed}</div>}

@@ -8,5 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ivy.Tendril.Widgets.csproj" />
+    <!-- The Wireframes sample serves a real wireframe, the way Tendril does for a plan. -->
+    <ProjectReference Include="..\..\Ivy.Tendril.Wireframe\Ivy.Tendril.Wireframe.csproj" />
   </ItemGroup>
 </Project>

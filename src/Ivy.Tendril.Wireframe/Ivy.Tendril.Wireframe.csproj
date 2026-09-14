@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Ivy.Tendril.Wireframe</RootNamespace>
+    <!-- Where pipeline/vendor/build-all.mjs writes everything this assembly embeds. -->
+    <WireframeArtifactsDir>$(MSBuildThisFileDirectory)artifacts\</WireframeArtifactsDir>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts/**;pipeline/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Kestrel and minimal APIs for the wireframe dev server, without the Web SDK's
+         static-web-assets machinery, which fights serving a directory chosen at runtime. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Ivy.Tendril" />
+    <InternalsVisibleTo Include="Ivy.Tendril.Test" />
+  </ItemGroup>
+
+  <!-- ==================================================================================
+       Embedded payload.
+       Everything under artifacts/ (vendor bundle, stylesheets, fonts, TypeScript types, the
+       component manifest) is zipped into one embedded resource that AssetCatalog reads
+       from memory. esbuild is not part of it: EsbuildProvisioner downloads the binary for
+       the running platform on first use, so the Tendril package does not carry 74 MB of
+       binaries for platforms it is not running on.
+       ================================================================================== -->
+  <ItemGroup>
+    <WireframeAsset Include="$(WireframeArtifactsDir)**\*" />
+  </ItemGroup>
+
+  <Target Name="StageWireframeAssets"
+          BeforeTargets="BeforeBuild"
+          Condition="Exists('$(WireframeArtifactsDir)')"
+          Inputs="@(WireframeAsset)"
+          Outputs="$(IntermediateOutputPath)wireframe-assets.zip">
+    <!-- Set inside the target: IntermediateOutputPath is defined by the SDK's .targets,
+         which import after this file's property groups are evaluated. -->
+    <PropertyGroup>
+      <WireframeAssetStage>$(IntermediateOutputPath)wireframe-assets\</WireframeAssetStage>
+      <WireframeAssetZip>$(IntermediateOutputPath)wireframe-assets.zip</WireframeAssetZip>
+    </PropertyGroup>
+
+    <Error Condition="'@(WireframeAsset)' == ''"
+           Text="No files under $(WireframeArtifactsDir). Run: cd pipeline/vendor &amp;&amp; npm install &amp;&amp; node build-all.mjs" />
+
+    <RemoveDir Directories="$(WireframeAssetStage)" />
+    <Copy SourceFiles="@(WireframeAsset)"
+          DestinationFiles="@(WireframeAsset->'$(WireframeAssetStage)%(RecursiveDir)%(Filename)%(Extension)')" />
+    <ZipDirectory SourceDirectory="$(WireframeAssetStage)" DestinationFile="$(WireframeAssetZip)" Overwrite="true" />
+  </Target>
+
+  <Target Name="AddWireframeAssets" BeforeTargets="PrepareForBuild" DependsOnTargets="StageWireframeAssets">
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)wireframe-assets.zip" LogicalName="wireframe-assets.zip" />
+    </ItemGroup>
+  </Target>
+</Project>

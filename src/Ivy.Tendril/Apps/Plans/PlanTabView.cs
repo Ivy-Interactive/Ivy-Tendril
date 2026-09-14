@@ -63,6 +63,7 @@ public class PlanTabView(
             planLayout |= new PlanMarkdown(annotatedContent)
                 .Article()
                 .DangerouslyAllowLocalFiles()
+                .WireframeBaseUrl(Ivy.Tendril.Services.Wireframes.PlanWireframes.BaseUrl(selectedPlan.Id))
                 .Height(Size.Full())
                 .Annotations(annotations.Value)
                 .CurrentAuthor(currentAuthor)

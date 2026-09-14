@@ -614,7 +614,24 @@ public class ContentView(
 
     internal static object BuildFailureCallout(PlanFile plan, string tendrilHome)
     {
-        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan, tendrilHome);
+        return BuildWireframeLeakCallout(plan)
+               ?? BuildVerificationFailureCallout(plan)
+               ?? BuildLogFailureCallout(plan, tendrilHome);
+    }
+
+    /// <summary>
+    ///     First, because it is the one failure no verification reports: the plan's changes carry
+    ///     wireframe code, which Tendril refuses however the verifications went.
+    /// </summary>
+    private static object? BuildWireframeLeakCallout(PlanFile plan)
+    {
+        var reportPath = Ivy.Tendril.Services.Wireframes.WireframeLeakGuard.ReportPath(plan.FolderPath);
+        if (!File.Exists(reportPath))
+            return null;
+
+        var detail = MatchSection(FileHelper.ReadAllText(reportPath), "Issues Found")
+                     ?? "See the wireframe leak report for details";
+        return Callout.Destructive(detail, "Wireframe Code in the Product");
     }
 
     private static object? BuildVerificationFailureCallout(PlanFile plan)

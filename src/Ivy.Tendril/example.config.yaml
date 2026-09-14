@@ -80,6 +80,8 @@ codingAgents:
 # RetryPlan additionally gets: Bash, Write(%PLAN_DIR%/**), Edit(%PLAN_DIR%/**)
 # UpdatePlan additionally gets: Write(%PLAN_DIR%/**) (for temp files used by --file flag)
 # ExpandPlan additionally gets: Write(%PLAN_DIR%/**) (for temp files used by --file flag)
+# CreatePlan, UpdatePlan and ExpandPlan additionally get Write and Edit inside a plan's Wireframes/
+#   folder, where they author wireframes for plans that involve UX (see Wireframes in Prompts/Plans.md)
 # CreatePr additionally gets: Bash (needs unrestricted shell for git/gh in worktrees)
 # CreateIssue additionally gets: Bash (needs unrestricted shell for gh in repo directories)
 #
@@ -133,6 +135,8 @@ promptwares:
 #         required: true
 #       - name: CheckResult
 #         required: true
+#     wireframes: true      # Planning agents may make wireframes for UX plans; false for a project with no UI
+#     wireframeGuard: true  # Refuse plan changes carrying wireframe code; false only for the wireframe tooling repos
 #     context: >
 #       Description of the project for AI context.
 #       Key folders and instructions go here.

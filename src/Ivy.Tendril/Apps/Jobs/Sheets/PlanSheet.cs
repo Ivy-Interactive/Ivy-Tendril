@@ -22,6 +22,9 @@ public class PlanSheet(
             : new PlanMarkdown(MarkdownHelper.PrepareForDisplay(content, config))
                 .Article()
                 .DangerouslyAllowLocalFiles()
+                .WireframeBaseUrl(planService.GetPlanByFolder(planPath) is { } plan
+                    ? Ivy.Tendril.Services.Wireframes.PlanWireframes.BaseUrl(plan.Id)
+                    : null)
                 .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));
 
         return sheetContent;

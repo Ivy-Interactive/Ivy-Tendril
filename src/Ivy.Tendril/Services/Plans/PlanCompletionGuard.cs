@@ -32,22 +32,32 @@ public static class PlanCompletionGuard
     ///     so an override records the partial delivery instead of silently bypassing the gate.
     /// </param>
     /// <param name="planIdForMessage">Plan ID or folder name, used only in the exception message.</param>
+    /// <param name="planFolder">
+    ///     The plan's folder, so its product changes can be checked for wireframe code. That block has no
+    ///     override: wireframes never ship.
+    /// </param>
     /// <returns>
     ///     A warning to show the caller when an override was applied, otherwise <c>null</c>.
     /// </returns>
     /// <exception cref="PlanTransitionBlockedException">
-    ///     Thrown for a blocked Completed when <paramref name="allowFailedVerifications" /> is false.
+    ///     Thrown for a blocked Completed when <paramref name="allowFailedVerifications" /> is false, and
+    ///     always when the plan's changes carry wireframe code.
     /// </exception>
     public static string? ApplyState(
         PlanYaml plan,
         string newState,
         bool allowFailedVerifications,
-        string planIdForMessage)
+        string planIdForMessage,
+        string? planFolder = null)
     {
         string? warning = null;
 
         if (newState.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase))
         {
+            if (planFolder is not null &&
+                Wireframes.PlanWireframeGuard.BlockReason(planFolder) is { } leak)
+                throw new PlanTransitionBlockedException(planIdForMessage, PlanStatus.Completed, leak);
+
             var failed = FailedVerificationNames(plan);
             if (failed.Count > 0)
             {

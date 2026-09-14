@@ -48,6 +48,21 @@ This is where the user's answers land: the UI writes them back into the revision
 6. If a block's last question is retired, drop that fence entirely. If new ambiguity appeared, add new blocks, each with 4 or fewer questions, placed next to the section it concerns.
 7. The old prose `## Questions` section is gone. If a prior revision has one, convert the still-open items into `questions` block(s) and fold the rest into the plan.
 
+### 3.6. Wireframe (mandatory decision)
+
+Decide as CreatePlan does, using **When to make one** under **Wireframes** in the Reference Documents, against the plan as it will read after these changes:
+
+- **It adds or reshapes a screen, page, dialog, panel or tool and has no wireframe yet:** make one in `TendrilPlanFolder/Wireframes/<name>` and embed it in a `## Wireframe` section directly under the `# {title}` heading. A new page or tool that follows an existing pattern counts.
+- **It already has one:** update the wireframe in place to match the changes. If its block sits anywhere but a `## Wireframe` section directly under the heading, move it there, and delete any `caption:` line (blocks no longer take one).
+- **The UX is no longer part of the plan:** remove the block.
+- **Otherwise:** make none.
+
+Record the decision in one line before moving on:
+
+```bash
+tendril job add-log <TendrilJobId> "Wireframe" --summary="<added|updated|removed|none>: <name or one-line reason>"
+```
+
 ### 4. Apply Changes
 
 Report status: `tendril job status TendrilJobId --message="Applying changes..."`
@@ -67,6 +82,7 @@ Report status: `tendril job status TendrilJobId --message="Applying changes..."`
 
 ### Rules
 
+- **Wireframes**: A plan's wireframes live in `TendrilPlanFolder/Wireframes/` and are plan material, not source code, so you may edit them. Step 3.6 is mandatory: at most 2 per revision, in a `## Wireframe` section directly under the H1. Edit an existing wireframe in place and keep its name; remove its block when the UX is no longer part of the plan. Never put a screenshot or wireframe code in the plan.
 - Do NOT modify any source code — only read files and update the plan
 - Do NOT modify the original revision — always create a new revision file
 - Do NOT modify `plan.yaml` — the launcher script handles state and timestamps

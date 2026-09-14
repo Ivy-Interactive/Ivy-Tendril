@@ -5,6 +5,7 @@ using Ivy.Desktop;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Commands;
+using Ivy.Tendril.Commands.Wireframe;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
@@ -757,6 +758,8 @@ public class Program
                     .WithDescription("Remove a single worktree from a plan");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
                     .WithDescription("Check plan health");
+                plan.AddCommand<PlanCheckWireframesCommand>("check-wireframes")
+                    .WithDescription("Check a plan's changes for wireframe code, which never ships");
 
                 plan.AddBranch("rec", rec =>
                 {
@@ -805,6 +808,28 @@ public class Program
                     .WithDescription("Remove a verification definition");
                 verification.AddCommand<VerificationSetCommand>("set")
                     .WithDescription("Update a verification definition field");
+            });
+
+            // Wireframes: throwaway hand-drawn mockups that live in a plan folder
+            config.AddBranch("wireframe", wireframe =>
+            {
+                wireframe.SetDescription("Build hand-drawn React wireframes for plans");
+                wireframe.AddCommand<WireframeSetupCommand>("setup")
+                    .WithDescription("Scaffold a wireframe project that is ready for an agent to edit")
+                    .WithExample("wireframe", "setup", "./mock")
+                    .WithExample("wireframe", "setup", "./mock", "--tailwind", "jit");
+                wireframe.AddCommand<WireframeServeCommand>("serve")
+                    .WithDescription("Serve a wireframe project on a free port with hot reload")
+                    .WithExample("wireframe", "serve", "./mock")
+                    .WithExample("wireframe", "serve", "./mock", "--open");
+                wireframe.AddCommand<WireframeScreenshotCommand>("screenshot")
+                    .WithDescription("Render a wireframe to screenshots/<width>x<height>.png")
+                    .WithExample("wireframe", "screenshot", "./mock")
+                    .WithExample("wireframe", "screenshot", "./mock", "-w", "1440", "--height", "900");
+                wireframe.AddCommand<WireframeAgentReadmeCommand>("agent-readme")
+                    .WithDescription("Print instructions and the full component and prop reference for an agent")
+                    .WithExample("wireframe", "agent-readme")
+                    .WithExample("wireframe", "agent-readme", "--component", "Button");
             });
 
             config.AddCommand<ModelsCommand>("models")

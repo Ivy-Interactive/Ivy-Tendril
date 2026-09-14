@@ -233,6 +233,30 @@ A block may appear anywhere in the document, and a revision may contain any numb
 
 `--no-question-check` skips the validation. It exists for scripted and test use — promptwares should not use it.
 
+## Wireframes
+
+A plan that involves UX can embed live wireframes: hand-drawn React mockups kept in the plan's `Wireframes/` folder, made with `tendril wireframe` (see [Other Commands](05_Other.md)). A `wireframe` fence names one, and the plan view shows it live.
+
+````
+```wireframe
+name: checkout-payment        # required: the folder under Wireframes/
+height: 640                   # optional, pixels
+viewport: Mobile              # optional: Desktop | Tablet | Mobile
+```
+````
+
+Wireframe blocks go in a `## Wireframe` section that is the plan's first section, directly under the title, so a reviewer sees them first. Each renders at the column's width and zooms out only when its content is wider; a long wireframe scrolls inside its frame.
+
+`write-revision` refuses a revision with a malformed `wireframe` block, a block naming a wireframe the plan does not have, more than 2 blocks, a block outside the `## Wireframe` section, or a `## Wireframe` section that is not the first section. `--no-question-check` skips these checks too.
+
+Wireframes are throwaway plan material and never ship. Before a plan reaches Review, a PR or Completed, Tendril checks its worktrees for wireframe code (wireframe files, the `@tendril-wireframe` marker, a `tendril-wireframes` import or dependency, copied files and pasted lines) and refuses the plan when it finds any.
+
+```terminal
+>tendril plan check-wireframes <plan-id>
+```
+
+Runs that check on demand. Exits 0 when the plan's changes are clean, and 1 with every finding otherwise. A project can turn the check off with `wireframeGuard: false`, which is meant only for the repos that are the wireframe tooling itself, and turn wireframes off entirely with `wireframes: false`.
+
 ## Recommendations
 
 ```terminal

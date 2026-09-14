@@ -7,6 +7,7 @@
   <Project Path="Ivy.Tendril.csproj" />
   <Project Path="../Ivy.Tendril.Widgets/.samples/Ivy.Tendril.Widgets.Samples.csproj" />
   <Project Path="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
+  <Project Path="../Ivy.Tendril.Wireframe/Ivy.Tendril.Wireframe.csproj" />
   <Project Path="../Ivy.Tendril.Test/Ivy.Tendril.Test.csproj" />
   <Project Path="../../../Ivy-Framework/src/Ivy/Ivy.csproj" />
   <Project Path="../../../Ivy-Framework/src/Ivy.Plugin.Abstractions/Ivy.Plugin.Abstractions.csproj" />

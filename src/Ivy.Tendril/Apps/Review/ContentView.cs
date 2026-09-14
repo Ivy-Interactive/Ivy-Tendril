@@ -371,6 +371,15 @@ public class ContentView(
             var isPrUpdate = selectedPlan.IsPullRequestSource;
             actions.SetPrimary("CreatePr", isPrUpdate ? "Update PR" : "Create PR", Icons.GitPullRequest, () =>
             {
+                // Checked on click rather than on every render: it diffs each worktree, and the PR is
+                // the point after which wireframe code in the product would be public.
+                if (Ivy.Tendril.Services.Wireframes.PlanWireframeGuard.BlockReason(selectedPlan.FolderPath, config) is { } leak)
+                {
+                    context.Client.Toast(leak, isPrUpdate ? "Cannot Update PR" : "Cannot Create PR",
+                        variant: ToastVariant.Destructive);
+                    return;
+                }
+
                 if (isPrUpdate)
                 {
                     // Push the fix onto the original PR's branch and leave the PR open for

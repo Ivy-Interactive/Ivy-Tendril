@@ -1,0 +1,2 @@
+globalThis.process ??= { env: { NODE_ENV: 'production' } };
+import{a as u}from"./chunk-QKTFYYMQ.js";var E=u(t=>{"use strict";var v=Symbol.for("react.transitional.element"),d=Symbol.for("react.fragment");function o(n,r,e){var s=null;if(e!==void 0&&(s=""+e),r.key!==void 0&&(s=""+r.key),"key"in r){e={};for(var l in r)l!=="key"&&(e[l]=r[l])}else e=r;return r=e.ref,{$$typeof:v,type:n,key:s,ref:r!==void 0?r:null,props:e}}t.Fragment=d;t.jsx=o;t.jsxs=o});var j=u((x,i)=>{"use strict";i.exports=E()});export{j as a};

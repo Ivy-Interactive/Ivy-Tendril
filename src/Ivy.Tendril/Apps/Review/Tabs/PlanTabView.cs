@@ -32,6 +32,7 @@ public class PlanTabView(
         return new PlanMarkdown(annotated)
             .DangerouslyAllowLocalFiles()
             .Article()
+            .WireframeBaseUrl(Ivy.Tendril.Services.Wireframes.PlanWireframes.BaseUrl(selectedPlan.Id))
             .Height(Size.Full())
             .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
             {

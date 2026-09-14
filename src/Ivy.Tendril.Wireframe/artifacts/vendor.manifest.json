@@ -1,0 +1,33 @@
+{
+  "generated": "Do not edit. Produced by build/vendor/build-vendor.mjs.",
+  "versions": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tendril-wireframes": "0.1.11",
+    "lucide-react": "0.475.0",
+    "esbuild": "0.28.2"
+  },
+  "specifiers": {
+    "react": "/__wireframe/vendor/react.js",
+    "react/jsx-runtime": "/__wireframe/vendor/react__jsx-runtime.js",
+    "react-dom": "/__wireframe/vendor/react-dom.js",
+    "react-dom/client": "/__wireframe/vendor/react-dom__client.js",
+    "tendril-wireframes": "/__wireframe/vendor/tendril-wireframes.js",
+    "lucide-react": "/__wireframe/vendor/lucide-react.js"
+  },
+  "chunks": [
+    "chunk-QKTFYYMQ.js",
+    "chunk-TIHVORCE.js",
+    "chunk-U6KSIA7Q.js",
+    "chunk-URV6JFKC.js",
+    "chunk-ZRPGLHFT.js"
+  ],
+  "entries": [
+    "lucide-react.js",
+    "react-dom.js",
+    "react-dom__client.js",
+    "react.js",
+    "react__jsx-runtime.js",
+    "tendril-wireframes.js"
+  ]
+}

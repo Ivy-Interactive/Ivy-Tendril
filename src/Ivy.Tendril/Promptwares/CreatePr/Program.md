@@ -380,6 +380,7 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 - **Final summary must be verifiable:** end by echoing each recorded PR URL and the final plan
   state (e.g. `Recorded PR: <url> — plan 00015 state: Completed`) so an incomplete closeout is
   self-evident. When a gate failed, name it (e.g. `plan 00015 state: Failed (CheckResult failed)`).
+- **No wireframe code in a PR.** Run `tendril plan check-wireframes <plan-id>` before pushing. If it exits non-zero, do not push and do not create the PR: report its findings as the failure. Wireframes are plan material only, and Tendril refuses the plan either way.
 - One PR per repo worktree that has commits
 - Skip worktrees with no commits ahead of the base branch
 - Use `gh` CLI for all GitHub operations

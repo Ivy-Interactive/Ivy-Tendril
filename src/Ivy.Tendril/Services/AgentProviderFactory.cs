@@ -29,6 +29,13 @@ public static class AgentProviderFactory
             ["ExecutePlan"] = ["Write", "Edit"],
             ["RetryPlan"] = ["Write", "Edit"],
             ["IvyFrameworkVerification"] = ["Write", "Edit"],
+
+            // Planning agents author wireframes (src/App.tsx and friends), and nothing else, inside
+            // a plan folder. CreatePlan's plan does not exist when the job launches, so it is scoped
+            // to any plan's Wireframes/ under the plans folder.
+            ["CreatePlan"] = ["Write(%PLANS_DIR%/*/Wireframes/**)", "Edit(%PLANS_DIR%/*/Wireframes/**)"],
+            ["UpdatePlan"] = ["Write(%PLAN_DIR%/Wireframes/**)", "Edit(%PLAN_DIR%/Wireframes/**)"],
+            ["ExpandPlan"] = ["Write(%PLAN_DIR%/Wireframes/**)", "Edit(%PLAN_DIR%/Wireframes/**)"],
         };
 
     public static AgentResolution Resolve(

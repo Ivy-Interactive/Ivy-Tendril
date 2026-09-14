@@ -73,7 +73,7 @@ public class PlanSetCommand : Command<PlanSetSettings>
         switch (settings.Field.ToLower())
         {
             case "state":
-                ApplyState(plan, settings);
+                ApplyState(plan, settings, planFolder);
                 break;
             case "project":
                 plan.Project = settings.Value;
@@ -135,10 +135,10 @@ public class PlanSetCommand : Command<PlanSetSettings>
     ///     Thrown for a blocked Completed without <c>--allow-failed-verifications</c>. Surfaces as a
     ///     non-zero exit with the exception's message, which names the escape hatch.
     /// </exception>
-    private static void ApplyState(PlanYaml plan, PlanSetSettings settings)
+    private static void ApplyState(PlanYaml plan, PlanSetSettings settings, string planFolder)
     {
         var warning = PlanCompletionGuard.ApplyState(
-            plan, settings.Value, settings.AllowFailedVerifications, settings.PlanId);
+            plan, settings.Value, settings.AllowFailedVerifications, settings.PlanId, planFolder);
 
         if (warning != null)
             Console.WriteLine(warning);

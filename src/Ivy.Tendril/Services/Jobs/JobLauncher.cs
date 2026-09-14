@@ -79,6 +79,9 @@ internal class JobLauncher
             if (!ValidateProjectReposOrFail(ctx))
                 return;
 
+            if (!ValidateNoWireframeLeaksOrFail(ctx))
+                return;
+
             PrepareJobForLaunch(ctx);
 
             if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
@@ -280,6 +283,30 @@ internal class JobLauncher
             FailJobAndReleaseSlot(ctx, ex.Message);
             return false;
         }
+    }
+
+    /// <summary>
+    ///     Refuses to start a CreatePr job for a plan whose changes carry wireframe code. The Review app
+    ///     checks on click; this holds however else the job was started (the CLI, a chat, a retry).
+    /// </summary>
+    private bool ValidateNoWireframeLeaksOrFail(JobLaunchContext ctx)
+    {
+        var job = ctx.Job;
+        if (job.TypedArgs is not CreatePrArgs)
+            return true;
+
+        var planFolder = job.TypedArgs?.PlanFolder ?? "";
+        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
+            return true;
+
+        var leaks = Ivy.Tendril.Services.Wireframes.PlanWireframeGuard.Check(planFolder, _configService);
+        if (leaks.Count == 0)
+            return true;
+
+        Ivy.Tendril.Services.Wireframes.WireframeLeakGuard.WriteReport(planFolder, leaks);
+        _logger.LogError("Job {JobId}: refusing launch, the plan's changes carry wireframe code", job.Id);
+        FailJobAndReleaseSlot(ctx, Ivy.Tendril.Services.Wireframes.WireframeLeakGuard.Describe(leaks));
+        return false;
     }
 
     private void PrepareJobForLaunch(JobLaunchContext ctx)

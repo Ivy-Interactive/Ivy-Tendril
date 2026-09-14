@@ -85,6 +85,13 @@ public record PlanMarkdown : WidgetBase<PlanMarkdown>
     /// <summary>The current author/persona leaving annotations.</summary>
     [Prop] public string? CurrentAuthor { get; init; }
 
+    /// <summary>
+    /// Where this plan's wireframes are served, ending in a slash (for example
+    /// <c>/__wireframes/123/</c>). A <c>wireframe</c> fence resolves its name against it and renders
+    /// a live preview. Null for markdown that is not a plan, where the fence renders a placeholder.
+    /// </summary>
+    [Prop] public string? WireframeBaseUrl { get; init; }
+
     /// <summary>Fired when a link inside the markdown is clicked; the payload is the href.</summary>
     [Event] public EventHandler<Event<PlanMarkdown, string>>? OnLinkClick { get; init; }
 
@@ -112,6 +119,10 @@ public static class PlanMarkdownExtensions
         w with { CurrentAuthor = author };
     public static PlanMarkdown Article(this PlanMarkdown w, bool article = true) =>
         w with { Article = article };
+
+    /// <summary>Sets where the plan's wireframes are served. See <see cref="PlanMarkdown.WireframeBaseUrl" />.</summary>
+    public static PlanMarkdown WireframeBaseUrl(this PlanMarkdown w, string? baseUrl) =>
+        w with { WireframeBaseUrl = baseUrl };
 
     public static PlanMarkdown DangerouslyAllowLocalFiles(this PlanMarkdown w, bool allow = true) =>
         w with { DangerouslyAllowLocalFiles = allow };
