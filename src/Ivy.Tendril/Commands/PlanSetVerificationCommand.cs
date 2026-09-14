@@ -20,6 +20,14 @@ public class PlanSetVerificationSettings : CommandSettings
     [CommandArgument(2, "<status>")]
     public string Status { get; set; } = "";
 
+    [Description("Why this edit was made — reported to the plan's other chat sessions")]
+    [CommandOption("--reason")]
+    public string? Reason { get; set; }
+
+    [Description("Chat session making the edit, so it is not notified about its own change")]
+    [CommandOption("--chat-session")]
+    public string? ChatSessionId { get; set; }
+
     public override Spectre.Console.ValidationResult Validate()
     {
         return CliValidation.Combine(
@@ -65,6 +73,13 @@ public class PlanSetVerificationCommand : Command<PlanSetVerificationSettings>
         plan.Updated = DateTime.UtcNow;
 
         PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+
+        // A verification change is a plan edit too, and the side chat makes them.
+        PlanEditEventReporter.Report(
+            PathHelper.GetFileNameCrossPlatform(planFolder),
+            $"verification {settings.Name} set to {status}",
+            settings.Reason,
+            settings.ChatSessionId);
 
         Console.WriteLine($"Set verification {settings.Name} = {settings.Status}");
         return 0;

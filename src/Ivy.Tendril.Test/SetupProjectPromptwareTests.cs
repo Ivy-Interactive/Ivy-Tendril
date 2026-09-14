@@ -666,6 +666,22 @@ public class SetupProjectPromptwareTests : IDisposable
     }
 
     [Fact]
+    public void BothProjectSetupPromptwares_DocumentVitePlusOpenBrowser()
+    {
+        var promptwaresRoot = Path.GetFullPath(
+            Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "Ivy.Tendril", "Promptwares"));
+
+        foreach (var name in new[] { "AddProject", "SetupProject" })
+        {
+            var programFile = Path.Combine(promptwaresRoot, name, "Program.md");
+            Assert.True(File.Exists(programFile), $"Expected to find {programFile}");
+            var content = File.ReadAllText(programFile);
+
+            Assert.Contains("vp dev --open", content);
+        }
+    }
+
+    [Fact]
     public void ExampleConfig_ShipsScreenshotsVerificationDefinition()
     {
         var configFile = Path.Combine(System.AppContext.BaseDirectory, "example.config.yaml");

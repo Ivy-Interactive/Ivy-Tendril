@@ -3,12 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Ivy.Tendril.Test;
@@ -56,9 +60,44 @@ public class PlanChatTests
             var session = service.CreateSession("claude", "opus", "#59 Revamp", planFolderName: "00059-revamp");
             Assert.Equal("00059-revamp", session.PlanFolderName);
 
+            // A session becomes durable from its first message, plan-linked or not (see
+            // ChatHistoryServiceTests.AddMessage_PersistsSessionToDisk). The reload below needs one
+            // message so the session is persisted. What this asserts is that the plan link is part of
+            // what gets persisted.
+            service.AddMessage(session.Id, "user", "Let's talk");
+
             var reloaded = new ChatHistoryService(new ConfigService(new TendrilSettings(), tempDir)).GetSession(session.Id);
             Assert.NotNull(reloaded);
             Assert.Equal("00059-revamp", reloaded.PlanFolderName);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void CreateSession_DoesNotPersistAPlanSessionUntilItHasAMessage()
+    {
+        var (service, tempDir) = CreateChatService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus", "#59 Revamp", planFolderName: "00059-revamp");
+            Assert.Equal("00059-revamp", session.PlanFolderName);
+
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            var sessionFile = Path.Combine(chatsDir, $"{session.Id}.json");
+            Assert.False(File.Exists(sessionFile));
+
+            var reloaded = new ChatHistoryService(new ConfigService(new TendrilSettings(), tempDir));
+            Assert.Null(reloaded.GetSession(session.Id));
+
+            service.AddMessage(session.Id, "user", "First message");
+
+            Assert.True(File.Exists(sessionFile));
+            var reloadedAfterMessage = new ChatHistoryService(new ConfigService(new TendrilSettings(), tempDir));
+            Assert.NotNull(reloadedAfterMessage.GetSession(session.Id));
+            Assert.Equal("00059-revamp", reloadedAfterMessage.GetSession(session.Id)?.PlanFolderName);
         }
         finally
         {
@@ -159,12 +198,14 @@ public class PlanChatTests
     private sealed class RecordingChatExecutionService : IChatExecutionService
     {
         public List<(string SessionId, string Prompt, string? AgentId, string? ModelId)> Sent { get; } = [];
+        public List<(string PlanFolderName, string Summary, string? Reason, string? SourceChatSessionId, PlanEditOrigin Origin)> PlanEdits { get; } = [];
 #pragma warning disable CS0067
         public event Action<string>? SessionGeneratingChanged;
         public event Action<string>? StreamUpdated;
 #pragma warning restore CS0067
         public bool IsGenerating(string sessionId) => false;
         public string GetStreamSnapshot(string sessionId) => string.Empty;
+        public string? GetStreamingMessageId(string sessionId) => null;
         public IObservable<string> GetLiveStreamObservable(string sessionId) => System.Reactive.Linq.Observable.Empty<string>();
 
         public Task SendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
@@ -176,6 +217,14 @@ public class PlanChatTests
 
         public Task CancelAsync(string sessionId) => Task.CompletedTask;
         public Task InterruptAsync(string sessionId) => Task.CompletedTask;
+        public void ApplyQuestionAnswers(string sessionId, IReadOnlyDictionary<string, string[]> answers) { }
+
+        public Task NotifyPlanEditAsync(string planFolderName, string summary, string? reason = null,
+            string? sourceChatSessionId = null, string? revisionFile = null, PlanEditOrigin origin = PlanEditOrigin.Chat)
+        {
+            PlanEdits.Add((planFolderName, summary, reason, sourceChatSessionId, origin));
+            return Task.CompletedTask;
+        }
 
         public Task ForceSendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
             string? agentId = null, string? modelId = null, string? effort = null, CancellationToken ct = default) =>
@@ -216,6 +265,57 @@ public class PlanChatTests
         Assert.Contains("outcome of this plan", PlanChatSessions.DiscussPrompt(CreatePlan(2, "Done", PlanStatus.Review)));
     }
 
+    /// <summary>
+    /// The side panel's session is found by the plan-edit fan-out only because
+    /// <see cref="PlanChatSessions.CreateForPlan" /> stamps <c>PlanFolderName</c> on it. Nothing else
+    /// links the two, so a session created without it would go quiet without failing anything.
+    /// </summary>
+    [Fact]
+    public async Task PlanEditEvent_ReachesASessionCreatedForThePlan()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilPlanEditEventTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var configService = new ConfigService(new TendrilSettings { CodingAgent = "codex" }, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var planService = new FakePlanReaderService();
+            var plan = CreatePlan(59, "Revamp");
+            var agentRunner = TestAgentRunner.Create();
+
+            using var execution = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                new ChatSessionNamingService(agentRunner, configService, chatService,
+                    NullLogger<ChatSessionNamingService>.Instance),
+                new JsonEventSerializer());
+
+            var session = PlanChatSessions.CreateForPlan(chatService, planService, plan, "codex", "gpt-5.6-sol", null);
+            Assert.Equal(plan.FolderName, session.PlanFolderName);
+
+            await execution.NotifyPlanEditAsync(plan.FolderName, "Solution changed (+3/-1 lines)",
+                reason: "narrowed the scope");
+
+            var deadline = DateTime.UtcNow.AddSeconds(20);
+            ChatMessageModel? edit = null;
+            while (DateTime.UtcNow < deadline && edit == null)
+            {
+                edit = chatService.GetSession(session.Id)?.Messages
+                    .FirstOrDefault(m => m.Role == "system" && m.Content.Contains("was edited directly"));
+                if (edit == null) await Task.Delay(25);
+            }
+
+            Assert.NotNull(edit);
+            Assert.Contains("Solution changed (+3/-1 lines)", edit.Content);
+            Assert.Contains("narrowed the scope", edit.Content);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
     [Fact]
     public void PlanTag_NamesThePlanASessionBelongsTo()
     {
@@ -225,5 +325,78 @@ public class PlanChatTests
 
         Assert.Equal("#59", ChatApp.PlanTag(attached));
         Assert.Null(ChatApp.PlanTag(free));
+    }
+
+    [Fact]
+    public async Task Announce_SendsTheSummaryWithTheUiOriginAndNoReason()
+    {
+        var execution = new RecordingChatExecutionService();
+        var plan = CreatePlan(42, "Test Plan");
+
+        await PlanEditAnnouncer.AnnounceAsync(execution, plan, "state set to Skipped");
+
+        Assert.Single(execution.PlanEdits);
+        var edit = execution.PlanEdits[0];
+        Assert.Equal(plan.FolderName, edit.PlanFolderName);
+        Assert.Equal("state set to Skipped", edit.Summary);
+        Assert.Null(edit.Reason);
+        Assert.Null(edit.SourceChatSessionId);
+        Assert.Equal(PlanEditOrigin.UserInterface, edit.Origin);
+    }
+
+    [Fact]
+    public async Task Announce_WithoutAChatExecutionService_DoesNothing()
+    {
+        var plan = CreatePlan(42, "Test Plan");
+
+        await PlanEditAnnouncer.AnnounceAsync(null!, plan, "state set to Skipped");
+
+        // Should not throw
+    }
+
+    [Fact]
+    public async Task Announce_SwallowsAFailureFromTheChatService()
+    {
+        var plan = CreatePlan(42, "Test Plan");
+        var execution = new ThrowingChatExecutionService();
+
+        await PlanEditAnnouncer.AnnounceAsync(execution, plan, "state set to Skipped");
+
+        // Should not throw
+    }
+
+    private sealed class ThrowingChatExecutionService : IChatExecutionService
+    {
+#pragma warning disable CS0067
+        public event Action<string>? SessionGeneratingChanged;
+        public event Action<string>? StreamUpdated;
+#pragma warning restore CS0067
+        public bool IsGenerating(string sessionId) => false;
+        public string GetStreamSnapshot(string sessionId) => string.Empty;
+        public string? GetStreamingMessageId(string sessionId) => null;
+        public IObservable<string> GetLiveStreamObservable(string sessionId) => System.Reactive.Linq.Observable.Empty<string>();
+
+        public Task SendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
+            string? agentId = null, string? modelId = null, string? effort = null, string role = "user", CancellationToken ct = default)
+        {
+            throw new InvalidOperationException("Simulated failure");
+        }
+
+        public Task CancelAsync(string sessionId) => throw new InvalidOperationException("Simulated failure");
+        public Task InterruptAsync(string sessionId) => throw new InvalidOperationException("Simulated failure");
+        public void ApplyQuestionAnswers(string sessionId, IReadOnlyDictionary<string, string[]> answers) =>
+            throw new InvalidOperationException("Simulated failure");
+
+        public Task NotifyPlanEditAsync(string planFolderName, string summary, string? reason = null,
+            string? sourceChatSessionId = null, string? revisionFile = null, PlanEditOrigin origin = PlanEditOrigin.Chat)
+        {
+            throw new InvalidOperationException("Simulated failure");
+        }
+
+        public Task ForceSendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
+            string? agentId = null, string? modelId = null, string? effort = null, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Simulated failure");
+
+        public void Dispose() { }
     }
 }

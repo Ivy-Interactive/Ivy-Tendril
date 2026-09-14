@@ -25,7 +25,6 @@ public class QuestionAnswersTests
           - id: retry-scope
             title: Should the retry budget be per-request or per-session?
             header: Retry scope
-            other: false
             options:
               - title: Per request
                 value: per-request

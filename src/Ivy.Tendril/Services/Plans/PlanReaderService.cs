@@ -30,6 +30,9 @@ public class PlanReaderService(
     private readonly TimeCache<Dictionary<int, List<(DateOnly Date, int Count)>>> _prsByDayCache =
         new(TimeSpan.FromSeconds(30));
 
+    private readonly TimeCache<Dictionary<int, List<(DateOnly Date, int Count)>>> _featuresByDayCache =
+        new(TimeSpan.FromSeconds(30));
+
     private readonly TimeCache<Dictionary<string, (decimal Cost, int Tokens)>> _planCostCache =
         new(TimeSpan.FromSeconds(90));
 
@@ -134,6 +137,14 @@ public class PlanReaderService(
     {
         if (!Directory.Exists(folderPath)) return null;
         return ParsePlanFolder(folderPath);
+    }
+
+    public PlanFile? GetPlanById(int planId)
+    {
+        if (_useDatabaseForReads && _database != null)
+            return _database.GetPlanById(planId);
+
+        return GetPlans().FirstOrDefault(p => p.Id == planId);
     }
 
     /// <summary>
@@ -643,6 +654,23 @@ public class PlanReaderService(
         return [];
     }
 
+    public List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            var cache = _featuresByDayCache.GetOrCompute(() => new Dictionary<int, List<(DateOnly Date, int Count)>>());
+            if (!cache.TryGetValue(days, out var result))
+            {
+                result = _database.GetShippedFeaturesByDay(days);
+                cache[days] = result;
+            }
+
+            return result;
+        }
+
+        return [];
+    }
+
     public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50)
     {
         if (_useDatabaseForReads && _database != null)
@@ -658,6 +686,16 @@ public class PlanReaderService(
         if (_useDatabaseForReads && _database != null)
         {
             return _database.GetRecentPlanCosts(days);
+        }
+
+        return [];
+    }
+
+    public List<DashboardAgentCost> GetAgentCostBreakdown(int days)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            return _database.GetAgentCostBreakdown(days);
         }
 
         return [];
@@ -982,6 +1020,7 @@ public class PlanReaderService(
         _hourlyBurnCache.Invalidate();
         _activityStatsCache.Invalidate();
         _prsByDayCache.Invalidate();
+        _featuresByDayCache.Invalidate();
     }
 
     /// <summary>
@@ -1161,10 +1200,22 @@ public class PlanReaderService(
             // Fall back to the repair pass for malformed agent-generated YAML.
             logger.LogWarning(ex, "Failed to parse plan YAML {PlanYamlPath}, attempting repair", planYamlPath);
             var repaired = PlanSchemaVersion.Stamp(PlanYamlRepairService.RepairPlanYaml(yamlContent), PlanYaml.CurrentSchemaVersion);
-            if (repaired != yamlContent)
-                FileHelper.WriteAllText(planYamlPath, repaired);
 
-            planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(repaired);
+            try
+            {
+                planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(repaired);
+            }
+            catch (Exception repairEx)
+            {
+                logger.LogWarning(repairEx, "Repair pass produced unparseable YAML for {PlanYamlPath}, leaving file untouched", planYamlPath);
+                throw ex;
+            }
+
+            if (repaired != yamlContent)
+            {
+                using var _ = PlanFileLock.Acquire(Path.GetDirectoryName(planYamlPath)!);
+                FileHelper.WriteAllText(planYamlPath, repaired);
+            }
         }
 
         return planYaml;

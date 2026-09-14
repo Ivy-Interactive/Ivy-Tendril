@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -8,7 +9,8 @@ public class DeletePlanDialog(
     PlanFile selectedPlan,
     IState<PlanFile?> selectedPlanState,
     IPlanReaderService planService,
-    Action refreshPlans) : ViewBase
+    Action refreshPlans,
+    IChatExecutionService? chatExecution = null) : ViewBase
 {
     public override object? Build()
     {
@@ -33,6 +35,7 @@ public class DeletePlanDialog(
                     selectedPlanState.Set(optimisticPlan);
 
                     planService.TransitionState(selectedPlan.FolderName, PlanStatus.Skipped);
+                    PlanEditAnnouncer.Announce(chatExecution, selectedPlan, "state set to Skipped");
                     refreshPlans();
                     dialogOpen.Set(false);
                 })
@@ -46,6 +49,7 @@ public class DeletePlanDialog(
                     selectedPlanState.Set(optimisticPlan);
 
                     planService.TransitionState(selectedPlan.FolderName, PlanStatus.Icebox);
+                    PlanEditAnnouncer.Announce(chatExecution, selectedPlan, "state set to Icebox");
                     refreshPlans();
                     dialogOpen.Set(false);
                 })

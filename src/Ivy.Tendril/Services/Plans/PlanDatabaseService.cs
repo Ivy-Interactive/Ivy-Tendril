@@ -24,27 +24,88 @@ public class PlanDatabaseService : IPlanDatabaseService
     private readonly DashboardRepository _dashboardRepository;
     private bool _disposed;
 
+    /// <summary>
+    ///     The transaction a <see cref="BeginBatch" /> scope holds open, or null. Only ever read and
+    ///     written by the thread inside the batch, which holds the write lock for its whole scope.
+    /// </summary>
+    private SqliteTransaction? _batchTransaction;
+
+    /// <remarks>
+    ///     A no-op when the calling thread is already inside a <see cref="BeginBatch" /> scope: that
+    ///     scope holds the write lock, which already covers every read under it, and re-entering a
+    ///     non-recursive <see cref="ReaderWriterLockSlim" /> would throw.
+    /// </remarks>
     private sealed class ReadLockHandle : IDisposable
     {
-        private readonly ReaderWriterLockSlim _lock;
+        private readonly ReaderWriterLockSlim? _lock;
         public ReadLockHandle(ReaderWriterLockSlim rwLock)
         {
+            if (rwLock.IsWriteLockHeld) return;
             _lock = rwLock;
             _lock.EnterReadLock();
         }
-        public void Dispose() => _lock.ExitReadLock();
+        public void Dispose() => _lock?.ExitReadLock();
     }
 
+    /// <inheritdoc cref="ReadLockHandle" />
     private sealed class WriteLockHandle : IDisposable
     {
-        private readonly ReaderWriterLockSlim _lock;
+        private readonly ReaderWriterLockSlim? _lock;
         public WriteLockHandle(ReaderWriterLockSlim rwLock)
         {
+            if (rwLock.IsWriteLockHeld) return;
             _lock = rwLock;
             _lock.EnterWriteLock();
         }
-        public void Dispose() => _lock.ExitWriteLock();
+        public void Dispose() => _lock?.ExitWriteLock();
     }
+
+    /// <summary>
+    ///     One write lock and one transaction held across many mutations. A full plan sync otherwise
+    ///     takes the write lock hundreds of times (twice per plan), and every acquisition is another
+    ///     chance to block a UI thread arriving for the read lock — which is how a burst of plan
+    ///     mutations froze a workspace (#2571).
+    /// </summary>
+    private sealed class BatchScope : IDisposable
+    {
+        private readonly PlanDatabaseService _service;
+        private readonly WriteLockHandle _writeLock;
+        private readonly SqliteTransaction _transaction;
+        private bool _disposed;
+
+        public BatchScope(PlanDatabaseService service)
+        {
+            _service = service;
+            _writeLock = new WriteLockHandle(service._lock);
+            _transaction = service._connection.BeginTransaction();
+            service._batchTransaction = _transaction;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            _service._batchTransaction = null;
+            try
+            {
+                _transaction.Commit();
+            }
+            catch (Exception ex)
+            {
+                _service._logger.LogError(ex, "Failed to commit batched database writes");
+                try { _transaction.Rollback(); } catch { /* connection may already be gone */ }
+            }
+            finally
+            {
+                _transaction.Dispose();
+                _writeLock.Dispose();
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public IDisposable BeginBatch() => new BatchScope(this);
 
     public PlanDatabaseService(string databasePath, ILogger<PlanDatabaseService> logger)
     {
@@ -259,6 +320,9 @@ public class PlanDatabaseService : IPlanDatabaseService
     public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) =>
         _dashboardRepository.GetRecentPlanCosts(days);
 
+    public List<DashboardAgentCost> GetAgentCostBreakdown(int days) =>
+        _dashboardRepository.GetAgentCostBreakdown(days);
+
     public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
     {
         using (new ReadLockHandle(_lock))
@@ -289,6 +353,9 @@ public class PlanDatabaseService : IPlanDatabaseService
             return results;
         }
     }
+
+    public List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60) =>
+        _dashboardRepository.GetShippedFeaturesByDay(days);
 
     public decimal GetPlanTotalCost(int planId)
     {
@@ -354,6 +421,39 @@ public class PlanDatabaseService : IPlanDatabaseService
             var costsResult = costsCmd.ExecuteScalar();
             if (costsResult is string costSource && !string.IsNullOrWhiteSpace(costSource))
                 return costSource;
+
+            return null;
+        }
+    }
+
+    public string? ResolveAgent(int planId, string promptware, string? folderPath = null, string? folderName = null)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT j.Provider
+                FROM Jobs j
+                WHERE j.Provider IS NOT NULL
+                  AND j.Type = @promptware
+                  AND (
+                      j.ReportedPlanId = @planIdText
+                      OR (@folderPath IS NOT NULL AND j.PlanFile = @folderPath)
+                      OR (@folderName IS NOT NULL AND j.PlanFile = @folderName)
+                      OR j.PlanFile LIKE '%' || @planIdPadded || '%'
+                  )
+                ORDER BY j.CompletedAt DESC
+                LIMIT 1;
+                """;
+            cmd.Parameters.AddWithValue("@promptware", promptware);
+            cmd.Parameters.AddWithValue("@planIdText", planId.ToString(CultureInfo.InvariantCulture));
+            cmd.Parameters.AddWithValue("@folderPath", (object?)folderPath ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@folderName", (object?)folderName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@planIdPadded", planId.ToString("D5", CultureInfo.InvariantCulture));
+
+            var result = cmd.ExecuteScalar();
+            if (result is string agent && !string.IsNullOrWhiteSpace(agent))
+                return agent;
 
             return null;
         }
@@ -538,15 +638,16 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new WriteLockHandle(_lock))
         {
-            using var transaction = _connection.BeginTransaction();
+            // Inside a batch the caller's transaction is already open and commits with the scope.
+            using var transaction = _batchTransaction == null ? _connection.BeginTransaction() : null;
             try
             {
                 UpsertPlanInternal(plan);
-                transaction.Commit();
+                transaction?.Commit();
             }
             catch
             {
-                transaction.Rollback();
+                transaction?.Rollback();
                 throw;
             }
         }
@@ -614,8 +715,8 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             using var insertCmd = _connection.CreateCommand();
             insertCmd.CommandText = """
-                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, Model, LogTimestamp, CostSource)
-                                    VALUES (@planId, @promptware, @tokens, @cost, @model, @logTimestamp, @costSource)
+                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, Model, LogTimestamp, CostSource, Agent)
+                                    VALUES (@planId, @promptware, @tokens, @cost, @model, @logTimestamp, @costSource, @agent)
                                     """;
             insertCmd.Parameters.AddWithValue("@planId", planId);
             insertCmd.Parameters.AddWithValue("@promptware", string.Empty);
@@ -624,6 +725,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             insertCmd.Parameters.AddWithValue("@model", DBNull.Value);
             insertCmd.Parameters.AddWithValue("@logTimestamp", DBNull.Value);
             insertCmd.Parameters.AddWithValue("@costSource", DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@agent", DBNull.Value);
 
             foreach (var cost in costs)
             {
@@ -638,6 +740,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                     ? cost.LogTimestamp.Value.ToString("O", CultureInfo.InvariantCulture)
                     : DBNull.Value;
                 insertCmd.Parameters["@costSource"].Value = (object?)cost.CostSource ?? DBNull.Value;
+                insertCmd.Parameters["@agent"].Value = (object?)cost.Agent ?? DBNull.Value;
                 insertCmd.ExecuteNonQuery();
             }
         }
@@ -714,16 +817,17 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             if (plans.Count == 0) return;
 
-            using var transaction = _connection.BeginTransaction();
+            // Inside a batch the caller's transaction is already open and commits with the scope.
+            using var transaction = _batchTransaction == null ? _connection.BeginTransaction() : null;
             try
             {
                 foreach (var plan in plans)
                     UpsertPlanInternal(plan, forceOverwrite);
-                transaction.Commit();
+                transaction?.Commit();
             }
             catch
             {
-                transaction.Rollback();
+                transaction?.Rollback();
                 throw;
             }
         }

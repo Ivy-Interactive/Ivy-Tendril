@@ -20,6 +20,7 @@ public record RepoRef
 {
     public string Path { get; set; } = "";
     public string? BaseBranch { get; set; }
+    public string? Subdirectory { get; set; }
 }
 
 public record ProjectMcpServerRef
@@ -85,6 +86,7 @@ public record ProjectEnvFileConfig
 public record ProjectConfig
 {
     public string Name { get; set; } = "";
+    public string? Subdirectory { get; set; }
     public string Color { get; set; } = "";
     public Dictionary<string, object> Meta { get; set; } = new();
     public List<RepoRef> Repos { get; set; } = new();
@@ -115,6 +117,9 @@ public record ProjectConfig
 
     [YamlIgnore]
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
+
+    [YamlIgnore]
+    public bool IsAdHoc => Meta.TryGetValue("adhoc", out var v) && (v is true || string.Equals(v?.ToString(), "true", StringComparison.OrdinalIgnoreCase));
 
     public string? GetMeta(string key)
     {
@@ -243,6 +248,15 @@ public class InboxConfig
     public int CheckIntervalMinutes { get; set; } = 15;
 }
 
+public class SecuritySettings
+{
+    public List<string>? AllowedHosts { get; set; }
+
+    /// <summary>Extra directories GET /ivy/local-file may serve from, on top of the Tendril home,
+    /// the plans folder and configured project repos.</summary>
+    public List<string>? LocalFileRoots { get; set; }
+}
+
 public static class ChatModes
 {
     public const string Chat = "chat";
@@ -270,6 +284,7 @@ public class TendrilSettings
     public LlmConfig? Llm { get; set; }
     public AuthConfig? Auth { get; set; }
     public ApiSettings? Api { get; set; }
+    public SecuritySettings? Security { get; set; }
     private InboxConfig _inbox = new();
     public InboxConfig Inbox
     {

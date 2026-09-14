@@ -324,4 +324,54 @@ public class ClaudeFailureAnalyzerTests
         Assert.Equal(FailureKind.Unknown, result.Kind);
         Assert.Contains("unknown error", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Theory]
+    [InlineData("API Error: 400 data retention mode 'default' is not available for this model")]
+    [InlineData("Error: data retention mode 'default' is not available for this model")]
+    public void Analyze_DataRetentionModeError_InStderr_ReturnsInvalidModelWithBedrockGuidance(string stderrLine)
+    {
+        var ctx = new FailureContext
+        {
+            Events = [],
+            AgentId = AgentId.Claude,
+            StderrLines = [stderrLine],
+            ExitCode = 1,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.InvalidModel, result.Kind);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("AWS Bedrock", result.Reason);
+        Assert.Contains("data retention mode", result.Reason);
+        Assert.NotNull(result.Suggestion);
+        Assert.Contains("AWS Bedrock", result.Suggestion);
+        Assert.Contains("Opus", result.Suggestion);
+    }
+
+    [Fact]
+    public void Analyze_DataRetentionModeError_InTextEvent_ReturnsInvalidModelWithBedrockGuidance()
+    {
+        var textEvent = new TextEvent
+        {
+            Kind = AgentEventKind.Text,
+            Text = "API Error: 400 data retention mode 'default' is not available for this model",
+        };
+
+        var ctx = new FailureContext
+        {
+            Events = [textEvent],
+            AgentId = AgentId.Claude,
+            StderrLines = [],
+            ExitCode = 1,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.InvalidModel, result.Kind);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("AWS Bedrock", result.Reason);
+        Assert.NotNull(result.Suggestion);
+        Assert.Contains("Opus", result.Suggestion);
+    }
 }

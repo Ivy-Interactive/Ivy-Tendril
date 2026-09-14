@@ -8,9 +8,11 @@ public class PlanWatcherService : IPlanWatcherService
 {
     // Default self-heal cadence: the top-level FSW fires when a plan folder first appears
     // (still empty), but plan.yaml / Revisions land a moment later and writes *inside* the
-    // folder don't re-trigger the watcher. These staggered re-scans surface the now-complete
-    // folder within seconds instead of waiting for the 30s poll.
-    private static readonly int[] DefaultSelfHealDelaysMs = { 1000, 3000, 8000 };
+    // folder don't re-trigger the watcher. These re-scans surface the now-complete folder
+    // within seconds instead of waiting for the 30s poll. Two delays suffice because the
+    // database sync coalesces and reruns after an in-flight pass (#2571), so a rescan that
+    // races the last write is followed by another without a third timer.
+    private static readonly int[] DefaultSelfHealDelaysMs = { 1000, 4000 };
 
     private readonly Timer _debounceTimer;
     private readonly FileSystemWatcher? _watcher;
@@ -18,8 +20,19 @@ public class PlanWatcherService : IPlanWatcherService
     private readonly ILogger<PlanWatcherService>? _logger;
     private readonly int[] _selfHealDelaysMs;
     private readonly object _selfHealLock = new();
+
+    /// <summary>
+    ///     Guards <see cref="_pendingPlanFolder" /> and the debounce timer's Stop/Start pair. Every
+    ///     caller is a timer or an FSW callback on an arbitrary thread pool thread, and a burst of plan
+    ///     mutations has them arriving together: unsynchronized, two concurrent calls could lose the
+    ///     escalation to a full rescan (each seeing a null pending folder) or restart the timer between
+    ///     the other's Stop and Start and drop the pending fire entirely.
+    /// </summary>
+    private readonly object _debounceLock = new();
+
     private List<System.Threading.Timer> _selfHealTimers = new();
     private string? _pendingPlanFolder;
+    private bool _disposed;
 
     public PlanWatcherService(IConfigService config, ILogger<PlanWatcherService>? logger = null,
         int[]? selfHealDelaysMs = null)
@@ -30,8 +43,15 @@ public class PlanWatcherService : IPlanWatcherService
         _debounceTimer.AutoReset = false;
         _debounceTimer.Elapsed += (_, _) =>
         {
-            var folder = _pendingPlanFolder;
-            _pendingPlanFolder = null;
+            string? folder;
+            lock (_debounceLock)
+            {
+                folder = _pendingPlanFolder;
+                _pendingPlanFolder = null;
+            }
+
+            // Raised outside the lock: subscribers do real work (the database sync queues, views
+            // refresh), and holding the lock across them would stall every NotifyChanged behind it.
             RaisePlansChanged(folder);
         };
 
@@ -98,7 +118,14 @@ public class PlanWatcherService : IPlanWatcherService
     {
         _pollTimer?.Dispose();
         _watcher?.Dispose();
-        _debounceTimer.Dispose();
+
+        // Under the same lock as ScheduleDebounce: an FSW callback already queued on a thread pool
+        // thread would otherwise reach Start() on the disposed timer and throw there.
+        lock (_debounceLock)
+        {
+            _disposed = true;
+            _debounceTimer.Dispose();
+        }
 
         lock (_selfHealLock)
         {
@@ -109,15 +136,16 @@ public class PlanWatcherService : IPlanWatcherService
     }
 
     /// <summary>
-    ///     Schedules a short burst of full re-scans after a top-level folder event. A brand-new
-    ///     plan folder fires the FSW while still empty; its plan.yaml / first revision land a
-    ///     moment later, and those writes (inside the folder) don't re-trigger the watcher. These
-    ///     staggered re-scans pick up the completed folder within seconds rather than waiting for
-    ///     the 30s poll.
+    ///     Schedules a couple of full re-scans after a top-level folder event. A brand-new plan
+    ///     folder fires the FSW while still empty; its plan.yaml / first revision land a moment
+    ///     later, and those writes (inside the folder) don't re-trigger the watcher. These re-scans
+    ///     pick up the completed folder within seconds rather than waiting for the 30s poll.
     ///     <para>
-    ///     Trade-off: a single folder event now yields up to N+1 full re-scans (the debounce plus
-    ///     one per delay) instead of one. Plan-folder events are infrequent and each new event
-    ///     replaces the prior burst, so the extra I/O is bounded and acceptable.
+    ///     Each delay goes through <see cref="ScheduleDebounce" /> rather than raising directly, so
+    ///     the whole burst is subject to the same coalescing as everything else: a folder event
+    ///     costs one fire per delay at most, and timers that land together cost one between them.
+    ///     Two delays are enough because <c>PlanDatabaseSyncService</c> reruns once after the pass
+    ///     in flight, which already covers content that landed during a rescan (#2571).
     ///     </para>
     /// </summary>
     private void ScheduleSelfHeal()
@@ -125,10 +153,7 @@ public class PlanWatcherService : IPlanWatcherService
         var newTimers = new List<System.Threading.Timer>(_selfHealDelaysMs.Length);
         foreach (var delayMs in _selfHealDelaysMs)
         {
-            // Fire an independent full rescan at each delay rather than routing through the
-            // debounce (which would coalesce the staggered timers into a single fire). Each
-            // rescan is a fresh chance to pick up content that landed after the last one.
-            var timer = new System.Threading.Timer(_ => RaisePlansChanged(null),
+            var timer = new System.Threading.Timer(_ => ScheduleDebounce(null),
                 null, delayMs, Timeout.Infinite);
             newTimers.Add(timer);
         }
@@ -167,17 +192,22 @@ public class PlanWatcherService : IPlanWatcherService
 
     private void ScheduleDebounce(string? planFolder)
     {
-        // If we already have a pending folder and a different one arrives, escalate to full rescan
-        if (_pendingPlanFolder != null && planFolder != null
-                                       && !string.Equals(_pendingPlanFolder, planFolder,
-                                           StringComparison.OrdinalIgnoreCase))
-            _pendingPlanFolder = null; // null = full rescan
-        else if (_pendingPlanFolder == null && planFolder != null && !_debounceTimer.Enabled)
-            _pendingPlanFolder = planFolder;
-        // If planFolder is null (full rescan requested), override any specific folder
-        else if (planFolder == null) _pendingPlanFolder = null;
+        lock (_debounceLock)
+        {
+            if (_disposed) return;
 
-        _debounceTimer.Stop();
-        _debounceTimer.Start();
+            // If we already have a pending folder and a different one arrives, escalate to full rescan
+            if (_pendingPlanFolder != null && planFolder != null
+                                           && !string.Equals(_pendingPlanFolder, planFolder,
+                                               StringComparison.OrdinalIgnoreCase))
+                _pendingPlanFolder = null; // null = full rescan
+            else if (_pendingPlanFolder == null && planFolder != null && !_debounceTimer.Enabled)
+                _pendingPlanFolder = planFolder;
+            // If planFolder is null (full rescan requested), override any specific folder
+            else if (planFolder == null) _pendingPlanFolder = null;
+
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+        }
     }
 }

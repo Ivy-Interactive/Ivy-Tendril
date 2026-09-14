@@ -157,6 +157,10 @@ internal class JobCompletionHandler
         // A cancelled job that the completion path won the race for is handled here too.
         if (job.Status is JobStatus.Failed or JobStatus.Timeout || job.CancellationRequested)
         {
+            if (job.TypedArgs is CreatePlanArgs || job.Type == Constants.JobTypes.CreatePlan)
+            {
+                CleanupEmptyCreatePlan(job);
+            }
             RevertPlanStateToPrevious(job);
             return;
         }
@@ -309,7 +313,7 @@ internal class JobCompletionHandler
                     }
 
                     if (jobPlanFolder != null)
-                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, usage.Cost, usage.Model, usage.CostSource);
+                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, usage.Cost, usage.Model, usage.CostSource, provider);
                 }
             }
             catch (Exception ex)
@@ -410,7 +414,7 @@ internal class JobCompletionHandler
 
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
         if (jobPlanFolder != null)
-            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, usage.Cost, usage.Model, usage.CostSource);
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, usage.Cost, usage.Model, usage.CostSource, job.Provider);
     }
 
     /// <summary>
@@ -591,6 +595,18 @@ internal class JobCompletionHandler
             var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
             if (planYaml == null) return;
 
+            var current = _planReaderService?.GetPlanByFolder(planFolder)?.Status
+                ?? (Enum.TryParse<PlanStatus>(planYaml.State, true, out var parsed) ? parsed : (PlanStatus?)null);
+
+            // Terminal plans (PR created, or manually Skipped) are immutable: a late
+            // successful job must not move them backward to Review or Failed.
+            if (current is PlanStatus.Completed or PlanStatus.Skipped)
+            {
+                _logger.LogInformation("Job {JobId}: Not transitioning plan {PlanFolder} because it is already {State}",
+                    job.Id, Path.GetFileName(planFolder), current);
+                return;
+            }
+
             // A failed pre-execution means the plan's premise was checked and rejected, so nothing
             // was implemented. That is decisive regardless of the verification rows: the agent may
             // have left them Pending (which hasIncomplete already catches) or set them all Skipped
@@ -603,6 +619,14 @@ internal class JobCompletionHandler
             var targetState = preExecution == VerificationStatus.Fail || hasIncomplete
                 ? PlanStatus.Failed
                 : PlanStatus.Review;
+
+            // Do not stomp Review back to Failed on a late job
+            if (current == PlanStatus.Review && targetState == PlanStatus.Failed)
+            {
+                _logger.LogInformation("Job {JobId}: Not transitioning plan {PlanFolder} from Review to Failed",
+                    job.Id, Path.GetFileName(planFolder));
+                return;
+            }
 
             var folderName = Path.GetFileName(planFolder);
             if (_planReaderService != null)
@@ -621,6 +645,20 @@ internal class JobCompletionHandler
         try
         {
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
+            if (string.IsNullOrEmpty(planFolder)) return;
+
+            var current = _planReaderService?.GetPlanByFolder(planFolder)?.Status
+                ?? (Enum.TryParse<PlanStatus>(PlanYamlHelper.ReadPlanYaml(planFolder)?.State, true, out var parsed) ? parsed : (PlanStatus?)null);
+
+            // Terminal plans (Completed or Skipped) are immutable
+            if (current is PlanStatus.Completed or PlanStatus.Skipped &&
+                !string.Equals(state, nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(state, nameof(PlanStatus.Skipped), StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Job {JobId}: Not setting plan {PlanFolder} to {State} because it is already {Current}",
+                    job.Id, Path.GetFileName(planFolder), state, current);
+                return;
+            }
 
             _logger.LogDebug("SetPlanState: Setting {PlanFolder} to {State} for job {JobId}",
                 Path.GetFileName(planFolder), state, job.Id);
@@ -648,6 +686,32 @@ internal class JobCompletionHandler
     /// </summary>
     internal static readonly Regex BarePrUrlPattern = new(
         @"^https?://github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+)/pull/(?<number>\d+)(?=/?(?:#\S*)?$)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    internal static readonly Regex DuplicateMarkerPattern = new(
+        @"identified as duplicate:\s*(?<target>[^\s]+)",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Anchored to a whole (trimmed) line, same rationale as <see cref="BarePrUrlPattern" />:
+    ///     rejects a `read`/`grep` result quoting the marker (line-number gutter, `path:line:`
+    ///     prefix) and the job-log form `- **PlanId:** 00075` (see JobLogWriter), leaving only what
+    ///     `tendril plan create` itself prints.
+    /// </summary>
+    internal static readonly Regex BarePlanIdPattern = new(
+        @"^PlanId:\s*(?<id>[\w-]+)$",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Matches a <see cref="ToolCallEvent" />'s <c>ToolName</c>/<c>InputJson</c> that invoked plan
+    ///     creation, so a correlated <see cref="ToolResultEvent" /> can be trusted even though the
+    ///     wire carries other tool calls too. Covers both the CLI (`tendril plan create ...` inside a
+    ///     Bash command) and the MCP tool (`mcp__tendril__plan_create`) — no leading `\b`, because
+    ///     the underscore joining `tendril__plan_create` is a word character on both sides, so a
+    ///     leading boundary would never match the MCP tool name at all.
+    /// </summary>
+    internal static readonly Regex PlanCreateInvocationPattern = new(
+        @"plan[_ \t-]+create\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
@@ -780,45 +844,75 @@ internal class JobCompletionHandler
     private static string CanonicalPrKey(Match m) =>
         $"{m.Groups["owner"].Value}/{m.Groups["repo"].Value}#{m.Groups["number"].Value}".ToLowerInvariant();
 
-    private void VerifyCreatePlanResult(JobItem job)
+    internal void VerifyCreatePlanResult(JobItem job)
     {
         try
         {
-            var plansDir = _planReaderService?.PlansDirectory;
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
             if (plansDir == null || !Directory.Exists(plansDir)) return;
 
+            string? planFolder = null;
             if (TryVerifyByReportedId(job, plansDir) ||
                 TryVerifyByOutputRegex(job, plansDir) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
-                if (!string.IsNullOrEmpty(job.ChatSessionId) && !string.IsNullOrEmpty(job.PlanFile))
-                {
-                    var planFolder = Path.IsPathRooted(job.PlanFile) ? job.PlanFile : Path.Combine(plansDir, job.PlanFile);
-                    PlanYamlHelper.UpdatePlanYamlFields(planFolder, ("chatSessionId", job.ChatSessionId));
-                    _planWatcherService?.NotifyChanged(planFolder);
-                    if (_planReaderService is PlanReaderService prs)
-                    {
-                        var plan = prs.ParseSinglePlanFolder(planFolder);
-                        if (plan != null)
-                        {
-                            (_database ?? prs.Database)?.UpsertPlan(plan);
-                        }
-                    }
-                    else if (_database != null)
-                    {
-                        var plan = _planReaderService?.GetPlanByFolder(planFolder);
-                        if (plan != null)
-                        {
-                            _database.UpsertPlan(plan);
-                        }
-                    }
-                }
-
-                MoveAttachmentsToPlanFolder(job);
-                return;
+                planFolder = !string.IsNullOrEmpty(job.PlanFile)
+                    ? (Path.IsPathRooted(job.PlanFile) ? job.PlanFile : Path.Combine(plansDir, job.PlanFile))
+                    : null;
             }
 
-            if (IsDuplicatePlan(job)) return;
+            if (planFolder != null && Directory.Exists(planFolder))
+            {
+                if (GetPlanRevisionCount(planFolder) > 0)
+                {
+                    if (!string.IsNullOrEmpty(job.ChatSessionId) && !string.IsNullOrEmpty(job.PlanFile))
+                    {
+                        if (!PlanYamlHelper.UpdatePlanYamlFields(planFolder, ("chatSessionId", job.ChatSessionId)))
+                            _logger.LogWarning("Failed to update chatSessionId in plan.yaml for job {JobId} at {PlanFolder}", job.Id, planFolder);
+                        _planWatcherService?.NotifyChanged(planFolder);
+                        if (_planReaderService is PlanReaderService prs)
+                        {
+                            var plan = prs.ParseSinglePlanFolder(planFolder);
+                            if (plan != null)
+                            {
+                                (_database ?? prs.Database)?.UpsertPlan(plan);
+                            }
+                        }
+                        else if (_database != null)
+                        {
+                            var plan = _planReaderService?.GetPlanByFolder(planFolder);
+                            if (plan != null)
+                            {
+                                _database.UpsertPlan(plan);
+                            }
+                        }
+                    }
+
+                    MoveAttachmentsToPlanFolder(job);
+                    return;
+                }
+                else
+                {
+                    CleanupPlanFolderAndDatabase(planFolder);
+                    job.PlanFile = "";
+                }
+            }
+
+            if (IsDuplicatePlan(job, plansDir)) return;
+
+            if (!string.IsNullOrEmpty(job.AllocatedPlanId))
+            {
+                var allocatedFolder = PlanYamlHelper.FindPlanFolderById(plansDir, job.AllocatedPlanId);
+                if (allocatedFolder != null)
+                {
+                    var fullAllocated = Path.IsPathRooted(allocatedFolder) ? allocatedFolder : Path.Combine(plansDir, allocatedFolder);
+                    if (GetPlanRevisionCount(fullAllocated) == 0)
+                    {
+                        CleanupPlanFolderAndDatabase(fullAllocated);
+                    }
+                }
+            }
 
             MarkCreatePlanFailed(job);
         }
@@ -947,11 +1041,81 @@ internal class JobCompletionHandler
                 TryVerifyByOutputRegex(job, plansDir) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
-                return true;
+                if (!string.IsNullOrEmpty(job.PlanFile))
+                {
+                    var fullPath = Path.IsPathRooted(job.PlanFile) ? job.PlanFile : Path.Combine(plansDir, job.PlanFile);
+                    if (GetPlanRevisionCount(fullPath) > 0)
+                        return true;
+                }
             }
         }
 
-        return IsDuplicatePlan(job);
+        return IsDuplicatePlan(job, plansDir);
+    }
+
+    internal static int GetPlanRevisionCount(string planFolder)
+    {
+        var revisionsDir = Path.Combine(planFolder, "Revisions");
+        if (!Directory.Exists(revisionsDir))
+        {
+            revisionsDir = Path.Combine(planFolder, "revisions");
+        }
+        return Directory.Exists(revisionsDir)
+            ? Directory.GetFiles(revisionsDir, "*.md").Length
+            : 0;
+    }
+
+    internal void CleanupPlanFolderAndDatabase(string planFolder)
+    {
+        try
+        {
+            var folderName = Path.GetFileName(planFolder);
+            var match = Regex.Match(folderName, @"^(\d{5})-");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var planId))
+            {
+                var db = _database ?? (_planReaderService as PlanReaderService)?.Database;
+                db?.DeletePlan(planId);
+            }
+
+            if (Directory.Exists(planFolder))
+            {
+                Directory.Delete(planFolder, recursive: true);
+            }
+            _planWatcherService?.NotifyChanged(planFolder);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up empty plan folder {Folder}", planFolder);
+        }
+    }
+
+    private void CleanupEmptyCreatePlan(JobItem job)
+    {
+        try
+        {
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+            if (plansDir == null || !Directory.Exists(plansDir)) return;
+
+            var planId = job.ReportedPlanId ?? job.AllocatedPlanId ?? ExtractReportedPlanId(job.OutputLines);
+
+            if (!string.IsNullOrEmpty(planId))
+            {
+                var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+                if (folder != null)
+                {
+                    var fullPath = Path.IsPathRooted(folder) ? folder : Path.Combine(plansDir, folder);
+                    if (GetPlanRevisionCount(fullPath) == 0)
+                    {
+                        CleanupPlanFolderAndDatabase(fullPath);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up empty CreatePlan on job failure for job {JobId}", job.Id);
+        }
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)
@@ -976,26 +1140,113 @@ internal class JobCompletionHandler
         // PlanCreateCommand.Execute), but it always prints `PlanId: <id>` — resolve that ID to
         // its folder the same way TryVerifyByReportedId does, so this fallback still works
         // independently of the agent calling `tendril job status --plan-id`.
-        var outputText = string.Join("\n", job.OutputLines);
-        var planIdMatch = Regex.Match(outputText, @"PlanId:\s*([\w-]+)");
-        if (!planIdMatch.Success) return false;
+        var planId = ExtractReportedPlanId(job.OutputLines);
+        if (planId == null) return false;
 
-        var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planIdMatch.Groups[1].Value);
+        var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
         if (folder == null) return false;
 
         job.PlanFile = folder;
         return true;
     }
 
-    // CreatePlan signals a deliberate duplicate rejection by ending its final message with
-    // "identified as duplicate: <folder>". The negative lookahead skips the documented template
-    // form, whose placeholder is angle-bracketed, so an agent that reads or quotes Program.md
-    // mid-run cannot echo the marker and suppress a genuine "no plan produced" failure.
-    // OutputLines holds re-serialized JSON, so the '<' arrives escaped as < — match both.
-    private static bool IsDuplicatePlan(JobItem job)
+    // Same class of false positive as IsDuplicatePlan below: OutputLines is the whole eventwire, not
+    // command output, so a bare regex over the joined text lets a `read`/`grep` result or a tool-call
+    // heredoc that merely quotes `PlanId: <id>` outrank the id the agent actually created. Scoped the
+    // same way — deserialize each entry and only trust event kinds that can genuinely carry it: a
+    // tool result correlated to a plan-create invocation (or, if the wire has no tool calls at all,
+    // any tool result), ranked above the agent's own prose (TextEvent/ResultEvent.Response).
+    internal static string? ExtractReportedPlanId(IEnumerable<string> outputLines)
     {
-        var outputText = string.Join("\n", job.OutputLines);
-        return Regex.IsMatch(outputText, @"identified as duplicate:\s*(?!<|\\u003[Cc])\S");
+        var serializer = new JsonEventSerializer();
+        var planCreateToolUseIds = new HashSet<string>();
+        var sawAnyToolCall = false;
+        string? tier1 = null;
+        string? tier2 = null;
+
+        foreach (var entry in outputLines)
+        {
+            switch (serializer.Deserialize(entry))
+            {
+                case ToolCallEvent call:
+                    sawAnyToolCall = true;
+                    if (PlanCreateInvocationPattern.IsMatch(call.ToolName) ||
+                        (call.InputJson != null && PlanCreateInvocationPattern.IsMatch(call.InputJson)))
+                        planCreateToolUseIds.Add(call.ToolUseId);
+                    break;
+
+                case ToolResultEvent { IsError: false, Output: { } output } result
+                    when tier1 == null && (!sawAnyToolCall || planCreateToolUseIds.Contains(result.ToolUseId)):
+                    tier1 = FirstBarePlanId(output);
+                    break;
+
+                case TextEvent { Text: { } text }:
+                    tier2 ??= FirstBarePlanId(text);
+                    break;
+
+                case ResultEvent { Response: { } response }:
+                    tier2 ??= FirstBarePlanId(response);
+                    break;
+            }
+        }
+
+        return tier1 ?? tier2;
+    }
+
+    private static string? FirstBarePlanId(string text)
+    {
+        foreach (var line in text.Replace("\r", "").Split('\n'))
+        {
+            var m = BarePlanIdPattern.Match(line.Trim());
+            if (m.Success) return m.Groups["id"].Value;
+        }
+        return null;
+    }
+
+    // A duplicate rejection is a claim the agent makes about its own run, so only the agent's own
+    // text counts: OutputLines also carries every tool result, and a CreatePlan run that reads a
+    // file quoting the marker (AGENTS.md documents it) must not be able to suppress a real failure.
+    // The named folder has to resolve to a plan on disk as well, so prose that happens to contain the
+    // marker cannot pass either.
+    private static bool IsDuplicatePlan(JobItem job, string? plansDir)
+    {
+        if (string.IsNullOrEmpty(plansDir) || !Directory.Exists(plansDir)) return false;
+
+        var serializer = new JsonEventSerializer();
+        foreach (var entry in job.OutputLines)
+        {
+            var text = serializer.Deserialize(entry) switch
+            {
+                TextEvent t => t.Text,
+                ResultEvent { Response: { } response } => response,
+                _ => null
+            };
+            if (string.IsNullOrEmpty(text)) continue;
+
+            foreach (var m in DuplicateMarkerPattern.Matches(text).Cast<Match>())
+                if (ResolvesToPlanFolder(m.Groups["target"].Value, plansDir)) return true;
+        }
+        return false;
+    }
+
+    // FindPlanFolderById globs "{planId}-*", so passing it a full folder name never matches - that's
+    // why the first resolution step below checks the full form directly rather than delegating to it.
+    private static bool ResolvesToPlanFolder(string token, string plansDir)
+    {
+        token = token.Trim('`', '"', '\'', '.', ',', ';', ')', ']');
+        if (string.IsNullOrEmpty(token)) return false;
+
+        if (Directory.Exists(Path.Combine(plansDir, token))) return true;
+
+        var idMatch = Regex.Match(token, @"^(\d{5})");
+        if (idMatch.Success && PlanYamlHelper.FindPlanFolderById(plansDir, idMatch.Groups[1].Value) != null)
+            return true;
+
+        if (Regex.IsMatch(token, @"^\d+$") &&
+            PlanYamlHelper.FindPlanFolderById(plansDir, token.PadLeft(5, '0')) != null)
+            return true;
+
+        return false;
     }
 
     private static bool TryVerifyByFilesystem(JobItem job, string plansDir)
@@ -1023,10 +1274,29 @@ internal class JobCompletionHandler
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             if (string.IsNullOrEmpty(planFolder)) return;
 
+            var current = _planReaderService?.GetPlanByFolder(planFolder)?.Status
+                ?? (Enum.TryParse<PlanStatus>(PlanYamlHelper.ReadPlanYaml(planFolder)?.State, true, out var parsed) ? parsed : (PlanStatus?)null);
+
+            // Terminal plans are immutable
+            if (current is PlanStatus.Completed or PlanStatus.Skipped)
+            {
+                _logger.LogInformation("Job {JobId}: Not reverting plan {PlanFolder} because it is already {State}",
+                    job.Id, Path.GetFileName(planFolder), current);
+                return;
+            }
+
             var target = job.PreviousPlanState ?? FallbackPreviousState(job.TypedArgs);
             if (target == null) return;
             if (target == PlanStatus.Blocked)
                 target = PlanStatus.Draft;
+
+            // Do not stomp Review or Failed back to Draft on stale timeout/failure
+            if (current is PlanStatus.Review or PlanStatus.Failed && target == PlanStatus.Draft)
+            {
+                _logger.LogInformation("Job {JobId}: Not reverting plan {PlanFolder} from {Current} to Draft",
+                    job.Id, Path.GetFileName(planFolder), current);
+                return;
+            }
 
             if (_planReaderService != null)
                 _planReaderService.TransitionState(Path.GetFileName(planFolder), target.Value);

@@ -13,17 +13,27 @@
   --tch-faint: color-mix(in srgb, var(--foreground, #000000) 40%, transparent);
   --tch-border: var(--border, #e0e0e0);
   --tch-surface: color-mix(in srgb, var(--foreground, #000000) 4%, var(--background, #ffffff));
-  --tch-surface-hover: color-mix(in srgb, var(--foreground, #000000) 8%, var(--background, #ffffff));
+  --tch-surface-hover: color-mix(
+    in srgb,
+    var(--foreground, #000000) 8%,
+    var(--background, #ffffff)
+  );
   --tch-input-border: color-mix(in srgb, var(--foreground, #000000) 15%, transparent);
   --tch-popover: var(--popover, #ffffff);
   --tch-bubble-bg: var(--primary, #000000);
   --tch-bubble-fg: var(--primary-foreground, #ffffff);
-  --tch-bubble-chip: color-mix(in srgb, var(--primary-foreground, #ffffff) 24%, var(--primary, #000000));
+  --tch-bubble-chip: color-mix(
+    in srgb,
+    var(--primary-foreground, #ffffff) 24%,
+    var(--primary, #000000)
+  );
   --tch-cta-bg: var(--primary, #000000);
   --tch-cta-fg: var(--primary-foreground, #ffffff);
   --tch-danger: var(--destructive, #ef4444);
   --tch-success: color-mix(in srgb, var(--success, #16a34a) 70%, var(--foreground, #000000));
   --tch-thread-width: 775px;
+  /* Inset of the embedded (plan panel) rows; the panel itself adds no horizontal padding. */
+  --tch-embedded-inset: 16px;
   --tch-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 4px 12px -2px rgba(0, 0, 0, 0.1);
   --tch-mono: var(--font-mono, "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace);
 
@@ -36,7 +46,11 @@
 .dark .chat-agent-layer,
 .dark .chat-header-host {
   --tch-surface: color-mix(in srgb, var(--foreground, #f8f8f8) 7%, var(--background, #000000));
-  --tch-surface-hover: color-mix(in srgb, var(--foreground, #f8f8f8) 11%, var(--background, #000000));
+  --tch-surface-hover: color-mix(
+    in srgb,
+    var(--foreground, #f8f8f8) 11%,
+    var(--background, #000000)
+  );
   --tch-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.6), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
 }
 
@@ -397,6 +411,19 @@ button.chat-jobs-dropdown-item:hover {
   text-overflow: ellipsis;
 }
 
+.chat-job-nav-icon {
+  margin-left: auto;
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--tch-muted);
+  opacity: 0.5;
+  transition: opacity 120ms ease;
+}
+
+button.chat-jobs-dropdown-item:hover .chat-job-nav-icon {
+  opacity: 1;
+}
+
 .chat-jobs-dropdown-footer {
   display: flex;
   justify-content: flex-end;
@@ -480,6 +507,31 @@ button.chat-jobs-dropdown-item:hover {
   font-weight: 600;
   line-height: 1.2;
   color: var(--tch-fg);
+}
+
+.chat-sample-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.chat-sample-prompt {
+  padding: 8px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--tch-border);
+  background: var(--tch-bg);
+  color: var(--tch-fg);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chat-sample-prompt:hover {
+  background: var(--tch-surface-hover);
+  border-color: var(--tch-faint);
 }
 
 .chat-message-row {
@@ -713,6 +765,14 @@ button.chat-jobs-dropdown-item:hover {
   color: var(--tch-muted);
 }
 
+.chat-system-event-row[data-job-state="completed"] .chat-system-event-icon {
+  color: var(--tch-success);
+}
+
+.chat-system-event-row[data-job-state="failed"] .chat-system-event-icon {
+  color: var(--tch-danger);
+}
+
 .chat-system-event-text {
   min-width: 0;
   line-height: 1.3;
@@ -887,7 +947,10 @@ button.chat-system-event-plan {
   color: var(--tch-muted);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .pmv-code-block:hover .pmv-code-copy,
@@ -1077,7 +1140,7 @@ button.chat-system-event-plan {
 
 .chat-attach-btn {
   margin-left: -6px;
-  opacity: 0.85;
+  opacity: 0.6;
 }
 
 .chat-textarea {
@@ -1146,7 +1209,7 @@ button.chat-system-event-plan {
 }
 
 .chat-voice-btn {
-  opacity: 0.8;
+  opacity: 0.6;
 }
 
 @keyframes chat-pulse {
@@ -1744,15 +1807,19 @@ button.chat-system-event-plan {
    The panel that hosts the widget draws the frame, so the widget drops its title bar and the
    composer takes the prototype's tighter measurements (16px icons, 28px buttons). */
 
+/* The panel gives the widget its full width so the message list scrolls edge to edge; each row
+   carries the inset itself, which keeps the scrollbar off the text. */
 .chat-widget-root[data-embedded="true"] .chat-header--embedded {
   justify-content: flex-end;
   height: auto;
-  padding: 0 0 8px;
+  padding: 0 var(--tch-embedded-inset) 8px;
   border-bottom: none;
 }
 
+/* Keep the top padding: the pin scroll clamps at 0, so a pinned first message gets no clearance
+   without it. The value is PIN_TOP_PADDING in useThreadScroll.ts. */
 .chat-widget-root[data-embedded="true"] .chat-thread {
-  padding: 0;
+  padding: 10px var(--tch-embedded-inset) 0;
 }
 
 .chat-widget-root[data-embedded="true"] .chat-empty-state {
@@ -1778,8 +1845,15 @@ button.chat-system-event-plan {
   line-height: 26px;
 }
 
+.chat-widget-root[data-embedded="true"] .chat-sample-prompts {
+  flex-wrap: nowrap;
+  /* keep chips flush left: centering an overflowing nowrap scroller would push leading chips past the scroll origin */
+  justify-content: flex-start;
+  overflow-x: auto;
+}
+
 .chat-widget-root[data-embedded="true"] .chat-footer {
-  padding: 12px 0 0;
+  padding: 12px var(--tch-embedded-inset) 0;
 }
 
 .chat-widget-root[data-embedded="true"] .chat-input-box {
@@ -1794,6 +1868,11 @@ button.chat-system-event-plan {
 
 .chat-widget-root[data-embedded="true"] .chat-attach-btn {
   margin-left: 0;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-attach-btn,
+.chat-widget-root[data-embedded="true"] .chat-voice-btn {
+  opacity: 0.9;
 }
 
 .chat-widget-root[data-embedded="true"] .chat-textarea {

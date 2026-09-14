@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 export class MockUri {
   public readonly scheme: string;
   public readonly fsPath: string;
@@ -15,6 +17,10 @@ export class MockUri {
 
   public static parse(val: string): MockUri {
     return new MockUri(val);
+  }
+
+  public static joinPath(base: MockUri, ...pathSegments: string[]): MockUri {
+    return new MockUri(path.join(base.fsPath, ...pathSegments));
   }
 
   public toString(): string {
@@ -63,6 +69,11 @@ export class MockThemeColor {
 }
 
 export class MockTreeItem {
+  public iconPath?: unknown;
+  public command?: { command: string; title: string; arguments?: unknown[] };
+  public description?: string | boolean;
+  public tooltip?: string | unknown;
+
   constructor(
     public label: string,
     public collapsibleState: TreeItemCollapsibleState = TreeItemCollapsibleState.None
@@ -95,6 +106,42 @@ export class MockEventEmitter<T = unknown> {
   }
 }
 
+export class MockCancellationToken {
+  public isCancellationRequested = false;
+  private listeners: (() => void)[] = [];
+
+  public onCancellationRequested = (listener: () => void) => {
+    this.listeners.push(listener);
+    return {
+      dispose: () => {
+        const idx = this.listeners.indexOf(listener);
+        if (idx >= 0) {
+          this.listeners.splice(idx, 1);
+        }
+      }
+    };
+  };
+
+  public cancel(): void {
+    this.isCancellationRequested = true;
+    for (const listener of this.listeners) {
+      listener();
+    }
+  }
+}
+
+export class MockCancellationTokenSource {
+  public token = new MockCancellationToken();
+
+  public cancel(): void {
+    this.token.cancel();
+  }
+
+  public dispose(): void {}
+}
+
+const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
+
 export const vscodeMock = {
   Uri: MockUri,
   Position: MockPosition,
@@ -106,7 +153,17 @@ export const vscodeMock = {
   ThemeColor: MockThemeColor,
   TreeItem: MockTreeItem,
   EventEmitter: MockEventEmitter,
+  CancellationTokenSource: MockCancellationTokenSource,
+  env: {
+    lastOpenedUri: undefined as unknown,
+    openExternal: async (uri: unknown) => {
+      vscodeMock.env.lastOpenedUri = uri;
+      return true;
+    },
+    asExternalUri: async (uri: unknown) => uri
+  },
   window: {
+    lastErrorMessage: undefined as string | undefined,
     createOutputChannel: (name: string) => ({
       name,
       append: () => {},
@@ -123,8 +180,13 @@ export const vscodeMock = {
     }),
     showInformationMessage: async () => undefined,
     showWarningMessage: async () => undefined,
-    showErrorMessage: async () => undefined,
+    showErrorMessage: async (msg: string) => {
+      vscodeMock.window.lastErrorMessage = msg;
+      return undefined;
+    },
     showTextDocument: async () => ({}),
+    showInputBox: async () => undefined,
+    showQuickPick: async () => undefined,
     activeColorTheme: { kind: ColorThemeKind.Dark },
     onDidChangeActiveColorTheme: () => ({ dispose: () => {} }),
     registerTreeDataProvider: () => ({ dispose: () => {} })
@@ -135,10 +197,32 @@ export const vscodeMock = {
     }),
     openTextDocument: async (filePath: string) => ({ uri: MockUri.file(filePath) }),
     workspaceFolders: [],
-    updateWorkspaceFolders: () => true
+    updateWorkspaceFolders: () => true,
+    onDidChangeWorkspaceFolders: () => ({ dispose: () => {} })
   },
   commands: {
-    registerCommand: () => ({ dispose: () => {} }),
-    executeCommand: async () => undefined
+    registerCommand: (command: string, callback: (...args: unknown[]) => unknown) => {
+      registeredCommands.set(command, callback);
+      return {
+        dispose: () => {
+          registeredCommands.delete(command);
+        }
+      };
+    },
+    executeCommand: async (command: string, ...args: unknown[]) => {
+      const handler = registeredCommands.get(command);
+      if (handler) {
+        return await handler(...args);
+      }
+      return undefined;
+    }
+  },
+  chat: {
+    createChatParticipant: (id: string, handler: unknown) => ({
+      id,
+      requestHandler: handler,
+      iconPath: undefined,
+      dispose: () => {}
+    })
   }
 };

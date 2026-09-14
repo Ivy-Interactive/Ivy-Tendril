@@ -11,6 +11,7 @@ public interface IPlanReaderService
     void RecoverStuckPlans();
     List<PlanFile> GetPlans(PlanStatus? statusFilter = null);
     PlanFile? GetPlanByFolder(string folderPath);
+    PlanFile? GetPlanById(int planId) => GetPlans().FirstOrDefault(p => p.Id == planId);
     List<PlanFile> GetIceboxPlans();
     void TransitionState(string folderName, PlanStatus newState);
 
@@ -48,8 +49,10 @@ public interface IPlanReaderService
     DashboardModels GetDashboardData(string? projectFilter);
     DashboardActivityStats GetDashboardActivity(int monthsBack = 24);
     List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days);
+    List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60) => [];
     List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) => [];
     List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) => [];
+    List<DashboardAgentCost> GetAgentCostBreakdown(int days) => [];
     decimal GetPlanTotalCost(string folderPath);
     int GetPlanTotalTokens(string folderPath);
     List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null);

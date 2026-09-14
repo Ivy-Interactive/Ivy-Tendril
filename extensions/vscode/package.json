@@ -29,6 +29,7 @@
   "engines": {
     "vscode": "^1.90.0"
   },
+  "packageManager": "pnpm@10.33.0",
   "categories": [
     "AI",
     "Machine Learning",
@@ -43,7 +44,13 @@
     "commands": [
       {
         "command": "tendril.openDashboard",
-        "title": "Tendril: Open Dashboard"
+        "title": "Tendril: Open Dashboard",
+        "icon": "$(browser)"
+      },
+      {
+        "command": "tendril.openInBrowser",
+        "title": "Tendril: Open in Browser",
+        "icon": "$(globe)"
       },
       {
         "command": "tendril.openWorktree",
@@ -60,8 +67,68 @@
       {
         "command": "tendril.restartServer",
         "title": "Tendril: Restart Server"
+      },
+      {
+        "command": "tendril.addCurrentProject",
+        "title": "Tendril: Add Current Project"
+      },
+      {
+        "command": "tendril.createPlan",
+        "title": "Tendril: Create Plan"
+      },
+      {
+        "command": "tendril.executePlan",
+        "title": "Tendril: Execute Plan"
+      },
+      {
+        "command": "tendril.checkJobStatus",
+        "title": "Tendril: Check Job Status"
+      },
+      {
+        "command": "tendril.retryPlan",
+        "title": "Tendril: Retry Plan"
       }
     ],
+    "chatParticipants": [
+      {
+        "id": "tendril.chatParticipant",
+        "name": "tendril",
+        "description": "Interact with Tendril agents, execute commands, and manage plans",
+        "isDefault": true,
+        "commands": [
+          {
+            "name": "plan",
+            "description": "Create a new plan for a task or feature"
+          },
+          {
+            "name": "run",
+            "description": "Execute a plan"
+          },
+          {
+            "name": "status",
+            "description": "Check status of active or recent jobs"
+          },
+          {
+            "name": "retry",
+            "description": "Retry an executed plan with reviewer feedback"
+          }
+        ]
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "tendril.openDashboard",
+          "when": "view == tendril.quickAccess",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tendril.openInBrowser",
+          "when": "view == tendril.quickAccess",
+          "group": "navigation@2"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -124,14 +191,13 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/glob": "^8.1.0",
-    "@types/mocha": "^10.0.8",
-    "@types/node": "^20.17.0",
-    "@types/vscode": "^1.90.0",
-    "@vscode/test-electron": "^2.4.1",
-    "esbuild": "^0.24.0",
-    "glob": "^10.4.5",
-    "mocha": "^10.7.3",
-    "typescript": "^5.6.3"
+    "@types/mocha": "10.0.10",
+    "@types/node": "22.20.2",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "3.1.0",
+    "esbuild": "0.28.2",
+    "glob": "13.0.6",
+    "mocha": "12.0.0",
+    "typescript": "7.0.2"
   }
 }

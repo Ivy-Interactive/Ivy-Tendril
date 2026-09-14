@@ -96,6 +96,9 @@ class DemoApp : ViewBase
         var buildChecked = UseState(true);
         var testChecked = UseState(false);
         var lintChecked = UseState(true);
+        var planDraft = UseState(Plan);
+        var screenshotChecked = UseState(true);
+        var checkResultsChecked = UseState(true);
 
         UseEffect(() =>
         {
@@ -161,7 +164,7 @@ class DemoApp : ViewBase
         {
             "plan" when editing.Value => Layout.Vertical().Scroll(Scroll.Vertical).Width(Size.Full()).Height(Size.Full())
                 | (Layout.Vertical().Padding(8, 6, 8, 4).Width(Size.Full().Max(Size.Units(200)))
-                    | UseState(Plan).ToCodeInput().Language(Languages.Markdown).Width(Size.Full())),
+                    | planDraft.ToCodeInput().Language(Languages.Markdown).Width(Size.Full())),
             "plan" => new PlanMarkdown(Plan)
                 .Article()
                 .Height(Size.Full())
@@ -184,10 +187,10 @@ class DemoApp : ViewBase
             | lintChecked.ToBoolInput("Lint")
             | testChecked.ToBoolInput("Test").Invalid("This verification is required according to project settings")
             | (Layout.Horizontal().Gap(2).Width(Size.Full())
-                | UseState(true).ToBoolInput("Screenshot", true)
+                | screenshotChecked.ToBoolInput("Screenshot", true)
                 | new Badge("Pass").Variant(BadgeVariant.Success))
             | (Layout.Horizontal().Gap(2).Width(Size.Full())
-                | UseState(true).ToBoolInput("CheckResults", true)
+                | checkResultsChecked.ToBoolInput("CheckResults", true)
                 | new Badge("Fail").Variant(BadgeVariant.Destructive));
 
         var questions = Layout.Vertical().Gap(2).Width(Size.Full())

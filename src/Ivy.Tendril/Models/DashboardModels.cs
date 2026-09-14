@@ -82,3 +82,10 @@ public record RecentPlanCostDto(
     long Tokens
 );
 
+public record DashboardAgentCost(
+    string Agent,
+    decimal Cost,
+    long Tokens,
+    int PlanCount
+);
+

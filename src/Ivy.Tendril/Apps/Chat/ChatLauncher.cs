@@ -1,4 +1,3 @@
-using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Services;
 
@@ -19,19 +18,19 @@ internal static class ChatLauncher
         navigator.Navigate(app, args);
     }
 
-    public static (Type App, object? Args) NewSessionTarget(IConfigService config, IChatHistoryService chats, IAgentRunner runner)
+    public static (Type App, object? Args) NewSessionTarget(IConfigService config, IChatHistoryService chats)
     {
         if (UsesTerminal(config)) return (typeof(AgentApp), new AgentAppArgs());
 
-        var agent = config.Settings.CodingAgent ?? "claude";
-        var models = ChatApp.GetModelsForAgent(runner, agent);
-        var session = chats.CreateSession(agent, models.Count > 0 ? models[0].Id : "default", kind: ChatSessionKinds.Chat);
-        return (typeof(ChatApp), new ChatAppArgs(SessionId: session.Id));
+        // Both modes defer creation: the chat page creates its session when the first message is
+        // sent, the shell creates a terminal pane's session when the pane opens.
+        chats.PruneEmptySessions();
+        return (typeof(ChatApp), new ChatAppArgs(NewChat: true));
     }
 
-    public static void StartNew(INavigator navigator, IConfigService config, IChatHistoryService chats, IAgentRunner runner)
+    public static void StartNew(INavigator navigator, IConfigService config, IChatHistoryService chats)
     {
-        var (app, args) = NewSessionTarget(config, chats, runner);
+        var (app, args) = NewSessionTarget(config, chats);
         navigator.Navigate(app, args);
     }
 

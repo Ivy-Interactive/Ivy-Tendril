@@ -36,7 +36,7 @@ public class ChatLauncherTests
     }
 
     [Fact]
-    public void NewSessionTarget_ChatMode_CreatesChatSessionAndSelectsIt()
+    public void NewSessionTarget_ChatMode_DefersSessionCreation()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "TendrilLauncherTest_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -45,13 +45,34 @@ public class ChatLauncherTests
             var config = Config(ChatModes.Chat, tempDir);
             var chats = new ChatHistoryService(config);
 
-            var (app, args) = ChatLauncher.NewSessionTarget(config, chats, TestAgentRunner.Create());
+            var (app, args) = ChatLauncher.NewSessionTarget(config, chats);
 
             Assert.Equal(typeof(ChatApp), app);
             var chatArgs = Assert.IsType<ChatAppArgs>(args);
-            var session = Assert.Single(chats.GetSessions());
-            Assert.Equal(session.Id, chatArgs.SessionId);
-            Assert.False(session.IsTerminal());
+            Assert.True(chatArgs.NewChat);
+            Assert.Null(chatArgs.SessionId);
+            Assert.Empty(chats.GetSessions());
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void NewSessionTarget_ChatMode_StillPrunesAbandonedEmptySessions()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilLauncherTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = Config(ChatModes.Chat, tempDir);
+            var chats = new ChatHistoryService(config);
+            var abandoned = chats.CreateSession("codex", "default", kind: ChatSessionKinds.Chat);
+
+            ChatLauncher.NewSessionTarget(config, chats);
+
+            Assert.Null(chats.GetSession(abandoned.Id));
         }
         finally
         {
@@ -103,7 +124,7 @@ public class ChatLauncherTests
             var config = Config(ChatModes.Terminal, tempDir);
             var chats = new ChatHistoryService(config);
 
-            var (app, args) = ChatLauncher.NewSessionTarget(config, chats, TestAgentRunner.Create());
+            var (app, args) = ChatLauncher.NewSessionTarget(config, chats);
 
             Assert.Equal(typeof(AgentApp), app);
             var agentArgs = Assert.IsType<AgentAppArgs>(args);

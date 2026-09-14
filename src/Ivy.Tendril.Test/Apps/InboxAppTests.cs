@@ -275,6 +275,266 @@ public class InboxAppTests
         Assert.Equal(1, stubGithub.ReviewRequestsCallCount);
     }
 
+    [Fact]
+    public void CreateSelectedCellUpdate_FormsCorrectPayload()
+    {
+        var updateTrue = ContentView.CreateSelectedCellUpdate(123, true);
+        Assert.Equal("123", updateTrue.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), updateTrue.ColumnName);
+        Assert.Equal(true, updateTrue.Value);
+
+        var updateFalse = ContentView.CreateSelectedCellUpdate(456, false);
+        Assert.Equal("456", updateFalse.RowId);
+        Assert.Equal("Selected", updateFalse.ColumnName);
+        Assert.Equal(false, updateFalse.Value);
+
+        var updateStringId = ContentView.CreateSelectedCellUpdate("789", true);
+        Assert.Equal("789", updateStringId.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), updateStringId.ColumnName);
+        Assert.Equal(true, updateStringId.Value);
+    }
+
+    [Fact]
+    public void ToggleIssueSelection_UpdatesSelectionState_AndFormsUpdatePayload()
+    {
+        var initial = new HashSet<int> { 1, 2 };
+
+        // Select issue 3 (was not in initial set)
+        var isSelected = ContentView.ToggleIssueSelection(initial, 3, out var nextAfterSelect, out var selectUpdate);
+        Assert.True(isSelected);
+        Assert.Equal(new HashSet<int> { 1, 2, 3 }, nextAfterSelect);
+        Assert.Equal("3", selectUpdate.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), selectUpdate.ColumnName);
+        Assert.Equal(true, selectUpdate.Value);
+
+        // Deselect issue 2 (was in nextAfterSelect set)
+        var isDeselected = ContentView.ToggleIssueSelection(nextAfterSelect, 2, out var nextAfterDeselect, out var deselectUpdate);
+        Assert.False(isDeselected);
+        Assert.Equal(new HashSet<int> { 1, 3 }, nextAfterDeselect);
+        Assert.Equal("2", deselectUpdate.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), deselectUpdate.ColumnName);
+        Assert.Equal(false, deselectUpdate.Value);
+    }
+
+    [Fact]
+    public void SelectAllIssues_UpdatesSelectionState_AndEmitsOnlyUnselectedItems()
+    {
+        var issues = new List<GitHubIssue>
+        {
+            new(101, "Issue 1", null, [], []),
+            new(102, "Issue 2", null, [], []),
+            new(103, "Issue 3", null, [], [])
+        };
+
+        var initial = new HashSet<int> { 102 };
+
+        var updates = ContentView.SelectAllIssues(initial, issues, out var nextSelected);
+
+        Assert.Equal(new HashSet<int> { 101, 102, 103 }, nextSelected);
+        Assert.Equal(2, updates.Count);
+        Assert.Contains(updates, u => (string?)u.RowId == "101" && (bool)u.Value! && u.ColumnName == "Selected");
+        Assert.Contains(updates, u => (string?)u.RowId == "103" && (bool)u.Value! && u.ColumnName == "Selected");
+    }
+
+    [Fact]
+    public void DeselectAllIssues_UpdatesSelectionState_AndEmitsOnlySelectedItems()
+    {
+        var issues = new List<GitHubIssue>
+        {
+            new(101, "Issue 1", null, [], []),
+            new(102, "Issue 2", null, [], []),
+            new(103, "Issue 3", null, [], [])
+        };
+
+        var initial = new HashSet<int> { 101, 103 };
+
+        var updates = ContentView.DeselectAllIssues(initial, issues, out var nextSelected);
+
+        Assert.Empty(nextSelected);
+        Assert.Equal(2, updates.Count);
+        Assert.Contains(updates, u => (string?)u.RowId == "101" && !(bool)u.Value! && u.ColumnName == "Selected");
+        Assert.Contains(updates, u => (string?)u.RowId == "103" && !(bool)u.Value! && u.ColumnName == "Selected");
+    }
+
+    [Fact]
+    public void SelectionOperations_DoNotTriggerRefreshTokenRefresh()
+    {
+        var tokenState = new Ivy.Core.Hooks.State<(Guid, object?, bool)>((Guid.NewGuid(), null, false));
+        var refreshToken = new RefreshToken(tokenState);
+        var initialToken = refreshToken.Token;
+
+        var issues = new List<GitHubIssue>
+        {
+            new(1, "Test 1", null, [], []),
+            new(2, "Test 2", null, [], [])
+        };
+
+        var selected = new HashSet<int>();
+
+        ContentView.ToggleIssueSelection(selected, 1, out selected, out _);
+        Assert.Equal(initialToken, refreshToken.Token);
+
+        ContentView.SelectAllIssues(selected, issues, out selected);
+        Assert.Equal(initialToken, refreshToken.Token);
+
+        ContentView.DeselectAllIssues(selected, issues, out selected);
+        Assert.Equal(initialToken, refreshToken.Token);
+    }
+
+    [Fact]
+    public void IssueUrlDerivation_LivesOnlyInResolveIssueUrl()
+    {
+        var repoRoot = FindRepoRoot();
+        var productionDir = Path.Combine(repoRoot, "src", "Ivy.Tendril");
+
+        // This test file lives under src/Ivy.Tendril.Test, which is a sibling of the scanned
+        // directory, so the needles below cannot match the guard itself.
+        const string interpolatedGithubPrefix = "$\"https://github.com/{";
+        const string issuePathSegment = "/issues/{";
+
+        var hits = new List<string>();
+
+        var csFiles = Directory.EnumerateFiles(productionDir, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
+                        !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar));
+
+        foreach (var file in csFiles)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains(interpolatedGithubPrefix, StringComparison.Ordinal) &&
+                    lines[i].Contains(issuePathSegment, StringComparison.Ordinal))
+                {
+                    hits.Add($"{Path.GetRelativePath(repoRoot, file)}:{i + 1}");
+                }
+            }
+        }
+
+        var expectedFile = Path.Combine("src", "Ivy.Tendril", "Apps", "Inbox", "InboxApp.cs");
+
+        Assert.True(
+            hits.Count == 1,
+            $"Expected exactly one inline GitHub issue url derivation in {expectedFile} (the body of " +
+            $"InboxApp.ResolveIssueUrl), but found {hits.Count}: {string.Join(", ", hits)}. Call " +
+            "InboxApp.ResolveIssueUrl(issue) instead of spelling out the issue.Url fallback inline.");
+
+        Assert.True(
+            hits[0].StartsWith(expectedFile + ":", StringComparison.Ordinal),
+            $"The single inline GitHub issue url derivation should be the body of " +
+            $"InboxApp.ResolveIssueUrl in {expectedFile}, but it was found at {hits[0]}.");
+    }
+
+    [Fact]
+    public void BuildInboxFileContent_LinksTheIssueWhenAUrlResolves()
+    {
+        var issue = new GitHubIssue(101, "Fix login bug", "Login fails", [], [], "owner/repo", "https://github.com/owner/repo/issues/101");
+
+        var content = InboxApp.BuildInboxFileContent(issue, "Auto");
+
+        Assert.Equal(
+            "---\n" +
+            "project: Auto\n" +
+            "---\n" +
+            "[GitHub Issue #101](https://github.com/owner/repo/issues/101)\n" +
+            "\n" +
+            "Login fails",
+            content);
+    }
+
+    [Fact]
+    public void BuildInboxFileContent_DerivesTheUrlFromTheRepository()
+    {
+        var issue = new GitHubIssue(101, "Fix login bug", "Login fails", [], [], "acme/widgets");
+
+        var content = InboxApp.BuildInboxFileContent(issue, "Auto");
+
+        Assert.Equal(
+            "---\n" +
+            "project: Auto\n" +
+            "---\n" +
+            "[GitHub Issue #101](https://github.com/acme/widgets/issues/101)\n" +
+            "\n" +
+            "Login fails",
+            content);
+    }
+
+    [Fact]
+    public void BuildInboxFileContent_FallsBackToAPlainHeadingWhenNoUrlResolves()
+    {
+        var issue = new GitHubIssue(12, "Fix login bug", "Login fails", [], [], Repository: null, Url: null);
+
+        var content = InboxApp.BuildInboxFileContent(issue, "Tendril");
+
+        Assert.Equal(
+            "---\n" +
+            "project: Tendril\n" +
+            "---\n" +
+            "# Issue #12: Fix login bug\n" +
+            "\n" +
+            "Login fails",
+            content);
+        Assert.DoesNotContain("](", content);
+    }
+
+    [Fact]
+    public void InboxFileContentTemplate_LivesOnlyInBuildInboxFileContent()
+    {
+        var repoRoot = FindRepoRoot();
+        var productionDir = Path.Combine(repoRoot, "src", "Ivy.Tendril");
+
+        // This test file lives under src/Ivy.Tendril.Test, which is a sibling of the scanned
+        // directory, so the needle below cannot match the guard itself.
+        const string issueLinkTemplate = "[GitHub Issue #{issue.Number}](";
+
+        var hits = new List<string>();
+
+        var csFiles = Directory.EnumerateFiles(productionDir, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
+                        !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar));
+
+        foreach (var file in csFiles)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains(issueLinkTemplate, StringComparison.Ordinal))
+                {
+                    hits.Add($"{Path.GetRelativePath(repoRoot, file)}:{i + 1}");
+                }
+            }
+        }
+
+        var expectedFile = Path.Combine("src", "Ivy.Tendril", "Apps", "Inbox", "InboxApp.cs");
+
+        Assert.True(
+            hits.Count == 1,
+            $"Expected exactly one inline inbox issue-link template in {expectedFile} (the body of " +
+            $"InboxApp.BuildInboxFileContent), but found {hits.Count}: {string.Join(", ", hits)}. Call " +
+            "InboxApp.BuildInboxFileContent(issue, targetProject) instead of spelling out the inbox " +
+            "file template inline.");
+
+        Assert.True(
+            hits[0].StartsWith(expectedFile + ":", StringComparison.Ordinal),
+            $"The single inline inbox issue-link template should be the body of " +
+            $"InboxApp.BuildInboxFileContent in {expectedFile}, but it was found at {hits[0]}.");
+    }
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "src", "Ivy.Tendril", "Ivy.Tendril.slnx")))
+            {
+                return dir.FullName;
+            }
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root from the test base directory.");
+    }
+
     private sealed class StubGithubService(ProjectConfig? projectToReturn = null) : IGithubService
     {
         public int MyAssignedIssuesCallCount { get; private set; }

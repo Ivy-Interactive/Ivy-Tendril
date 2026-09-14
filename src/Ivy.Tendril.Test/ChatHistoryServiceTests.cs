@@ -92,6 +92,7 @@ public class ChatHistoryServiceTests
         try
         {
             var session = service.CreateSession("claude", "sonnet", "Old Title");
+            service.AddMessage(session.Id, "user", "Hello");
             var eventFired = false;
             service.SessionsChanged += (sender, args) => eventFired = true;
 
@@ -355,7 +356,7 @@ public class ChatHistoryServiceTests
             var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
             Assert.NotNull(initialMsg);
 
-            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, "updated response", rawStream: "{\"kind\":\"text\",\"text\":\"updated response\"}");
+            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("updated response", RawStream: "{\"kind\":\"text\",\"text\":\"updated response\"}"));
             Assert.NotNull(updatedMsg);
             Assert.Equal("updated response", updatedMsg.Content);
             Assert.Equal("{\"kind\":\"text\",\"text\":\"updated response\"}", updatedMsg.RawStream);
@@ -375,6 +376,90 @@ public class ChatHistoryServiceTests
             Assert.Single(reloadedSession.Messages);
             Assert.Equal("updated response", reloadedSession.Messages[0].Content);
             Assert.Equal("{\"kind\":\"text\",\"text\":\"updated response\"}", reloadedSession.Messages[0].RawStream);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void UpdateMessage_WithMarkCompleted_StampsCompletedAtAndPersists()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet");
+            var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
+            Assert.NotNull(initialMsg);
+            Assert.Null(initialMsg.CompletedAt);
+
+            var beforeUpdate = DateTimeOffset.UtcNow;
+            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("final response", RawStream: "{\"kind\":\"result\"}", MarkCompleted: true));
+            var afterUpdate = DateTimeOffset.UtcNow;
+
+            Assert.NotNull(updatedMsg);
+            Assert.NotNull(updatedMsg.CompletedAt);
+            Assert.InRange(updatedMsg.CompletedAt.Value, beforeUpdate, afterUpdate);
+
+            // Verify persistence by reloading from disk
+            var configService = new ConfigService(new TendrilSettings(), tempDir);
+            var reloadedService = new ChatHistoryService(configService);
+            var reloadedSession = reloadedService.GetSession(session.Id);
+            Assert.NotNull(reloadedSession);
+            Assert.Single(reloadedSession.Messages);
+            Assert.NotNull(reloadedSession.Messages[0].CompletedAt);
+            Assert.Equal(updatedMsg.CompletedAt, reloadedSession.Messages[0].CompletedAt);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void UpdateMessage_WithoutMarkCompleted_LeavesCompletedAtNull()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet");
+            var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
+            Assert.NotNull(initialMsg);
+            Assert.Null(initialMsg.CompletedAt);
+
+            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("streaming update", RawStream: "{\"kind\":\"text\",\"delta\":true}", FlushImmediately: false, TouchUpdatedAt: false));
+            Assert.NotNull(updatedMsg);
+            Assert.Null(updatedMsg.CompletedAt);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void UpdateMessage_StreamingUpdate_DoesNotClearExistingCompletedAt()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet");
+            var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
+            Assert.NotNull(initialMsg);
+
+            var completedMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("completed response", RawStream: "{\"kind\":\"result\"}", MarkCompleted: true));
+            Assert.NotNull(completedMsg);
+            Assert.NotNull(completedMsg.CompletedAt);
+            var originalCompletedAt = completedMsg.CompletedAt;
+
+            var laterMsg = service.UpdateMessage(session.Id, initialMsg.Id, new ChatMessageUpdate("edit after completion", FlushImmediately: false, TouchUpdatedAt: false));
+            Assert.NotNull(laterMsg);
+            Assert.NotNull(laterMsg.CompletedAt);
+            Assert.Equal(originalCompletedAt, laterMsg.CompletedAt);
         }
         finally
         {
@@ -530,7 +615,7 @@ public class ChatHistoryServiceTests
             var frozenUpdatedAt = beforeUpdate.UpdatedAt.AddMinutes(-5);
             service.SaveSession(beforeUpdate with { UpdatedAt = frozenUpdatedAt });
 
-            service.UpdateMessage(session.Id, msg.Id, "streamed chunk", flushImmediately: true, touchUpdatedAt: false);
+            service.UpdateMessage(session.Id, msg.Id, new ChatMessageUpdate("streamed chunk", FlushImmediately: true, TouchUpdatedAt: false));
 
             var updatedSession = service.GetSession(session.Id);
             Assert.NotNull(updatedSession);
@@ -556,7 +641,7 @@ public class ChatHistoryServiceTests
             var staleUpdatedAt = beforeUpdate.UpdatedAt.AddMinutes(-5);
             service.SaveSession(beforeUpdate with { UpdatedAt = staleUpdatedAt });
 
-            service.UpdateMessage(session.Id, msg.Id, "final content");
+            service.UpdateMessage(session.Id, msg.Id, new ChatMessageUpdate("final content"));
 
             var updatedSession = service.GetSession(session.Id);
             Assert.NotNull(updatedSession);
@@ -586,7 +671,7 @@ public class ChatHistoryServiceTests
 
             for (var i = 0; i < 3; i++)
             {
-                service.UpdateMessage(sessionA.Id, msgA.Id, $"streamed chunk {i}", flushImmediately: true, touchUpdatedAt: false);
+                service.UpdateMessage(sessionA.Id, msgA.Id, new ChatMessageUpdate($"streamed chunk {i}", FlushImmediately: true, TouchUpdatedAt: false));
             }
 
             var order = service.GetSessions();
@@ -614,7 +699,7 @@ public class ChatHistoryServiceTests
             service.SaveSession(service.GetSession(sessionA.Id)! with { UpdatedAt = baseTime });
             service.SaveSession(service.GetSession(sessionB.Id)! with { UpdatedAt = baseTime.AddSeconds(1) });
 
-            service.UpdateMessage(sessionA.Id, msgA.Id, "final content");
+            service.UpdateMessage(sessionA.Id, msgA.Id, new ChatMessageUpdate("final content"));
 
             var order = service.GetSessions();
             Assert.Equal(sessionA.Id, order[0].Id);
@@ -717,6 +802,262 @@ public class ChatHistoryServiceTests
             Assert.Equal("antigravity", reloaded.Settings.LastChatAgent);
             Assert.Equal("gemini-3.8-flash", reloaded.Settings.LastChatModel);
             Assert.Equal("high", reloaded.Settings.LastChatEffort);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void CreateSession_WithNoMessages_DoesNotPersistFileToDisk()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus", "Test Session");
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            var sessionFile = Path.Combine(chatsDir, $"{session.Id}.json");
+            Assert.False(File.Exists(sessionFile));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void LoadSessionsFromDisk_DeletesAndExcludesZeroMessageFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            Directory.CreateDirectory(chatsDir);
+
+            var emptySessionId = Guid.NewGuid().ToString("N");
+            var emptySession = new ChatSessionModel(
+                Id: emptySessionId,
+                Title: "Empty Chat",
+                CreatedAt: DateTimeOffset.UtcNow,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                AgentId: "claude",
+                ModelId: "opus",
+                Messages: new List<ChatMessageModel>()
+            );
+            var emptyFilePath = Path.Combine(chatsDir, $"{emptySessionId}.json");
+            File.WriteAllText(emptyFilePath, System.Text.Json.JsonSerializer.Serialize(emptySession));
+
+            var validSessionId = Guid.NewGuid().ToString("N");
+            var validSession = new ChatSessionModel(
+                Id: validSessionId,
+                Title: "Valid Chat",
+                CreatedAt: DateTimeOffset.UtcNow,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                AgentId: "claude",
+                ModelId: "opus",
+                Messages: new List<ChatMessageModel>
+                {
+                    new(Guid.NewGuid().ToString("N"), "user", "Hi", DateTimeOffset.UtcNow)
+                }
+            );
+            var validFilePath = Path.Combine(chatsDir, $"{validSessionId}.json");
+            File.WriteAllText(validFilePath, System.Text.Json.JsonSerializer.Serialize(validSession));
+
+            var configService = new ConfigService(new TendrilSettings(), tempDir);
+            var service = new ChatHistoryService(configService);
+
+            Assert.False(File.Exists(emptyFilePath));
+            Assert.True(File.Exists(validFilePath));
+
+            var sessions = service.GetSessions();
+            Assert.Single(sessions);
+            Assert.Equal(validSessionId, sessions[0].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void AddMessage_PersistsSessionToDisk()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            var sessionFile = Path.Combine(chatsDir, $"{session.Id}.json");
+            Assert.False(File.Exists(sessionFile));
+
+            service.AddMessage(session.Id, "user", "Hello");
+            Assert.True(File.Exists(sessionFile));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PruneEmptySessions_RemovesUnusedZeroMessageSessions()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var empty1 = service.CreateSession("claude", "opus", "Empty 1");
+            var empty2 = service.CreateSession("claude", "opus", "Empty 2");
+            var active = service.CreateSession("claude", "opus", "Active");
+            var withMessages = service.CreateSession("claude", "opus", "Has Messages");
+            service.AddMessage(withMessages.Id, "user", "Hello");
+
+            service.PruneEmptySessions(activeSessionId: active.Id);
+
+            Assert.Null(service.GetSession(empty1.Id));
+            Assert.Null(service.GetSession(empty2.Id));
+            Assert.NotNull(service.GetSession(active.Id));
+            Assert.NotNull(service.GetSession(withMessages.Id));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PruneEmptySessions_KeepsEmptyTerminalSessions()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var terminal = service.CreateSession("claude", "opus", "Terminal", kind: ChatSessionKinds.Terminal);
+            var chat = service.CreateSession("claude", "opus", "Chat", kind: ChatSessionKinds.Chat);
+
+            service.PruneEmptySessions();
+
+            // A terminal pane opened without an initial prompt has no messages, but closing it is the
+            // pane's decision, not the prune's.
+            Assert.NotNull(service.GetSession(terminal.Id));
+            Assert.Null(service.GetSession(chat.Id));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PruneEmptySessions_RaisesSessionsChangedWhenARowDisappears()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            service.CreateSession("claude", "opus", "Empty", kind: ChatSessionKinds.Chat);
+            var raised = 0;
+            service.SessionsChanged += (_, _) => raised++;
+
+            service.PruneEmptySessions();
+
+            // The chat app's sidebar refresh hangs off this event: no event, no row removal.
+            Assert.Equal(1, raised);
+
+            service.PruneEmptySessions();
+            Assert.Equal(1, raised);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PinSession_SetsIsPinnedAndPinnedAt_AndPersistsToDisk()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus", "Pin Test");
+            service.AddMessage(session.Id, "user", "Hello");
+
+            var eventRaised = false;
+            service.SessionsChanged += (_, _) => eventRaised = true;
+
+            service.PinSession(session.Id, true);
+
+            var updated = service.GetSession(session.Id);
+            Assert.NotNull(updated);
+            Assert.True(updated.IsPinned);
+            Assert.NotNull(updated.PinnedAt);
+            Assert.True(eventRaised);
+
+            var filePath = Path.Combine(tempDir, "Chats", $"{session.Id}.json");
+            Assert.True(File.Exists(filePath));
+            var json = File.ReadAllText(filePath);
+            Assert.Contains("\"IsPinned\": true", json);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PinSession_UnpinClearsPinnedAt()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus", "Unpin Test");
+            service.AddMessage(session.Id, "user", "Hello");
+
+            service.PinSession(session.Id, true);
+            var pinned = service.GetSession(session.Id);
+            Assert.NotNull(pinned);
+            Assert.True(pinned.IsPinned);
+            Assert.NotNull(pinned.PinnedAt);
+
+            service.PinSession(session.Id, false);
+            var unpinned = service.GetSession(session.Id);
+            Assert.NotNull(unpinned);
+            Assert.False(unpinned.IsPinned);
+            Assert.Null(unpinned.PinnedAt);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void GetSessions_ReturnsPinnedSessionsFirst()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session1 = service.CreateSession("claude", "opus", "Old Session");
+            service.AddMessage(session1.Id, "user", "Msg 1");
+
+            var session2 = service.CreateSession("claude", "opus", "Newer Session");
+            service.AddMessage(session2.Id, "user", "Msg 2");
+
+            // Pin session1 (which has an older UpdatedAt than session2)
+            service.PinSession(session1.Id, true);
+
+            var sessions = service.GetSessions();
+            Assert.Equal(2, sessions.Count);
+            Assert.Equal(session1.Id, sessions[0].Id);
+            Assert.Equal(session2.Id, sessions[1].Id);
         }
         finally
         {

@@ -11,6 +11,7 @@ describe("formatSystemEvent", () => {
       text: "Completed plan",
       plan: { id: "00059", label: "#59 Add dark mode toggle" },
       detail: undefined,
+      jobId: "00148",
     });
   });
 
@@ -26,14 +27,19 @@ describe("formatSystemEvent", () => {
 
   it("quotes the job's subject when it names no plan id", () => {
     const view = formatSystemEvent("[System Event] Job 7 (Custom) for 'nightly sync' has finished with status: Timeout.");
-    expect(view).toEqual({ kind: "failed", text: "Timed out Custom 'nightly sync'", detail: undefined });
+    expect(view).toEqual({
+      kind: "failed",
+      text: "Timed out Custom 'nightly sync'",
+      detail: undefined,
+      jobId: "7",
+    });
   });
 
   it("reads a manual approval as the plan starting", () => {
     const view = formatSystemEvent(
       "[System Event] Manual approval granted and execution started for plan 'Revamp auth' (Job 00151).",
     );
-    expect(view).toEqual({ kind: "started", text: "Started plan 'Revamp auth'" });
+    expect(view).toEqual({ kind: "started", text: "Started plan 'Revamp auth'", jobId: "00151" });
   });
 
   it("passes any other text through without the prefix", () => {

@@ -56,3 +56,21 @@ The profile is selected automatically based on the plan's complexity level, or c
 `opus`, `sonnet`, and `haiku` are Claude Code aliases that track Anthropic's current model for that tier, while `claude-opus-5` and `claude-fable-5` are pinned IDs.
 
 Claude Sonnet's introductory pricing of $2.00 / $10.00 applies through 2026-08-31; standard pricing of $3.00 / $15.00 applies after.
+
+## Tendril Skills Plugin
+
+You can install official Tendril engineering and debugging skills as a Claude Code plugin:
+
+```
+/plugin marketplace add ivy-interactive/ivy-tendril
+/plugin install tendril-skills@ivy-tendril
+```
+
+During local development and testing, load skills directly from your checkout:
+
+```bash
+claude --plugin-dir /path/to/ivy-tendril
+```
+
+For more details, see [Agent Skills](00_Skills.md).
+

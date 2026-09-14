@@ -35,6 +35,8 @@ export interface QuestionsDraftState {
   answers: Record<string, string[]>;
   /** Whether the Other field is open, by question id. Not derivable when nothing is typed yet. */
   otherOpen: Record<string, boolean>;
+  /** Submitted to the host, not yet written into the message document. */
+  submitted?: boolean;
 }
 
 export interface QuestionsDraftStore {

@@ -195,4 +195,44 @@ public class JobLogPathsTests : IDisposable
 
         Assert.Equal(["00010-00044-ExpandPlan.md", "00011-00044-ExecutePlan.md"], found);
     }
+
+    [Fact]
+    public void LogsByPlanId_GroupsWhatLogsForPlanIdReturnsPerPlan()
+    {
+        var jobs = JobLogPaths.EnsureJobsDir(_tendrilHome);
+        foreach (var name in new[]
+                 {
+                     "00011-00044-ExecutePlan.md", "00010-00044-ExpandPlan.md",
+                     "00011-00044-ExecutePlan.prompt.md", "00012-00099-ExecutePlan.md",
+                     "00013-00044-ExecutePlan.raw.jsonl"
+                 })
+            File.WriteAllText(Path.Combine(jobs, name), "x");
+
+        var grouped = JobLogPaths.LogsByPlanId(_tendrilHome);
+
+        Assert.Equal(["00044", "00099"], grouped.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
+        Assert.Equal(JobLogPaths.LogsForPlanId(_tendrilHome, "00044"), grouped["00044"]);
+        Assert.Equal(JobLogPaths.LogsForPlanId(_tendrilHome, "00099"), grouped["00099"]);
+
+        // Oldest job id first — the cost sync pairs the rows of costs.csv with this order.
+        Assert.Equal(["00010-00044-ExpandPlan.md", "00011-00044-ExecutePlan.md"],
+            grouped["00044"].Select(f => Path.GetFileName(f)!).ToArray());
+    }
+
+    [Fact]
+    public void LogsByPlanId_LogWithNoPlanIdSegment_LandsInNoGroup()
+    {
+        var jobs = JobLogPaths.EnsureJobsDir(_tendrilHome);
+        // The shape a CreatePlan job writes, plus a middle segment that is not a plan id.
+        File.WriteAllText(Path.Combine(jobs, "00013-CreatePlan.md"), "x");
+        File.WriteAllText(Path.Combine(jobs, "00014-notaplan-ExecutePlan.md"), "x");
+
+        Assert.Empty(JobLogPaths.LogsByPlanId(_tendrilHome));
+    }
+
+    [Fact]
+    public void LogsByPlanId_MissingJobsDir_ReturnsEmpty()
+    {
+        Assert.Empty(JobLogPaths.LogsByPlanId(_tendrilHome));
+    }
 }

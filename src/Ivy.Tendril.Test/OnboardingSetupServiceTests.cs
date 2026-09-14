@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
+[Collection("TendrilHome")]
 public class OnboardingSetupServiceTests : IDisposable
 {
     private readonly TempDirectoryFixture _tempDir = new("ivy-onboarding-test");
@@ -55,7 +56,6 @@ public class OnboardingSetupServiceTests : IDisposable
     [Fact]
     public async Task BootstrapTendrilHomeAsync_Should_Skip_Shell_And_Pointer_When_TendrilE2E_Set()
     {
-        var originalTendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var originalE2E = Environment.GetEnvironmentVariable("TENDRIL_E2E");
         var tendrilHome = Path.Combine(_tempDir.Path, "bootstrap-home-e2e");
         var logger = new TestLogger<OnboardingSetupService>();
@@ -96,7 +96,7 @@ public class OnboardingSetupServiceTests : IDisposable
         }
         finally
         {
-            Environment.SetEnvironmentVariable("TENDRIL_HOME", originalTendrilHome);
+            TendrilHomeIsolation.Apply();
             Environment.SetEnvironmentVariable("TENDRIL_E2E", originalE2E);
         }
     }
@@ -106,7 +106,6 @@ public class OnboardingSetupServiceTests : IDisposable
     [InlineData("TENDRIL_NO_PERSIST_SHELL")]
     public async Task BootstrapTendrilHomeAsync_Should_Skip_Shell_And_Pointer_When_Test_Env_Vars_Set(string envVarName)
     {
-        var originalTendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var originalVal = Environment.GetEnvironmentVariable(envVarName);
         var tendrilHome = Path.Combine(_tempDir.Path, $"bootstrap-home-{envVarName.ToLowerInvariant()}");
         var logger = new TestLogger<OnboardingSetupService>();
@@ -147,7 +146,7 @@ public class OnboardingSetupServiceTests : IDisposable
         }
         finally
         {
-            Environment.SetEnvironmentVariable("TENDRIL_HOME", originalTendrilHome);
+            TendrilHomeIsolation.Apply();
             Environment.SetEnvironmentVariable(envVarName, originalVal);
         }
     }

@@ -95,6 +95,34 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RunSyncAsync_WithBlankIssueUrl_WritesDerivedLink()
+    {
+        var config = CreateConfigService(autoAccept: true);
+        var github = new TestGithubService
+        {
+            IssuesToReturn =
+            [
+                new GitHubIssue(101, "Fix login bug", "Login fails with 500 error", ["bug"], ["user1"], "owner/repo", "")
+            ]
+        };
+        var planReader = new FakePlanReaderService();
+        var jobService = new TestJobService();
+        var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
+
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, new FakeQueryService());
+
+        await service.RunSyncAsync();
+
+        var inboxPath = Path.Combine(_tempDir.Path, "Inbox");
+        var files = Directory.GetFiles(inboxPath, "101-*.md");
+        Assert.Single(files);
+
+        var content = await File.ReadAllTextAsync(files[0]);
+        Assert.Contains("[GitHub Issue #101](https://github.com/owner/repo/issues/101)", content);
+        Assert.DoesNotContain("# Issue #101:", content);
+    }
+
+    [Fact]
     public async Task RunSyncAsync_ResolvesProjectOrDefaultsToAuto()
     {
         var config = CreateConfigService(autoAccept: true);
@@ -227,6 +255,60 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
 
         var files402 = Directory.GetFiles(inboxPath, "402-*.md");
         Assert.Single(files402);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_WithBlankIssueUrl_StillSkipsPlannedIssues()
+    {
+        var config = CreateConfigService(autoAccept: true);
+
+        var existingPlan = new PlanFile(
+            new PlanMetadata(
+                Id: 1,
+                Project: "Test",
+                Level: "Feature",
+                Title: "Already Planned",
+                State: PlanStatus.Draft,
+                Repos: [],
+                Commits: [],
+                Prs: [],
+                Verifications: [],
+                RelatedPlans: [],
+                DependsOn: [],
+                Created: DateTime.UtcNow,
+                Updated: DateTime.UtcNow,
+                InitialPrompt: null,
+                SourceUrl: "https://github.com/owner/repo/issues/401"
+            ),
+            "",
+            Path.Combine(_tempDir.Path, "Plans", "00001-AlreadyPlanned"),
+            ""
+        );
+
+        var planReader = new FakePlanReaderService
+        {
+            Plans = [existingPlan]
+        };
+
+        var github = new TestGithubService
+        {
+            IssuesToReturn =
+            [
+                new GitHubIssue(401, "Planned issue", "Body 401", [], ["user1"], "owner/repo", ""),
+                new GitHubIssue(402, "Unplanned issue", "Body 402", [], ["user1"], "owner/repo", "")
+            ]
+        };
+
+        var jobService = new TestJobService();
+        var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
+
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, new FakeQueryService());
+
+        await service.RunSyncAsync();
+
+        var inboxPath = Path.Combine(_tempDir.Path, "Inbox");
+        Assert.Empty(Directory.GetFiles(inboxPath, "401-*.md"));
+        Assert.Single(Directory.GetFiles(inboxPath, "402-*.md"));
     }
 
     [Fact]

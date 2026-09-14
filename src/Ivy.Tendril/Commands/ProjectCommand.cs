@@ -595,6 +595,22 @@ public class ProjectImportSkillsSettings : CommandSettings
     }
 }
 
+public class ProjectSyncSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [CommandOption("--repo <repo-path>")]
+    [Description("Specific repository path to sync")]
+    public string? RepoPath { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(ProjectName, "project-name");
+    }
+}
+
 // --- Commands ---
 
 public class ProjectListCommand : Command<ProjectListSettings>
@@ -1692,3 +1708,55 @@ public class ProjectImportSkillsCommand : Command<ProjectImportSkillsSettings>
         return 0;
     }
 }
+
+public class ProjectSyncCommand : AsyncCommand<ProjectSyncSettings>
+{
+    protected override async Task<int> ExecuteAsync(CommandContext context, ProjectSyncSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+
+        if (project.Repos.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[dim]No repositories found in project.[/]");
+            return 0;
+        }
+
+        var results = await ProjectSyncHelper.SyncProjectAsync(project, settings.RepoPath, config.TendrilHome);
+        if (results.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[dim]No matching repositories found to sync.[/]");
+            return 0;
+        }
+
+        var allSuccess = true;
+        foreach (var res in results)
+        {
+            var branchInfo = !string.IsNullOrEmpty(res.BaseBranch) ? $" ({res.BaseBranch})" : "";
+            if (res.Success)
+            {
+                AnsiConsole.MarkupLine($"[green]✓[/] {res.RepoPath.EscapeMarkup()}{branchInfo}: {res.Message.EscapeMarkup()}");
+            }
+            else
+            {
+                allSuccess = false;
+                AnsiConsole.MarkupLine($"[red]✗[/] {res.RepoPath.EscapeMarkup()}{branchInfo}: {res.Message.EscapeMarkup()}");
+                if (!string.IsNullOrWhiteSpace(res.GitErrorDetails))
+                {
+                    AnsiConsole.MarkupLine($"  [dim]{res.GitErrorDetails.Trim().EscapeMarkup()}[/]");
+                }
+                if (res.CanFixWithAgent)
+                {
+                    AnsiConsole.MarkupLine("  [yellow]To safely resolve with an agent, launch an interactive session or run with tendril chat.[/]");
+                }
+            }
+        }
+
+        return allSuccess ? 0 : 1;
+    }
+}
+

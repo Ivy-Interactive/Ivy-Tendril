@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import {
+  ExecuteCommandMessage,
   OpenDiffMessage,
   OpenFileMessage,
   OpenWorktreeMessage,
+  StartJobMessage,
   validateBridgeMessage,
   WebToHostMessage
 } from './bridgeProtocol';
+import { IJobRunner } from '../jobs/jobRunner';
 
 export interface BridgeHost {
   openTextDocument(path: string): Thenable<vscode.TextDocument>;
@@ -21,6 +24,7 @@ export interface BridgeHost {
     ...workspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[]
   ): boolean;
   executeCommand<T>(command: string, ...rest: unknown[]): Thenable<T>;
+  startJob?(message: StartJobMessage): Promise<unknown>;
 }
 
 export const defaultBridgeHost: BridgeHost = {
@@ -34,25 +38,56 @@ export const defaultBridgeHost: BridgeHost = {
 };
 
 export class BridgeHandler {
-  constructor(private readonly host: BridgeHost = defaultBridgeHost) {}
+  constructor(
+    private readonly host: BridgeHost = defaultBridgeHost,
+    private readonly jobRunner?: IJobRunner
+  ) {}
 
-  public async handleRawMessage(rawMessage: unknown): Promise<void> {
+  public async handleRawMessage(rawMessage: unknown): Promise<unknown> {
     const message = validateBridgeMessage(rawMessage);
-    await this.handleMessage(message);
+    return await this.handleMessage(message);
   }
 
-  public async handleMessage(message: WebToHostMessage): Promise<void> {
+  public async handleMessage(message: WebToHostMessage): Promise<unknown> {
     switch (message.type) {
       case 'openFile':
         await this.handleOpenFile(message);
-        break;
+        return undefined;
       case 'openWorktree':
         await this.handleOpenWorktree(message);
-        break;
+        return undefined;
       case 'openDiff':
         await this.handleOpenDiff(message);
-        break;
+        return undefined;
+      case 'executeCommand':
+        return await this.handleExecuteCommand(message);
+      case 'startJob':
+        return await this.handleStartJob(message);
     }
+  }
+
+  private async handleExecuteCommand(msg: ExecuteCommandMessage): Promise<unknown> {
+    const args = msg.args ?? [];
+    return await this.host.executeCommand(msg.command, ...args);
+  }
+
+  private async handleStartJob(msg: StartJobMessage): Promise<unknown> {
+    if (this.host.startJob) {
+      return await this.host.startJob(msg);
+    }
+    if (this.jobRunner) {
+      switch (msg.jobType) {
+        case 'CreatePlan':
+          return await this.jobRunner.startCreatePlan(msg.description!, msg.project);
+        case 'ExecutePlan':
+          return await this.jobRunner.startExecutePlan(msg.planId!);
+        case 'RetryPlan':
+          return await this.jobRunner.startRetryPlan(msg.planId!, msg.changeRequest!);
+        case 'UpdatePlan':
+          return await this.jobRunner.startUpdatePlan(msg.planId!, msg.description ?? '');
+      }
+    }
+    throw new Error('Host does not support startJob');
   }
 
   private async handleOpenFile(msg: OpenFileMessage): Promise<void> {

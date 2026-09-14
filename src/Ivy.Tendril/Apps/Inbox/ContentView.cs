@@ -1,3 +1,4 @@
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Inbox.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
@@ -12,7 +13,7 @@ namespace Ivy.Tendril.Apps.Inbox;
 public record IssueRow
 {
     public string Id { get; init; } = "";
-    public bool Selected { get; init; }
+    public bool Selected { get; set; }
     public int Number { get; init; }
     public string Issue { get; init; } = "";
     public string Repository { get; init; } = "";
@@ -50,19 +51,80 @@ public class ContentView(
 {
     internal Func<Task> RefreshHandler => onRefresh;
 
+    public static DataTableCellUpdate CreateSelectedCellUpdate(int issueNumber, bool isSelected) =>
+        new(issueNumber.ToString(), nameof(IssueRow.Selected), isSelected);
+
+    public static DataTableCellUpdate CreateSelectedCellUpdate(string rowId, bool isSelected) =>
+        new(rowId, nameof(IssueRow.Selected), isSelected);
+
+    public static bool ToggleIssueSelection(
+        HashSet<int> selectedNumbers,
+        int issueNumber,
+        out HashSet<int> nextSelected,
+        out DataTableCellUpdate update)
+    {
+        var isSelected = !selectedNumbers.Contains(issueNumber);
+        nextSelected = new HashSet<int>(selectedNumbers);
+        if (isSelected)
+        {
+            nextSelected.Add(issueNumber);
+        }
+        else
+        {
+            nextSelected.Remove(issueNumber);
+        }
+
+        update = CreateSelectedCellUpdate(issueNumber, isSelected);
+        return isSelected;
+    }
+
+    public static List<DataTableCellUpdate> SelectAllIssues(
+        HashSet<int> selectedNumbers,
+        IEnumerable<GitHubIssue> issues,
+        out HashSet<int> nextSelected)
+    {
+        nextSelected = new HashSet<int>(selectedNumbers);
+        var updates = new List<DataTableCellUpdate>();
+        foreach (var issue in issues)
+        {
+            if (nextSelected.Add(issue.Number))
+            {
+                updates.Add(CreateSelectedCellUpdate(issue.Number, true));
+            }
+        }
+        return updates;
+    }
+
+    public static List<DataTableCellUpdate> DeselectAllIssues(
+        HashSet<int> selectedNumbers,
+        IEnumerable<GitHubIssue> issues,
+        out HashSet<int> nextSelected)
+    {
+        nextSelected = new HashSet<int>(selectedNumbers);
+        var updates = new List<DataTableCellUpdate>();
+        foreach (var issue in issues)
+        {
+            if (nextSelected.Remove(issue.Number))
+            {
+                updates.Add(CreateSelectedCellUpdate(issue.Number, false));
+            }
+        }
+        return updates;
+    }
+
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var nav = UseNavigation();
         var openFile = UseState<string?>(null);
         var isAutoAcceptSettingsOpen = UseState(false);
+        var updateStream = UseStream<DataTableCellUpdate>();
 
         var (issueSheet, showIssueSheet) = UseTrigger<GitHubIssue>((isOpen, issue) =>
         {
             if (!isOpen.Value || issue == null) return null;
 
-            var issueUrl = issue.Url ?? (issue.Repository != null
-                ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
-                : null);
+            var issueUrl = InboxApp.ResolveIssueUrl(issue);
 
             var sheetHeader = Layout.Vertical().Width(Size.Full())
                 | (Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.SpaceBetween).Width(Size.Full())
@@ -160,6 +222,8 @@ public class ContentView(
                 showRepoBadge: true,
                 client: client,
                 showIssueSheet: showIssueSheet,
+                updateStream: updateStream,
+                nav: nav,
                 isMyIssues: true,
                 openAutoAcceptSettings: () => isAutoAcceptSettingsOpen.Set(true)
             );
@@ -176,6 +240,8 @@ public class ContentView(
                 showRepoBadge: false,
                 client: client,
                 showIssueSheet: showIssueSheet,
+                updateStream: updateStream,
+                nav: nav,
                 isMyIssues: false
             );
         }
@@ -260,6 +326,8 @@ public class ContentView(
             .Renderer(t => t.Repository, new LabelsDisplayRenderer())
             .Hidden(t => t.Id)
             .Hidden(t => t.Number)
+            .Filterable(t => t.Id, false)
+            .Filterable(t => t.Number, false)
             .Config(c =>
             {
                 c.AllowSorting = true;
@@ -303,7 +371,9 @@ public class ContentView(
 
         if (rows.All(r => string.IsNullOrEmpty(r.Branch)))
         {
-            dataTable = dataTable.Hidden(t => t.Branch);
+            dataTable = dataTable
+                .Hidden(t => t.Branch)
+                .Filterable(t => t.Branch, false);
         }
 
         return Layout.Vertical().Height(Size.Full())
@@ -317,6 +387,8 @@ public class ContentView(
         bool showRepoBadge,
         IClientProvider client,
         Action<GitHubIssue> showIssueSheet,
+        IWriteStream<DataTableCellUpdate> updateStream,
+        INavigator nav,
         bool isMyIssues = false,
         Action? openAutoAcceptSettings = null)
     {
@@ -334,18 +406,22 @@ public class ContentView(
 
         void SelectAll()
         {
-            var next = new HashSet<int>(selectedIssueNumbers.Value);
-            foreach (var i in allIssues) next.Add(i.Number);
+            var updates = SelectAllIssues(selectedIssueNumbers.Value, allIssues, out var next);
+            foreach (var update in updates)
+            {
+                updateStream.Write(update);
+            }
             selectedIssueNumbers.Set(next);
-            refreshToken.Refresh();
         }
 
         void DeselectAll()
         {
-            var next = new HashSet<int>(selectedIssueNumbers.Value);
-            foreach (var i in allIssues) next.Remove(i.Number);
+            var updates = DeselectAllIssues(selectedIssueNumbers.Value, allIssues, out var next);
+            foreach (var update in updates)
+            {
+                updateStream.Write(update);
+            }
             selectedIssueNumbers.Set(next);
-            refreshToken.Refresh();
         }
 
         var isAutoAcceptOn = config.Settings.Inbox.AutoAcceptAssignedIssues;
@@ -374,6 +450,16 @@ public class ContentView(
                 | new Button("Select All").Ghost().Small().OnClick(SelectAll)
                 | new Button("Deselect All").Ghost().Small().Disabled(selectedCount == 0).OnClick(DeselectAll)
                 | Text.Muted($"{selectedCount} of {allIssues.Count} selected").Small()
+                | new Button(selectedCount > 0 ? $"Open Chat ({selectedCount})" : "Open Chat")
+                    .Icon(Icons.MessageCircle)
+                    .Outline().Small()
+                    .Tooltip("Discuss the selected issues with the coding agent")
+                    .Disabled(selectedCount == 0)
+                    .OnClick(() => ChatLauncher.Open(
+                        nav,
+                        config,
+                        InboxChatPrompt.Build(selectedIssuesList),
+                        InboxChatPrompt.Title(selectedIssuesList)))
                 | new Button(selectedCount > 0 ? $"Fire off in Tendril ({selectedCount})" : "Fire off in Tendril")
                     .Icon(Icons.Zap)
                     .Primary().Small()
@@ -405,20 +491,56 @@ public class ContentView(
                 | new NoContentView("No Issues Found", "No issues match the selected view.");
         }
 
-        var rows = allIssues.Select(issue => new IssueRow
-        {
-            Id = issue.Number.ToString(),
-            Selected = selectedIssueNumbers.Value.Contains(issue.Number),
-            Number = issue.Number,
-            Issue = $"#{issue.Number} {issue.Title}",
-            Repository = issue.Repository ?? "",
-            Labels = issue.Labels,
-            Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))
-        }).ToList();
+        var table = new IssuesTableView(
+            allIssues,
+            selectedIssueNumbers,
+            updateStream,
+            refreshToken,
+            showIssueSheet,
+            onFireOffIssues);
 
-        var dataTable = rows.AsQueryable()
+        return Layout.Vertical().Height(Size.Full())
+            | header
+            | table;
+    }
+}
+
+public class IssuesTableView(
+    IReadOnlyList<GitHubIssue> allIssues,
+    IState<HashSet<int>> selectedIssueNumbers,
+    IWriteStream<DataTableCellUpdate> updateStream,
+    RefreshToken refreshToken,
+    Action<GitHubIssue> showIssueSheet,
+    Func<IReadOnlyList<GitHubIssue>, Task> onFireOffIssues) : ViewBase
+{
+    public override object? Build()
+    {
+        var client = UseService<IClientProvider>();
+
+        var (rows, queryable) = UseMemo(() =>
+        {
+            var list = allIssues.Select(issue => new IssueRow
+            {
+                Id = issue.Number.ToString(),
+                Selected = selectedIssueNumbers.Value.Contains(issue.Number),
+                Number = issue.Number,
+                Issue = $"#{issue.Number} {issue.Title}",
+                Repository = issue.Repository ?? "",
+                Labels = issue.Labels,
+                Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))
+            }).ToList();
+            return (list, list.AsQueryable());
+        }, allIssues);
+
+        foreach (var row in rows)
+        {
+            row.Selected = selectedIssueNumbers.Value.Contains(row.Number);
+        }
+
+        var dataTable = queryable
             .ToDataTable(t => t.Id)
             .RefreshToken(refreshToken)
+            .UpdateStream(updateStream)
             .Width(Size.Full())
             .Height(Size.Full())
             .Order(
@@ -441,6 +563,8 @@ public class ContentView(
             .Renderer(t => t.Repository, new LabelsDisplayRenderer())
             .Hidden(t => t.Id)
             .Hidden(t => t.Number)
+            .Filterable(t => t.Id, false)
+            .Filterable(t => t.Number, false)
             .Config(c =>
             {
                 c.AllowSorting = true;
@@ -456,10 +580,10 @@ public class ContentView(
                 var row = rows.FirstOrDefault(r => r.Id == id) ?? rows.ElementAtOrDefault(e.Value.RowIndex);
                 if (row != null)
                 {
-                    var next = new HashSet<int>(selectedIssueNumbers.Value);
-                    if (!next.Remove(row.Number)) next.Add(row.Number);
+                    var isSelected = ContentView.ToggleIssueSelection(selectedIssueNumbers.Value, row.Number, out var next, out var update);
                     selectedIssueNumbers.Set(next);
-                    refreshToken.Refresh();
+                    row.Selected = isSelected;
+                    updateStream.Write(update);
                 }
                 return ValueTask.CompletedTask;
             })
@@ -499,17 +623,13 @@ public class ContentView(
                         }
                         else if (tag == "open-github")
                         {
-                            var url = raw.Url ?? (raw.Repository != null
-                                ? $"https://github.com/{raw.Repository}/issues/{raw.Number}"
-                                : null);
+                            var url = InboxApp.ResolveIssueUrl(raw);
                             if (url != null) client.OpenUrl(url);
                         }
                     }
                 }
             });
 
-        return Layout.Vertical().Height(Size.Full())
-            | header
-            | dataTable;
+        return dataTable;
     }
 }

@@ -74,7 +74,7 @@ public class ContentView(
 
         var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, refreshPlans));
 
-        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans));
+        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans, _chatExecutionService));
 
         var (createIssueDialog, showCreateIssueDialog) = UseTrigger((isOpen) =>
         {
@@ -119,12 +119,32 @@ public class ContentView(
 
         var selectedPlanRef = UseRef(selectedPlan);
 
+        var planWatcher = UseService<Ivy.Tendril.Services.Plans.IPlanWatcherService>();
+        var localRefresh = UseRefreshToken();
+        var hasLoadedContent = UseRef(false);
+
         var planContentQuery = UseQuery<PlanContentData, string>(
             selectedPlan?.FolderPath ?? "",
             async (folderPath, ct) => await Task.Run(() => LoadPlanContent(folderPath), ct),
+            // The fetcher closes over this view's selectedPlan, so a server-scoped cache entry would be
+            // shared with every other session and hand one session another session's plan content.
+            options: QueryScope.View,
             initialValue: new PlanContentData(null,
                 new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(), null, new GitTabDataBuilder.GitTabData([], []))
         );
+
+        UseEffect(() => PlanChangeHookDisposable(planWatcher, localRefresh,
+            () => selectedPlanRef.Value?.FolderName));
+
+        UseEffect(() =>
+        {
+            // Without this the query key (the folder path) never changes while a plan is open, so the
+            // cached content - commits, git changes, artifacts - is served for the life of the view even
+            // while a job is executing the plan.
+            if (localRefresh.IsRefreshed)
+                planContentQuery.Mutator.Revalidate();
+            return Disposable.Empty;
+        }, [localRefresh]);
 
         // Authentication effects (was UseAuthenticationEffects)
         UseEffect(() =>
@@ -171,6 +191,7 @@ public class ContentView(
         if (lastPlanId.Value != (selectedPlan?.Id ?? -1))
         {
             lastPlanId.Set(selectedPlan?.Id ?? -1);
+            hasLoadedContent.Value = false;
             selectedTab.Set(PlanTab);
             isEditing.Set(false);
             var loaded = selectedPlan != null
@@ -288,13 +309,14 @@ public class ContentView(
         var tabs = new List<PlanTabDto> { new(PlanTab, "Plan"), new(DetailsTab, "Details") };
         object tabContent;
 
-        if (planContentQuery.Loading)
+        if (ShouldShowLoadingPlaceholder(planContentQuery.Loading, hasLoadedContent.Value))
         {
             tabContent = Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                          | Text.Muted("Loading...");
         }
         else
         {
+            if (!planContentQuery.Loading) hasLoadedContent.Value = true;
             var planData = planContentQuery.Value;
             var gitData = planData.GitData ?? new GitTabDataBuilder.GitTabData([], []);
             var gitItemCount = GitTabDataBuilder.CountGitItems(gitData, selectedPlan);
@@ -338,7 +360,7 @@ public class ContentView(
         var workspace = actions.ApplyTo(new PlanWorkspace(
                 tabContent,
                 isShareMode ? null : new PlanChatView(selectedPlan),
-                new VerificationsPanelView(selectedPlan, planService, config),
+                new VerificationsPanelView(selectedPlan, planService, config, _chatExecutionService),
                 questionsPanel)
             .PlanId($"#{selectedPlan.Id}")
             .Title(selectedPlan.Title)
@@ -436,6 +458,64 @@ public class ContentView(
             return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
         }));
         return $"{meta} · Depends on {depIds}";
+    }
+
+    /// <summary>
+    ///     How long a burst of plan changes is collapsed over. The same window Review's content view and
+    ///     <c>UseInboxAutoRefresh</c> use, so a plan mutation that raises several events costs one rebuild.
+    /// </summary>
+    internal static readonly TimeSpan PlanRefreshWindow = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>
+    ///     Whether the tab body should be the "Loading..." placeholder rather than the content. Only a
+    ///     fetch with nothing yet to show qualifies: a revalidation keeps the last-known-good content,
+    ///     because swapping the document for a placeholder unmounts PlanMarkdown and its scroll box with
+    ///     it, throwing the reader back to the top of the plan (#2650).
+    /// </summary>
+    internal static bool ShouldShowLoadingPlaceholder(bool loading, bool hasLoadedContent) =>
+        loading && !hasLoadedContent;
+
+    /// <summary>
+    ///     Revalidates the plan content when the plan on screen changes on disk, owning a coalescer on the
+    ///     caller's behalf. See the overload below for what is gated and why.
+    /// </summary>
+    internal static IDisposable PlanChangeHookDisposable(
+        Ivy.Tendril.Services.Plans.IPlanWatcherService planWatcher,
+        RefreshToken refreshToken,
+        Func<string?> selectedFolder)
+    {
+        var coalescer = new RefreshCoalescer(refreshToken, PlanRefreshWindow);
+        var hook = PlanChangeHookDisposable(planWatcher, coalescer, selectedFolder);
+        return Disposable.Create(() =>
+        {
+            hook.Dispose();
+            coalescer.Dispose();
+        });
+    }
+
+    /// <summary>
+    ///     Subscribes <paramref name="planWatcher" /> and feeds only the events naming the plan on screen
+    ///     into <paramref name="coalescer" />, per <see cref="PlanRefreshGate" />. Rebuilding for another
+    ///     plan means running git for commits, the git tab and the full change set of a plan nobody is
+    ///     looking at (#2571). Extracted so the gate and the coalescing are testable without an Ivy
+    ///     runtime, as <c>JobsApp.JobChangeHookDisposable</c> is.
+    /// </summary>
+    /// <param name="selectedFolder">
+    ///     Read per event rather than captured, since the selection changes while the subscription lives.
+    /// </param>
+    internal static IDisposable PlanChangeHookDisposable(
+        Ivy.Tendril.Services.Plans.IPlanWatcherService planWatcher,
+        RefreshCoalescer coalescer,
+        Func<string?> selectedFolder)
+    {
+        void OnChanged(string? changedFolder)
+        {
+            if (!PlanRefreshGate.ShouldRefreshFor(changedFolder, selectedFolder())) return;
+            coalescer.Request();
+        }
+
+        planWatcher.PlansChanged += OnChanged;
+        return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
     }
 
     private object BuildNoSelectionView(object processView)
@@ -596,7 +676,11 @@ public class ContentView(
 
     private static string? MatchSection(string content, string sectionName)
     {
-        var match = Regex.Match(content, $@"## {Regex.Escape(sectionName)}\s*\n([\s\S]*?)(?=\n## |\z)");
+        // The optional parenthesised suffix lets this match JobLogWriter's flagged headings
+        // ("## Final Output (truncated)" / "(incomplete)") without the other two call sites
+        // (Output / Issues Found in verification reports) starting to match a different heading
+        // that merely shares a prefix.
+        var match = Regex.Match(content, $@"## {Regex.Escape(sectionName)}(?: \([^)\n]*\))?[ \t]*\n([\s\S]*?)(?=\n## |\z)");
         return match.Success ? match.Groups[1].Value.Trim() : null;
     }
 
@@ -649,102 +733,9 @@ public class ContentView(
 
     internal void EmitManualExecutionEvent(string jobId)
     {
-        if (selectedPlan is null) return;
-        var chatSessionId = selectedPlan.ChatSessionId;
-        if (string.IsNullOrEmpty(chatSessionId))
-        {
-            chatSessionId = jobService.GetJob(jobId)?.ChatSessionId;
-        }
-        if (string.IsNullOrEmpty(chatSessionId)) return;
-
-        var chatService = _chatHistoryService;
-
-        if (chatService != null)
-        {
-            try
-            {
-                var session = chatService.GetSession(chatSessionId);
-                if (session?.Messages != null)
-                {
-                    foreach (var msg in session.Messages)
-                    {
-                        if (string.IsNullOrWhiteSpace(msg.Content)) continue;
-
-                        var summaries = QuestionAnswers.Read(msg.Content);
-                        var unanswered = summaries.Where(q => !q.HasAnswer).ToList();
-                        if (unanswered.Count == 0) continue;
-
-                        var parsedBlocks = QuestionBlockParser.Parse(msg.Content);
-                        var answersToApply = new Dictionary<string, string[]>();
-
-                        foreach (var qSummary in unanswered)
-                        {
-                            var isApprovalQuestion =
-                                qSummary.Id.Contains("approv", StringComparison.OrdinalIgnoreCase) ||
-                                qSummary.Id.Contains("execut", StringComparison.OrdinalIgnoreCase) ||
-                                qSummary.Id.Contains("proceed", StringComparison.OrdinalIgnoreCase) ||
-                                qSummary.Title.Contains("approv", StringComparison.OrdinalIgnoreCase) ||
-                                qSummary.Title.Contains("execut", StringComparison.OrdinalIgnoreCase) ||
-                                qSummary.Title.Contains("proceed", StringComparison.OrdinalIgnoreCase);
-
-                            if (!isApprovalQuestion) continue;
-
-                            PlanQuestion? matchedQuestion = null;
-                            foreach (var pb in parsedBlocks)
-                            {
-                                if (pb.Block?.Questions != null)
-                                {
-                                    matchedQuestion = pb.Block.Questions.FirstOrDefault(q => q.Id == qSummary.Id);
-                                    if (matchedQuestion != null) break;
-                                }
-                            }
-
-                            if (matchedQuestion?.Options is { Count: > 0 } options)
-                            {
-                                var recommendedOption = options.FirstOrDefault(o => o.Recommended);
-                                var approvalOption = recommendedOption ?? options.FirstOrDefault(o =>
-                                    o.Value.Contains("approv", StringComparison.OrdinalIgnoreCase) ||
-                                    o.Value.Contains("execut", StringComparison.OrdinalIgnoreCase) ||
-                                    o.Value.Contains("proceed", StringComparison.OrdinalIgnoreCase) ||
-                                    o.Value.Contains("yes", StringComparison.OrdinalIgnoreCase) ||
-                                    o.Title.Contains("approv", StringComparison.OrdinalIgnoreCase) ||
-                                    o.Title.Contains("execut", StringComparison.OrdinalIgnoreCase) ||
-                                    o.Title.Contains("proceed", StringComparison.OrdinalIgnoreCase) ||
-                                    o.Title.Contains("yes", StringComparison.OrdinalIgnoreCase)) ?? options[0];
-
-                                answersToApply[qSummary.Id] = [approvalOption.Value];
-                            }
-                        }
-
-                        if (answersToApply.Count > 0)
-                        {
-                            chatService.ApplyQuestionAnswers(chatSessionId, msg.Id, answersToApply);
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Gracefully handle question resolution errors
-            }
-        }
-
-        var chatExec = _chatExecutionService;
-        if (chatExec is null) return;
-
-        var message = $"[System Event] Manual approval granted and execution started for plan '{selectedPlan.Title}' (Job {jobId}).";
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await chatExec.SendMessageAsync(chatSessionId, message, role: "system");
-            }
-            catch
-            {
-                // Gracefully handle dispatch errors
-            }
-        });
+        ManualApprovalAnnouncer.AnnounceExecution(selectedPlan, jobId, _chatHistoryService, _chatExecutionService, jobService);
     }
+
 
     // Optimistically update UI state; the authoritative plan transition (and pre-state
     // snapshot) is performed by JobService.StartJob.

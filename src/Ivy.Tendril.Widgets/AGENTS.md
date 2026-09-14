@@ -54,7 +54,7 @@ Playwright-based E2E test suite. Tests exercise the full stack: C# widget → Si
 
 ```bash
 cd .tests
-npm install                     # first time
+pnpm install                    # first time
 npx playwright install chromium # first time
 npx playwright test             # run all
 npx playwright test --headed    # watch in browser

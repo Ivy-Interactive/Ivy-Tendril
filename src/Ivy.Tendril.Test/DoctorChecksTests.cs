@@ -40,14 +40,13 @@ public class DoctorChecksTests : IDisposable
         }
         finally
         {
-            Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
+            TendrilHomeIsolation.Apply();
         }
     }
 
     [Fact]
     public async Task EnvironmentCheck_UnsetTendrilHome_ResolvesDefault()
     {
-        var originalEnv = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
 
         try
@@ -62,7 +61,7 @@ public class DoctorChecksTests : IDisposable
         }
         finally
         {
-            Environment.SetEnvironmentVariable("TENDRIL_HOME", originalEnv);
+            TendrilHomeIsolation.Apply();
         }
     }
 

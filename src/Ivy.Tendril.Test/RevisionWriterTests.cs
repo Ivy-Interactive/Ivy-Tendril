@@ -66,14 +66,14 @@ public class RevisionWriterTests : IDisposable
             questions:
               - id: q1
                 title: Which one?
-                other: false
+                answer: null
             ```
             """;
 
         var ex = Assert.Throws<QuestionValidationException>(
             () => RevisionWriter.WriteNext(_planFolder, invalid, _config));
 
-        Assert.Equal("question 1: other: false with no options is unanswerable", Assert.Single(ex.Issues).Message);
+        Assert.Equal("question 1: answer: null is not a state; omit the key, or mark the question optional", Assert.Single(ex.Issues).Message);
         Assert.Contains("line 3:", ex.Message);
 
         // Nothing on disk, so the rejected revision did not consume a number.
@@ -103,7 +103,7 @@ public class RevisionWriterTests : IDisposable
 
         Assert.Equal(2, ex.Issues.Count);
         Assert.Contains("duplicate option value 'jwt'", ex.Message);
-        Assert.Contains("duplicates what other: true provides", ex.Message);
+        Assert.Contains("duplicates the Other option every question offers", ex.Message);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public class RevisionWriterTests : IDisposable
             questions:
               - id: q1
                 title: Which one?
-                other: false
+                answer: null
             ```
             """;
 

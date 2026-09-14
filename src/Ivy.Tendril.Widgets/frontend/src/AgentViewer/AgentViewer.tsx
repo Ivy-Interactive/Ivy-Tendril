@@ -6,6 +6,7 @@ import { BlockMarkdown } from "../BlockMarkdown";
 import { useAutoScroll } from "./use-auto-scroll";
 import { parseEventWires, presentEventWires } from "./parse-events";
 import { deriveStatus } from "./status";
+import { useHeldStatus } from "./useHeldStatus";
 import { deriveStreamMetrics } from "./stream-metrics";
 import { StatusLine } from "../ui/StatusLine";
 import { ToolUseCard } from "./tool-use-card";
@@ -99,7 +100,8 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   const wires = useMemo(() => (combinedStream ? parseEventWires(combinedStream) : []), [combinedStream]);
   const parsedEvents = useMemo<PresentationEvent[]>(() => presentEventWires(wires), [wires]);
 
-  const derived = useMemo(() => deriveStatus(parsedEvents), [parsedEvents]);
+  const rawStatus = useMemo(() => deriveStatus(parsedEvents), [parsedEvents]);
+  const derived = useHeldStatus(rawStatus);
   const metrics = useMemo(() => deriveStreamMetrics(wires), [wires]);
   const statusText = statusLabelOverride ?? derived.text;
   const isComplete = derived.complete;

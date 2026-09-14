@@ -8,6 +8,8 @@ function basename(p: string): string {
 export interface DerivedStatus {
   text: string;
   complete: boolean;
+  /** The label names a tool call that is still running, so it is worth holding on screen. */
+  tool?: boolean;
 }
 
 export function deriveStatus(events: PresentationEvent[]): DerivedStatus {
@@ -26,7 +28,7 @@ export function deriveStatus(events: PresentationEvent[]): DerivedStatus {
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
     if (e.kind === "tool-use" && e.tool.result === undefined) {
-      return { text: labelForTool(e.tool.name, e.tool.input), complete: false };
+      return { text: labelForTool(e.tool.name, e.tool.input), complete: false, tool: true };
     }
   }
 

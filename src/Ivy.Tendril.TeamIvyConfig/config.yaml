@@ -561,7 +561,7 @@ verifications:
 
     1. Read the plan revision's **## Tests** section. If the plan changed no widget behavior or UI (for example C#-comment-, docs- or config-only changes), skip this verification with Pass.
 
-    2. On a fresh worktree, install first: `npm install`, then `npx playwright install chromium`.
+    2. On a fresh worktree, install first: `pnpm install`, then `npx playwright install chromium`.
 
     3. Run the specs relevant to the changed widget: `npx playwright test widgets/<widget-name>`. Run the full suite (`npx playwright test`) only when the plan states the change is cross-cutting.
 

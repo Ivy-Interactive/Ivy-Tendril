@@ -77,7 +77,7 @@ public class ContentView(
         var (discardDialog, showDiscardDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new DiscardPlanDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans);
+            return new DiscardPlanDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans, chatExecution);
         });
 
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
@@ -96,7 +96,7 @@ public class ContentView(
         {
             if (!isOpen.Value) return null;
             return new CreatePrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
-                config, githubService);
+                config, githubService, chatExecution: chatExecution, chatHistory: chatService);
         });
 
         var (resetToDraftDialog, showResetToDraftDialog) = UseTrigger((isOpen) =>
@@ -213,9 +213,23 @@ public class ContentView(
 
         UseEffect(() =>
         {
-            void OnChanged(string? _) => localRefresh.Refresh();
+            // 400ms, as UseInboxAutoRefresh does: a burst of plan mutations must not queue one rebuild
+            // per event, since each rebuild shells out to git and evaluates the project's review-action
+            // conditions in PowerShell (#2571).
+            var coalescer = new RefreshCoalescer(localRefresh, TimeSpan.FromMilliseconds(400));
+
+            void OnChanged(string? changedFolder)
+            {
+                if (!PlanRefreshGate.ShouldRefreshFor(changedFolder, selectedPlanState.Value?.FolderName)) return;
+                coalescer.Request();
+            }
+
             planWatcher.PlansChanged += OnChanged;
-            return Disposable.Create(() => planWatcher.PlansChanged -= OnChanged);
+            return Disposable.Create(() =>
+            {
+                planWatcher.PlansChanged -= OnChanged;
+                coalescer.Dispose();
+            });
         });
 
         UseEffect(() =>
@@ -289,7 +303,7 @@ public class ContentView(
 
         if (!isShareMode)
         {
-            AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog);
+            AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog, chatExecution, chatService);
             PlanNeighborShortcuts.Add(actions, allPlans, currentIndex, plan =>
             {
                 selectedPlanState.Set(plan);
@@ -345,7 +359,9 @@ public class ContentView(
         PlanFile selectedPlan,
         ReviewViewContext context,
         Action showCreatePrDialog,
-        Action showDiscardDialog)
+        Action showDiscardDialog,
+        IChatExecutionService? chatExecution,
+        IChatHistoryService? chatService)
     {
         if (selectedPlan.Commits.Count > 0)
         {
@@ -360,12 +376,16 @@ public class ContentView(
                     // Push the fix onto the original PR's branch and leave the PR open for
                     // review. ExecutePlan already based the worktree on the PR's head branch,
                     // so CreatePr's push updates the existing PR (no new PR is created).
-                    jobService.StartJob(new CreatePrArgs(
+                    var jobId = jobService.StartJob(new CreatePrArgs(
                         selectedPlan.FolderPath,
                         SolveMergeConflicts: true,
                         Merge: false,
                         DeleteBranch: false,
-                        IncludeArtifacts: true));
+                        IncludeArtifacts: true)
+                    {
+                        ChatSessionId = selectedPlan.ChatSessionId
+                    });
+                    ManualApprovalAnnouncer.AnnounceCreatePr(selectedPlan, jobId, isPrUpdate: true, chatService, chatExecution, jobService);
                     refreshPlans();
                 }
                 else
@@ -389,6 +409,7 @@ public class ContentView(
             {
                 // Optimistic UI - update state and refresh immediately
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                PlanEditAnnouncer.Announce(chatExecution, selectedPlan, "state set to Completed");
             }
             catch (PlanTransitionBlockedException ex)
             {

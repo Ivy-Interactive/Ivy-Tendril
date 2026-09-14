@@ -21,6 +21,9 @@ public record ShellSidebarSection : WidgetBase<ShellSidebarSection>
     [Event] public EventHandler<Event<ShellSidebarSection, string>>? OnSelectItem { get; init; }
     [Event] public EventHandler<Event<ShellSidebarSection>>? OnSearch { get; init; }
     [Event] public EventHandler<Event<ShellSidebarSection>>? OnNew { get; init; }
+    [Event] public EventHandler<Event<ShellSidebarSection, string[]>>? OnRenameItem { get; init; }
+    [Event] public EventHandler<Event<ShellSidebarSection, string>>? OnDeleteItem { get; init; }
+    [Event] public EventHandler<Event<ShellSidebarSection, string>>? OnTogglePinItem { get; init; }
 }
 
 public static class ShellSidebarSectionExtensions
@@ -57,6 +60,22 @@ public static class ShellSidebarSectionExtensions
 
     public static ShellSidebarSection CollapsedMenu(this ShellSidebarSection w, bool collapsedMenu = true) =>
         w with { CollapsedMenu = collapsedMenu };
+
+    public static ShellSidebarSection OnRenameItem(this ShellSidebarSection w, Action<string, string>? handler) =>
+        w with
+        {
+            OnRenameItem = handler == null ? null : new(e =>
+            {
+                if (e.Value is { Length: >= 2 }) handler(e.Value[0], e.Value[1]);
+                return ValueTask.CompletedTask;
+            })
+        };
+
+    public static ShellSidebarSection OnDeleteItem(this ShellSidebarSection w, Action<string>? handler) =>
+        w with { OnDeleteItem = handler == null ? null : new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
+
+    public static ShellSidebarSection OnTogglePinItem(this ShellSidebarSection w, Action<string>? handler) =>
+        w with { OnTogglePinItem = handler == null ? null : new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
 
     public static ShellSidebarSection OnNew(this ShellSidebarSection w, Action? handler) =>
         handler == null ? w : w with { OnNew = new(_ => { handler(); return ValueTask.CompletedTask; }) };

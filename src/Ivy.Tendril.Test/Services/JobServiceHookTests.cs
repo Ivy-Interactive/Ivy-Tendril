@@ -1,0 +1,432 @@
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
+
+namespace Ivy.Tendril.Test.Services;
+
+public class JobServiceHookTests : IDisposable
+{
+    private readonly TempDirectoryFixture _tempDir = new();
+
+    public void Dispose()
+    {
+        _tempDir.Dispose();
+    }
+    private static (JobService Service, ConfigService Config) CreateServiceWithHooks(
+        List<PromptwareHookConfig> hooks, string projectName = "TestProject")
+    {
+        var settings = new TendrilSettings
+        {
+            JobTimeout = 30,
+            StaleOutputTimeout = 10,
+            Projects = new List<ProjectConfig>
+            {
+                new()
+                {
+                    Name = projectName,
+                    Hooks = hooks
+                }
+            }
+        };
+        var config = new ConfigService(settings);
+        var service = new JobService(config);
+        return (service, config);
+    }
+
+    private string CreateTempPlanFolder(string projectName = "TestProject")
+    {
+        var dir = Path.Combine(_tempDir.Path, $"plan-{Guid.NewGuid()}");
+        Directory.CreateDirectory(dir);
+        var repoDir = Path.Combine(dir, "repo");
+        Directory.CreateDirectory(repoDir);
+        File.WriteAllText(Path.Combine(dir, "plan.yaml"),
+            $"state: Executing\nproject: {projectName}\nlevel: NiceToHave\ntitle: Test Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\nrepos:\n- {repoDir}\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\ndependsOn: []\n");
+        return dir;
+    }
+
+    [Fact]
+    public void RunHooks_BeforeHooksRunAtLaunch_AfterHooksDoNot()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new() { Name = "Before Hook", When = "before", Action = "Write-Host before" },
+            new() { Name = "After Hook", When = "after", Action = "Write-Host after" }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
+            var job = service.GetJob(id)!;
+
+            Assert.Contains(job.OutputLines, l => l.Contains("[hook:Before Hook]"));
+            Assert.DoesNotContain(job.OutputLines, l => l.Contains("[hook:After Hook]"));
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    [Fact]
+    public void RunHooks_AfterHooksRunAtCompletion()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new() { Name = "Before Hook", When = "before", Action = "Write-Host before" },
+            new() { Name = "After Hook", When = "after", Action = "Write-Host after" }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            // CreateTestJob, not StartJob: this ctor has no IConfigService, so the launch would fail and
+            // FailJobAndReleaseSlot claims completion without ever reaching HandleCompletion — the only
+            // place after-hooks run. See JobLauncher.FailJobAndReleaseSlot.
+            var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
+            var job = service.GetJob(id)!;
+
+            service.CompleteJob(id, 0);
+
+            Assert.Contains(job.OutputLines, l => l.Contains("[hook:After Hook]"));
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    [Fact]
+    public void RunHooks_EmptyPromptwaresMatchesAll()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new()
+            {
+                Name = "Global Hook", When = "before", Promptwares = new List<string>(), Action = "Write-Host global"
+            }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            var id = service.StartJob(new CreatePrArgs(planFolder));
+            var job = service.GetJob(id)!;
+
+            Assert.Contains(job.OutputLines, l => l.Contains("[hook:Global Hook]"));
+
+            service.CompleteJob(id, 0);
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    [Fact]
+    public void RunHooks_FiltersByPromptwareType()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new()
+            {
+                Name = "Execute Only",
+                When = "before",
+                Promptwares = new List<string> { "ExecutePlan" },
+                Action = "Write-Host execute-only"
+            }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            // Start a CreatePr job — the hook should NOT match
+            var id = service.StartJob(new CreatePrArgs(planFolder));
+            var job = service.GetJob(id)!;
+
+            Assert.DoesNotContain(job.OutputLines, l => l.Contains("[hook:Execute Only]"));
+
+            service.CompleteJob(id, 0);
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    [Fact]
+    public void RunHooks_FailingHookDoesNotBlockJob()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new()
+            {
+                Name = "Bad Hook",
+                When = "before",
+                Action = "exit 1"
+            }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
+            var job = service.GetJob(id)!;
+
+            // Job should not be blocked/pending — the failing hook must not prevent launch.
+            // The job may have already completed by the time we check (process exits fast),
+            // so we verify it was NOT blocked rather than asserting Running.
+            Assert.NotEqual(JobStatus.Pending, job.Status);
+            Assert.NotEqual(JobStatus.Blocked, job.Status);
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    [Fact]
+    public void RunHooks_ConditionFalse_SkipsHook()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new()
+            {
+                Name = "Conditional Hook",
+                When = "before",
+                Condition = "$false",
+                Action = "Write-Host should-not-run"
+            }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            var id = service.StartJob(new ExecutePlanArgs(planFolder));
+            var job = service.GetJob(id)!;
+
+            Assert.Contains(job.OutputLines,
+                l => l.Contains("[hook:Conditional Hook]") && l.Contains("Condition not met"));
+            Assert.DoesNotContain(job.OutputLines, l => l.Contains("should-not-run"));
+
+            service.CompleteJob(id, 0);
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    [Fact]
+    public void RunHooks_AllJobStatusesProduceExpectedStrings()
+    {
+        // Verify that all JobStatus enum values produce their name as a string
+        // This ensures hook scripts can safely perform string comparisons
+        var expected = new Dictionary<JobStatus, string>
+        {
+            [JobStatus.Pending] = "Pending",
+            [JobStatus.Queued] = "Queued",
+            [JobStatus.Running] = "Running",
+            [JobStatus.Completed] = "Completed",
+            [JobStatus.Failed] = "Failed",
+            [JobStatus.Timeout] = "Timeout",
+            [JobStatus.Stopped] = "Stopped",
+            [JobStatus.Blocked] = "Blocked"
+        };
+
+        foreach (var (status, expectedString) in expected)
+        {
+            var actual = status.ToString();
+            Assert.Equal(expectedString, actual);
+        }
+    }
+
+    [Fact]
+    public void RunHooks_HookCanPerformStringComparison()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new()
+            {
+                Name = "StatusCheck",
+                When = "after",
+                Action = @"
+                    if ($env:TENDRIL_JOB_STATUS -eq 'Completed') {
+                        Write-Host 'Job completed successfully'
+                    } elseif ($env:TENDRIL_JOB_STATUS -eq 'Failed') {
+                        Write-Host 'Job failed'
+                    } else {
+                        Write-Host ""Job status: $env:TENDRIL_JOB_STATUS""
+                    }
+                "
+            }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
+            service.CompleteJob(id, 0);
+
+            var job = service.GetJob(id)!;
+            Assert.Contains(job.OutputLines, l => l.Contains("Job completed successfully"));
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    [Fact]
+    public void RunHooks_HookCanPerformStringComparison_Failed()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new()
+            {
+                Name = "StatusCheck",
+                When = "after",
+                Action = @"
+                    if ($env:TENDRIL_JOB_STATUS -eq 'Completed') {
+                        Write-Host 'Job completed successfully'
+                    } elseif ($env:TENDRIL_JOB_STATUS -eq 'Failed') {
+                        Write-Host 'Job failed'
+                    } else {
+                        Write-Host ""Job status: $env:TENDRIL_JOB_STATUS""
+                    }
+                "
+            }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
+            service.CompleteJob(id, 1);
+
+            var job = service.GetJob(id)!;
+            Assert.Contains(job.OutputLines, l => l.Contains("Job failed"));
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    [Fact]
+    public void RunHooks_AfterHooksReceiveJobStatus()
+    {
+        // Basic smoke test — see RunHooks_AllJobStatusesProduceExpectedStrings
+        // for comprehensive enum-to-string conversion verification
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new()
+            {
+                Name = "Status Hook",
+                When = "after",
+                Action = "Write-Host $env:TENDRIL_JOB_STATUS"
+            }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
+            service.CompleteJob(id, 0);
+
+            var job = service.GetJob(id)!;
+            Assert.Contains(job.OutputLines, l => l.Contains("[hook:Status Hook]") && l.Contains("Completed"));
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    // Regression for the #1455 class: a before-hook runs synchronously in the un-monitored pre-launch
+    // window (before JobMonitor/TimeoutCts exist), so a hook that never returns would wedge the launch
+    // forever with no timeout able to fire. The hook process must be force-killed at its guard
+    // (defaults: 10s for conditions, 30s for actions) rather than blocking on a ReadToEnd that never
+    // completes. This test overrides the condition guard to 1s so the test runtime does not track
+    // pwsh startup and thread pool contention on a loaded machine.
+    [Fact]
+    public async Task RunHooks_HangingBeforeHook_IsKilledAndDoesNotWedgeLaunch()
+    {
+        var hooks = new List<PromptwareHookConfig>
+        {
+            new()
+            {
+                Name = "Hanging Hook",
+                When = "before",
+                Condition = "Start-Sleep -Seconds 120; $true", // never returns within any guard
+                Action = "Write-Host should-not-run"
+            }
+        };
+        var (service, _) = CreateServiceWithHooks(hooks);
+        // The assertion is that a hung hook is killed at its guard, so run a guard the test can afford:
+        // with the real 10s this test measured 10s against a 30s allowance, leaving pwsh startup and
+        // machine load to fit in the remainder. Start-Sleep -Seconds 120 outlives any guard, so the kill
+        // path is identical.
+        service.HookConditionTimeout = TimeSpan.FromSeconds(1);
+        var planFolder = CreateTempPlanFolder();
+
+        try
+        {
+            // A dedicated thread, not the thread pool: before-hooks run synchronously inside StartJob and
+            // block, so on a pool saturated by other suites the work item can sit queued while the allowance
+            // below is already counting.
+            var startTask = Task.Factory.StartNew(
+                () => service.StartJob(new ExecutePlanArgs(planFolder)),
+                TaskCreationOptions.LongRunning);
+            var allowance = TimeSpan.FromSeconds(30);
+            var completed = await Task.WhenAny(startTask, Task.Delay(allowance));
+            Assert.True(completed == startTask,
+                $"StartJob did not return within {allowance.TotalSeconds:0}s despite a 1s hook guard: a hung before-hook wedged the launch.");
+
+            var job = service.GetJob(await startTask)!;
+            Assert.Contains(job.OutputLines,
+                l => l.Contains("[hook:Hanging Hook]") && l.Contains("Condition timed out after 1s"));
+            Assert.DoesNotContain(job.OutputLines, l => l.Contains("should-not-run"));
+
+            service.CompleteJob(job.Id, 0);
+        }
+        finally
+        {
+            Directory.Delete(planFolder, true);
+        }
+    }
+
+    [Fact]
+    public void HookGuards_DefaultToProductionValues()
+    {
+        // Guards the seam added for RunHooks_HangingBeforeHook_IsKilledAndDoesNotWedgeLaunch: a test
+        // shortens these, so nothing should be able to ship the shortened values.
+        var (service, _) = CreateServiceWithHooks(new List<PromptwareHookConfig>());
+
+        Assert.Equal(TimeSpan.FromSeconds(10), service.HookConditionTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(30), service.HookActionTimeout);
+    }
+
+    [Fact]
+    public void RunHooks_NoConfigService_DoesNothing()
+    {
+        // Use the constructor that doesn't take ConfigService
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+
+        // Should not throw, just silently skip hooks
+        Assert.Equal(JobStatus.Running, job.Status);
+
+        service.CompleteJob(id, 0);
+    }
+}

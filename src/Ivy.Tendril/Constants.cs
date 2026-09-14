@@ -22,9 +22,9 @@ public static class Constants
     public const int Help = 100;
     public const int Onboarding = 110;
 
-    public const string DocsUrl = "https://tendril.ivy.app";
-    public const string DiscordUrl = "https://discord.gg/FHgxkDga3y";
-    public const string IssuesUrl = "https://github.com/Ivy-Interactive/Ivy-Tendril/issues/new";
+    public const string DocsUrl = AppBrand.DocsUrl;
+    public const string DiscordUrl = AppBrand.DiscordUrl;
+    public const string IssuesUrl = AppBrand.IssuesUrl;
     public const string NewsBaseUrl = "https://cdn.ivy.app/tendril/";
     public const string WindowsInstallCommand = "irm https://cdn.ivy.app/install-tendril.ps1 | iex";
     public const string UnixInstallCommand = "curl -sSf https://cdn.ivy.app/install-tendril.sh | sh";

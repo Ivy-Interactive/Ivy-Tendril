@@ -17,17 +17,42 @@ export interface OpenDiffMessage {
   title?: string;
 }
 
+export interface ExecuteCommandMessage {
+  type: 'executeCommand';
+  command: string;
+  args?: unknown[];
+}
+
+export interface StartJobMessage {
+  type: 'startJob';
+  jobType: 'CreatePlan' | 'ExecutePlan' | 'RetryPlan' | 'UpdatePlan';
+  planId?: string;
+  description?: string;
+  project?: string;
+  changeRequest?: string;
+}
+
 export type WebToHostMessage =
   | OpenFileMessage
   | OpenWorktreeMessage
-  | OpenDiffMessage;
+  | OpenDiffMessage
+  | ExecuteCommandMessage
+  | StartJobMessage;
 
 export interface ThemeSyncMessage {
   type: 'themeChanged';
   theme: 'dark' | 'light' | 'hc';
 }
 
-export type HostToWebMessage = ThemeSyncMessage;
+export interface JobStatusUpdateMessage {
+  type: 'jobStatus';
+  jobId: string;
+  status: string;
+  message?: string;
+  planId?: string;
+}
+
+export type HostToWebMessage = ThemeSyncMessage | JobStatusUpdateMessage;
 
 export function validateBridgeMessage(raw: unknown): WebToHostMessage {
   if (!raw || typeof raw !== 'object') {
@@ -74,6 +99,50 @@ export function validateBridgeMessage(raw: unknown): WebToHostMessage {
         leftPath: obj.leftPath,
         rightPath: obj.rightPath,
         title: typeof obj.title === 'string' && obj.title.trim().length > 0 ? obj.title : undefined
+      };
+    }
+
+    case 'executeCommand': {
+      if (typeof obj.command !== 'string' || obj.command.trim().length === 0) {
+        throw new Error('executeCommand message requires a non-empty string "command"');
+      }
+      if (obj.args !== undefined && !Array.isArray(obj.args)) {
+        throw new Error('executeCommand message "args" must be an array if provided');
+      }
+      return {
+        type: 'executeCommand',
+        command: obj.command,
+        args: obj.args as unknown[] | undefined
+      };
+    }
+
+    case 'startJob': {
+      const validJobTypes = ['CreatePlan', 'ExecutePlan', 'RetryPlan', 'UpdatePlan'];
+      if (typeof obj.jobType !== 'string' || !validJobTypes.includes(obj.jobType)) {
+        throw new Error(`startJob message requires a valid "jobType" (${validJobTypes.join(', ')})`);
+      }
+      if (obj.jobType === 'CreatePlan') {
+        if (typeof obj.description !== 'string' || obj.description.trim().length === 0) {
+          throw new Error('startJob CreatePlan requires a non-empty string "description"');
+        }
+      }
+      if (obj.jobType === 'ExecutePlan' || obj.jobType === 'RetryPlan' || obj.jobType === 'UpdatePlan') {
+        if (typeof obj.planId !== 'string' || obj.planId.trim().length === 0) {
+          throw new Error(`startJob ${obj.jobType} requires a non-empty string "planId"`);
+        }
+      }
+      if (obj.jobType === 'RetryPlan') {
+        if (typeof obj.changeRequest !== 'string' || obj.changeRequest.trim().length === 0) {
+          throw new Error('startJob RetryPlan requires a non-empty string "changeRequest"');
+        }
+      }
+      return {
+        type: 'startJob',
+        jobType: obj.jobType as 'CreatePlan' | 'ExecutePlan' | 'RetryPlan' | 'UpdatePlan',
+        planId: typeof obj.planId === 'string' ? obj.planId : undefined,
+        description: typeof obj.description === 'string' ? obj.description : undefined,
+        project: typeof obj.project === 'string' ? obj.project : undefined,
+        changeRequest: typeof obj.changeRequest === 'string' ? obj.changeRequest : undefined
       };
     }
 

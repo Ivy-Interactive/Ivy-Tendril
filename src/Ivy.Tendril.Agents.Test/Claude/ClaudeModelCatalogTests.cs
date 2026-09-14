@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers.Claude;
 
 namespace Ivy.Tendril.Agents.Test.Claude;
@@ -147,5 +148,23 @@ public class ClaudeModelCatalogTests
         Assert.NotNull(result);
         Assert.Equal("claude", result.AgentId);
         Assert.NotEmpty(result.Models);
+    }
+
+    [Fact]
+    public void GetStaticModels_ReturnsClaudeOpus5_AsDefault()
+    {
+        var models = _catalog.GetStaticModels();
+        var defaultModel = Assert.Single(models, m => m.IsDefault);
+        Assert.Equal("claude-opus-5", defaultModel.Id);
+        Assert.Equal("claude-opus-5", models[0].Id);
+    }
+
+    [Fact]
+    public void GetStaticModels_SortedWithPreserveDefault_HasDefaultAtZero()
+    {
+        var models = _catalog.GetStaticModels();
+        var sorted = ModelCatalogSorter.Sort(models, preserveDefault: true);
+        Assert.Equal("claude-opus-5", sorted[0].Id);
+        Assert.True(sorted[0].IsDefault);
     }
 }

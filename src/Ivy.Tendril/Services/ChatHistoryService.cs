@@ -255,6 +255,19 @@ public class ChatHistoryService : IChatHistoryService
                     var session = JsonSerializer.Deserialize<ChatSessionModel>(json, JsonOptions);
                     if (session != null && !string.IsNullOrEmpty(session.Id))
                     {
+                        if (session.Messages == null || session.Messages.Count == 0)
+                        {
+                            try
+                            {
+                                File.Delete(file);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogError(ex, "Failed to delete empty chat session file {File}", file);
+                            }
+                            continue;
+                        }
+
                         var cleanedTitle = CleanTitle(session.Title);
                         if (cleanedTitle != session.Title)
                         {
@@ -278,7 +291,8 @@ public class ChatHistoryService : IChatHistoryService
     public IReadOnlyList<ChatSessionModel> GetSessions()
     {
         return _sessions.Values
-            .OrderByDescending(s => s.UpdatedAt)
+            .OrderByDescending(s => s.IsPinned)
+            .ThenByDescending(s => s.IsPinned ? (s.PinnedAt ?? s.UpdatedAt) : s.UpdatedAt)
             .ToList();
     }
 
@@ -309,7 +323,10 @@ public class ChatHistoryService : IChatHistoryService
         );
 
         _sessions[id] = session;
-        PersistSessionToDisk(session);
+        if (session.Messages.Count > 0)
+        {
+            PersistSessionToDisk(session);
+        }
         if (_configService?.Settings != null)
         {
             if (!string.IsNullOrEmpty(agentId))
@@ -335,8 +352,11 @@ public class ChatHistoryService : IChatHistoryService
         if (session == null || string.IsNullOrEmpty(session.Id)) return;
         _sessions[session.Id] = session;
         CancelPendingPersist(session.Id);
-        _lastPersistTimes[session.Id] = DateTimeOffset.UtcNow;
-        PersistSessionToDisk(session);
+        if (session.Messages.Count > 0)
+        {
+            _lastPersistTimes[session.Id] = DateTimeOffset.UtcNow;
+            PersistSessionToDisk(session);
+        }
         SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -375,6 +395,32 @@ public class ChatHistoryService : IChatHistoryService
             {
                 Title = CleanTitle(newTitle),
                 UpdatedAt = DateTimeOffset.UtcNow
+            };
+            _sessions[id] = updated;
+        }
+
+        if (updated != null)
+        {
+            CancelPendingPersist(id);
+            _lastPersistTimes[id] = DateTimeOffset.UtcNow;
+            PersistSessionToDisk(updated);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public void PinSession(string id, bool isPinned)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+        ChatSessionModel? updated = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(id);
+            if (session == null) return;
+            if (session.IsPinned == isPinned) return;
+            updated = session with
+            {
+                IsPinned = isPinned,
+                PinnedAt = isPinned ? DateTimeOffset.UtcNow : null
             };
             _sessions[id] = updated;
         }
@@ -658,7 +704,7 @@ public class ChatHistoryService : IChatHistoryService
         return false;
     }
 
-    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true)
+    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, ChatMessageUpdate update)
     {
         if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(messageId)) return null;
 
@@ -676,8 +722,9 @@ public class ChatHistoryService : IChatHistoryService
             var existingMsg = session.Messages[msgIndex];
             updatedMsg = existingMsg with
             {
-                Content = content,
-                RawStream = rawStream ?? existingMsg.RawStream
+                Content = update.Content,
+                RawStream = update.RawStream ?? existingMsg.RawStream,
+                CompletedAt = update.MarkCompleted ? DateTimeOffset.UtcNow : existingMsg.CompletedAt
             };
 
             var newMessages = new List<ChatMessageModel>(session.Messages);
@@ -685,7 +732,7 @@ public class ChatHistoryService : IChatHistoryService
 
             updatedSession = session with
             {
-                UpdatedAt = touchUpdatedAt ? DateTimeOffset.UtcNow : session.UpdatedAt,
+                UpdatedAt = update.TouchUpdatedAt ? DateTimeOffset.UtcNow : session.UpdatedAt,
                 Messages = newMessages
             };
 
@@ -694,7 +741,7 @@ public class ChatHistoryService : IChatHistoryService
 
         if (updatedSession != null)
         {
-            if (flushImmediately)
+            if (update.FlushImmediately)
             {
                 CancelPendingPersist(sessionId);
                 _lastPersistTimes[sessionId] = DateTimeOffset.UtcNow;
@@ -777,6 +824,11 @@ public class ChatHistoryService : IChatHistoryService
 
     private void PersistSessionToDisk(ChatSessionModel session)
     {
+        // A session becomes durable from its first message. Zero-message sessions are deliberately
+        // memory-only, and are pruned or deleted at load time (LoadSessionsFromDisk, PruneEmptySessions).
+        // This applies uniformly: plan-linked sessions are no exception and also persist only after
+        // receiving at least one message.
+        if (session == null || session.Messages == null || session.Messages.Count == 0) return;
         try
         {
             var filePath = Path.Combine(GetStorageDir(), $"{session.Id}.json");
@@ -786,6 +838,59 @@ public class ChatHistoryService : IChatHistoryService
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to persist chat session {SessionId} to disk", session.Id);
+        }
+    }
+
+    public void PruneEmptySessions(string? activeSessionId = null)
+    {
+        bool changed = false;
+        foreach (var (id, session) in _sessions)
+        {
+            if (activeSessionId != null && string.Equals(id, activeSessionId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (_generatingSessions.ContainsKey(id))
+            {
+                continue;
+            }
+
+            // A terminal session's lifetime belongs to its pane, not to the chat app. A pane opened
+            // without an initial prompt has no messages, so pruning it here would close the pane out
+            // from under the user; the shell deletes it when its tab closes instead.
+            if (session.IsTerminal())
+            {
+                continue;
+            }
+
+            if (session.Messages == null || session.Messages.Count == 0)
+            {
+                if (_sessions.TryRemove(id, out _))
+                {
+                    CancelPendingPersist(id);
+                    _lastPersistTimes.TryRemove(id, out _);
+                    _queuedMessages.TryRemove(id, out _);
+                    try
+                    {
+                        var filePath = Path.Combine(GetStorageDir(), $"{id}.json");
+                        if (File.Exists(filePath))
+                        {
+                            File.Delete(filePath);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Failed to delete chat session file for {SessionId}", id);
+                    }
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }

@@ -198,7 +198,7 @@ Jobs flow through: `Pending → Queued → Running → Completed/Failed/Timeout/
 
 1. Agent output doesn't contain a `"PlanId: <id>"` line resolving to a folder on disk (`FindPlanFolderById`)
 2. No plan folder matching `AllocatedPlanId` exists on disk either (`FindPlanFolderById`)
-3. Agent output doesn't carry the `identified as duplicate:` marker either (`IsDuplicatePlan`)
+3. The agent's own message text doesn't carry the `identified as duplicate:` marker naming an existing plan folder either (`IsDuplicatePlan`). Tool output does not count, and the named folder must resolve on disk.
 
 When debugging a failed CreatePlan, check in order:
 1. Does the plan folder exist in `$TENDRIL_PLANS/{PlanId}-*`?

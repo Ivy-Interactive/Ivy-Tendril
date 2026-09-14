@@ -18,11 +18,12 @@ public class PlanSearchDialog(IState<bool> dialogOpen) : ViewBase
 {
     private const int MaxResults = 15;
 
-    internal static (Type App, object? Args) ResolveTarget(PlanFile plan) => plan.Status switch
+    internal static (Type App, object? Args)? ResolveTarget(PlanFile plan) => plan.Status switch
     {
         PlanStatus.Draft or PlanStatus.Blocked => (typeof(PlansApp), new PlansAppArgs(plan.FolderName)),
+        PlanStatus.Review or PlanStatus.Failed => (typeof(ReviewApp), new ReviewAppArgs(plan.FolderName)),
         PlanStatus.Icebox => (typeof(IceboxApp), null),
-        _ => (typeof(ReviewApp), new ReviewAppArgs(plan.FolderName))
+        _ => null
     };
 
     /// <summary>Badges as the plan's owning sidebar list would show them; other statuses get a status badge.</summary>
@@ -68,8 +69,11 @@ public class PlanSearchDialog(IState<bool> dialogOpen) : ViewBase
                     {
                         if (!resultsByFolder.TryGetValue(folderName, out var plan)) return;
                         dialogOpen.Set(false);
-                        var (app, appArgs) = ResolveTarget(plan);
-                        navigator.Navigate(app, appArgs);
+                        var target = ResolveTarget(plan);
+                        if (target.HasValue)
+                        {
+                            navigator.Navigate(target.Value.App, target.Value.Args);
+                        }
                     });
             }
         }

@@ -1,6 +1,6 @@
 using Ivy.Tendril.Apps.Plans;
-using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Apps.Review;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -8,25 +8,6 @@ namespace Ivy.Tendril.Apps.Jobs;
 
 public partial class JobsApp
 {
-    /// <summary>
-    /// Determines if a job can be rerun. Returns true for Failed/Timeout/Stopped
-    /// jobs (existing behavior), or for Completed jobs whose args type supports
-    /// corrective feedback (ExecutePlan/RetryPlan/UpdatePlan).
-    /// </summary>
-    internal static bool CanRerun(JobItem? job)
-    {
-        if (job == null) return false;
-
-        // Existing behavior: all failed-state jobs can be rerun regardless of type
-        if (job.Status is JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped)
-            return true;
-
-        // New: Completed jobs can be rerun only when their args support feedback
-        if (job.Status is JobStatus.Completed)
-            return RerunJobDialog.SupportsFeedback(job.TypedArgs);
-
-        return false;
-    }
     private static object BuildDataTable(
         INavigator nav,
         List<JobItemRow> rows,
@@ -68,17 +49,17 @@ public partial class JobsApp
             })
             .Width(t => t.Status, Size.Px(100))
             .Width(t => t.PlanId, Size.Px(80))
-            .Width(t => t.Type, Size.Px(100))
             .Width(t => t.Prompt, Size.Px(250))
+            .Width(t => t.Type, Size.Px(100))
             .Width(t => t.Project, Size.Px(150))
             .Width(t => t.Timer, Size.Px(80))
             .Width(t => t.AgentOutput, Size.Px(100))
             .Width(t => t.Cost, Size.Px(80))
             .Width(t => t.Tokens, Size.Px(80))
+            .Width(t => t.Timestamp, Size.Px(110))
             .Width(t => t.StatusMessage, Size.Auto())
-            .Renderer(t => t.Status, new AnimatedStatusLabelDisplayRenderer
+            .Renderer(t => t.Status, new LabelsDisplayRenderer
             {
-                Mode = AnimatedStatusMode.Badge,
                 BadgeColorMapping = Constants.JobStatusColors.ToDictionary(
                     kvp => kvp.Key.ToString(),
                     kvp => kvp.Value.ToString()
@@ -98,10 +79,8 @@ public partial class JobsApp
             .Renderer(t => t.Prompt, new TextDisplayRenderer())
             .Renderer(t => t.StatusMessage, new TextDisplayRenderer())
             .Hidden(t => t.Id)
-            .Hidden(t => t.LastOutputTimestamp)
             .Hidden(t => t.ErrorContext)
             .Filterable(t => t.Id, false)
-            .Filterable(t => t.LastOutputTimestamp, false)
             .Filterable(t => t.ErrorContext, false)
             .SortDirection(t => t.Id, SortDirection.Descending)
             .Config(c =>
@@ -118,7 +97,7 @@ public partial class JobsApp
                 var planId = e.Value.CellValue?.ToString();
                 if (!string.IsNullOrEmpty(planId))
                 {
-                    var job = jobs.FirstOrDefault(j => JobsApp.ExtractPlanId(j.PlanFile) == planId);
+                    var job = jobs.FirstOrDefault(j => ExtractPlanId(j.PlanFile) == planId);
                     if (job != null && !string.IsNullOrEmpty(job.PlanFile))
                     {
                         var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
@@ -181,21 +160,6 @@ public partial class JobsApp
                     showCost(id);
                 return ValueTask.CompletedTask;
             })
-            /*
-            .OnCellAction(t => t.StatusMessage, e =>
-            {
-                var id = e.Value.RowId?.ToString();
-                if (!string.IsNullOrEmpty(id))
-                {
-                    var job = jobs.FirstOrDefault(j => j.Id == id);
-                    if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
-                    {
-                        showOutput.Set(id);
-                    }
-                }
-                return ValueTask.CompletedTask;
-            })
-            */
             .OnCellAction(t => t.Prompt, e =>
             {
                 var id = e.Value.RowId?.ToString();
@@ -204,7 +168,7 @@ public partial class JobsApp
                     var job = jobs.FirstOrDefault(j => j.Id == id);
                     if (job != null)
                     {
-                        var fullPrompt = JobsApp.GetFullPrompt(job, planService);
+                        var fullPrompt = GetFullPrompt(job, planService);
                         if (!string.IsNullOrEmpty(fullPrompt))
                             showPrompt(fullPrompt);
                     }
@@ -385,5 +349,47 @@ public partial class JobsApp
         ) : null;
 
         return new Fragment(dataTable, confirmDialog, confirmStopQueuedDialog, stopAllDialog);
+    }
+
+    /// <summary>
+    /// Builds the candidate cell set exactly as before, then keeps only cells whose value actually
+    /// changed since the previous tick, per <paramref name="lastSent"/> (keyed by the
+    /// (jobId, columnName) pair, owned by the caller so it survives across ticks). Keys for jobs no
+    /// longer returned by the service are pruned so the cache cannot grow without bound as jobs are
+    /// evicted.
+    /// </summary>
+    internal static IEnumerable<DataTableCellUpdate> BuildDataTableUpdates(
+        IJobService jobService, Dictionary<(string RowId, string ColumnName), string> lastSent)
+    {
+        var currentJobs = jobService.GetJobs();
+        var currentJobIds = currentJobs.Select(j => j.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var staleKey in lastSent.Keys.Where(k => !currentJobIds.Contains(k.RowId)).ToList())
+            lastSent.Remove(staleKey);
+
+        var candidates = currentJobs
+            .Where(j => j.Status is JobStatus.Running or JobStatus.Blocked ||
+                        ((j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed)
+                         && j.CompletedAt.HasValue
+                         && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
+            .SelectMany(j => new[]
+            {
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), FormatTimer(j)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), FormatJobCost(j)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Tokens), j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), FormatAgentOutput(j)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), j.Status.ToString()),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), GetStatusMessage(j))
+            });
+
+        foreach (var update in candidates)
+        {
+            // A hard cast, not a ToString(): every candidate above is built from j.Id, a string, so a
+            // failure here means that invariant broke and should say so loudly.
+            var key = ((string)update.RowId, update.ColumnName);
+            var value = update.Value as string ?? update.Value?.ToString() ?? "";
+            if (lastSent.TryGetValue(key, out var previous) && previous == value) continue;
+            lastSent[key] = value;
+            yield return update;
+        }
     }
 }

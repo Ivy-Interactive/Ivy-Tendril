@@ -43,6 +43,24 @@ public static class FormatHelper
     }
 
     /// <summary>
+    ///     Formats a percentage as a human-readable string with at most one decimal place,
+    ///     e.g. "83.3%" or "100%".
+    /// </summary>
+    public static string FormatPercent(double percent)
+    {
+        return percent.ToString("0.#", CultureInfo.InvariantCulture) + "%";
+    }
+
+    /// <summary>
+    ///     Formats a percentage as a human-readable string with at most one decimal place,
+    ///     e.g. "83.3%" or "100%".
+    /// </summary>
+    public static string FormatPercent(decimal percent)
+    {
+        return percent.ToString("0.#", CultureInfo.InvariantCulture) + "%";
+    }
+
+    /// <summary>
     ///     Title-cases an execution profile for display: profiles are stored lowercase ("deep",
     ///     "balanced") but read as labels, so "Deep" is what belongs in a table cell or a details
     ///     row. Returns null for a blank profile, so callers can drop the row rather than render an
@@ -52,4 +70,25 @@ public static class FormatHelper
         string.IsNullOrWhiteSpace(profile)
             ? null
             : char.ToUpperInvariant(profile[0]) + profile[1..];
+
+    /// <summary>
+    ///     Formats a coding agent id for display. Maps known ids to proper labels and capitalizes
+    ///     the first letter for unmapped ids. Used in agent cost breakdowns to avoid injecting
+    ///     <c>IAgentRunner</c> into views just for a display string.
+    /// </summary>
+    public static string FormatAgent(string? agentId)
+    {
+        if (string.IsNullOrWhiteSpace(agentId))
+            return "Unknown";
+
+        return agentId.ToLowerInvariant() switch
+        {
+            "claude" => "Claude Code",
+            "openaiproxy" => "OpenAI Proxy",
+            "opencode" => "OpenCode",
+            "ivy" => "Ivy Agent",
+            "unknown" => "Unknown",
+            _ => char.ToUpperInvariant(agentId[0]) + agentId[1..]
+        };
+    }
 }

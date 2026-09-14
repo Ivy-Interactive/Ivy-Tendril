@@ -13,7 +13,9 @@ public class CreatePrDialog(
     Action refreshPlans,
     IConfigService config,
     IGithubService githubService,
-    IGitService? gitService = null) : ViewBase
+    IGitService? gitService = null,
+    IChatExecutionService? chatExecution = null,
+    IChatHistoryService? chatHistory = null) : ViewBase
 {
     private string GetDefaultBaseBranch()
     {
@@ -32,6 +34,8 @@ public class CreatePrDialog(
     public override object? Build()
     {
         var defaultGitService = UseService<IGitService>();
+        Context.TryUseService<IChatExecutionService>(out var resolvedChatExec);
+        Context.TryUseService<IChatHistoryService>(out var resolvedChatHist);
         var isCreating = UseState(false);
         var createPrSolveMergeConflicts = UseState(true);
         var createPrMerge = UseState(true);
@@ -85,6 +89,9 @@ public class CreatePrDialog(
             if (!createPrMerge.Value) createPrDeleteBranch.Set(false);
         }, createPrMerge);
 
+        var effectiveChatExecution = chatExecution ?? resolvedChatExec;
+        var effectiveChatHistory = chatHistory ?? resolvedChatHist;
+
         if (!dialogOpen.Value) return null;
 
         var defaultBaseBranch = GetDefaultBaseBranch();
@@ -106,9 +113,7 @@ public class CreatePrDialog(
                     .Disabled(!createPrMerge.Value)
                 | createPrIncludeArtifacts.ToBoolInput("Include Artifacts")
                 | createPrDraft.ToBoolInput("Create as Draft")
-                | createPrReviewers.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
-                    .Placeholder("Select reviewers...")
-                    .WithField().Label("Reviewers")
+                | BuildReviewersField(createPrReviewers, assigneesQuery.Value ?? Array.Empty<string>())
                 | (assigneesError.Value is { } err
                     ? Text.Danger(err).Small()
                     : null)
@@ -125,7 +130,7 @@ public class CreatePrDialog(
                             ? customBranchText.Value.Trim()
                             : selectedBranch.Value;
 
-                        jobService.StartJob(new CreatePrArgs(
+                        var jobId = jobService.StartJob(new CreatePrArgs(
                             selectedPlan.FolderPath,
                             SolveMergeConflicts: createPrSolveMergeConflicts.Value,
                             Merge: createPrMerge.Value,
@@ -134,7 +139,11 @@ public class CreatePrDialog(
                             Reviewers: createPrReviewers.Value,
                             Comment: string.IsNullOrEmpty(createPrComment.Value) ? null : createPrComment.Value,
                             Draft: createPrDraft.Value,
-                            BaseBranch: targetBaseBranch));
+                            BaseBranch: targetBaseBranch)
+                        {
+                            ChatSessionId = selectedPlan.ChatSessionId
+                        });
+                        ManualApprovalAnnouncer.AnnounceCreatePr(selectedPlan, jobId, isPrUpdate: false, effectiveChatHistory, effectiveChatExecution, jobService);
                         // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
                         refreshPlans();
                         dialogOpen.Set(false);
@@ -204,5 +213,15 @@ public class CreatePrDialog(
             .Searchable(true)
             .Placeholder("Select target branch...")
             .WithField().Label("Target Branch");
+    }
+
+    public static object BuildReviewersField(
+        IState<string[]> createPrReviewers,
+        IReadOnlyList<string> assignees)
+    {
+        return createPrReviewers.ToSelectInput((assignees ?? Array.Empty<string>()).ToOptions())
+            .Searchable(true)
+            .Placeholder("Select reviewers...")
+            .WithField().Label("Reviewers");
     }
 }

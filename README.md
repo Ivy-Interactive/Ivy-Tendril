@@ -3,9 +3,9 @@
 </h1>
 
 <p>
-  <a href="https://github.com/Ivy-Interactive/Ivy-Tendril/stargazers"><img src="https://badgen.net/github/stars/Ivy-Interactive/Ivy-Tendril?label=%E2%98%85" alt="GitHub stars" /></a>
+  <a href="https://github.com/Ivy-Interactive/Ivy-Tendril/stargazers"><img src="https://img.shields.io/github/stars/Ivy-Interactive/Ivy-Tendril?style=flat&label=%E2%98%85" alt="GitHub stars" /></a>
   <a href="https://github.com/Ivy-Interactive/Ivy-Tendril/releases/latest"><img src="https://img.shields.io/github/v/release/Ivy-Interactive/Ivy-Tendril?style=flat&label=release" alt="Latest Release" /></a>
-  <a href="https://github.com/Ivy-Interactive/Ivy-Tendril/actions/workflows/publish-tendril.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ivy-Interactive/Ivy-Tendril/publish-tendril.yml?style=flat&label=CI" alt="CI Status" /></a>
+  <a href="https://github.com/Ivy-Interactive/Ivy-Tendril/actions/workflows/repo-health.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ivy-Interactive/Ivy-Tendril/repo-health.yml?branch=development&style=flat&label=CI" alt="CI Status" /></a>
   <a href="https://tendril.ivy.app"><img src="https://img.shields.io/badge/docs-tendril.ivy.app-blue?style=flat" alt="Documentation" /></a>
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-4493F8?style=flat-square" alt="Supported platforms: macOS, Windows, and Linux" />
 </p>
@@ -18,7 +18,7 @@ AI agents can now write 99% of the code. This changes what it means to be a deve
 
 <p>
 <a href="https://youtu.be/_KVG1NnAj-8">
-  <img src="docs/yt-thumbnail-in-two-minutes-2.png" alt="Ivy Tendril in two minutes — watch on YouTube" width="720">
+  <img src="docs/yt-thumbnail-in-two-minutes-2.png" alt="Ivy Tendril in two minutes: watch on YouTube" width="720">
 </a>
 </p>
 
@@ -127,6 +127,128 @@ Works with **any CLI agent**: if it runs in a terminal, it runs in Tendril.
   <a href="https://opencode.ai/docs/cli/"><kbd><img src="https://www.google.com/s2/favicons?domain=opencode.ai&sz=64" alt="OpenCode logo" width="16" valign="middle" /> OpenCode</kbd></a> &nbsp;
   <kbd>+ any CLI agent</kbd>
 </p>
+## Agent Skills
+
+Extend your favorite AI coding agents with official Tendril engineering and debugging skills.
+
+### Quick Start
+
+Install Tendril skills for any supported agent using the universal skills installer:
+
+```bash
+npx skills add ivy-interactive/ivy-tendril
+```
+
+Or install a specific skill:
+
+```bash
+npx skills add ivy-interactive/ivy-tendril --skill tendril-debug-plan
+```
+
+### Supported Tools & Environments
+
+<details>
+<summary><strong>Visual Studio Code (GitHub Copilot & Extensions)</strong></summary>
+
+Install skills for GitHub Copilot in VS Code:
+
+```bash
+npx skills add ivy-interactive/ivy-tendril --agent github-copilot
+```
+
+Global install (across all workspaces):
+
+```bash
+npx skills add ivy-interactive/ivy-tendril --agent github-copilot -g
+```
+
+Or copy skills directly to `.agents/skills/` or `.github/skills/` (project-level) or `~/.copilot/skills/` (global).
+
+Once installed, skills appear in GitHub Copilot Chat under the `/skills` menu and can be invoked directly as slash commands (e.g. `/tendril-debug-plan`, `/tendril-debug-job`, `/tendril-review`, `/tendrillable`).
+
+Third-party VS Code agent extensions:
+- Cline: `npx skills add ivy-interactive/ivy-tendril --agent cline`
+- Continue: `npx skills add ivy-interactive/ivy-tendril --agent continue`
+- Roo Code: `npx skills add ivy-interactive/ivy-tendril --agent roo`
+
+For full editor integration, install the official [Ivy Tendril VS Code Extension](https://marketplace.visualstudio.com/items?itemName=ivy-interactive.ivy-tendril) for embedded plan dashboards, worktree navigation, and live execution monitoring.
+
+See the [VS Code Setup Guide](docs/vscode-setup.md) for detailed configuration options.
+</details>
+
+<details>
+<summary><strong>Claude Code</strong></summary>
+
+Install from the Claude Code marketplace:
+
+```
+/plugin marketplace add ivy-interactive/ivy-tendril
+/plugin install tendril-skills@ivy-tendril
+```
+
+Local development:
+
+```bash
+claude --plugin-dir /path/to/ivy-tendril
+```
+
+See the [Claude Code Setup Guide](docs/claude-setup.md) for detailed configuration options.
+</details>
+
+<details>
+<summary><strong>Antigravity CLI (agy)</strong></summary>
+
+Install plugin via Git URL:
+
+```bash
+agy plugin install https://github.com/ivy-interactive/ivy-tendril.git
+```
+
+Local installation:
+
+```bash
+agy plugin install ./
+```
+
+See the [Antigravity Setup Guide](docs/antigravity-setup.md) for detailed configuration options.
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+Install targeting Cursor:
+
+```bash
+npx skills add ivy-interactive/ivy-tendril --agent cursor
+```
+
+Or copy skills to `.cursor/skills/` (project-level) or `~/.cursor/skills/` (global).
+
+See the [Cursor Setup Guide](docs/cursor-setup.md) for detailed configuration options.
+</details>
+
+<details>
+<summary><strong>OpenAI Codex</strong></summary>
+
+Install from the Codex plugin marketplace:
+
+```bash
+codex plugin marketplace add ivy-interactive/ivy-tendril
+codex plugin add tendril-skills@tendril-skills
+```
+</details>
+
+<details>
+<summary><strong>Gemini CLI</strong></summary>
+
+Install using the Gemini CLI:
+
+```bash
+gemini skills install https://github.com/ivy-interactive/ivy-tendril.git --path skills
+```
+</details>
+
+---
 
 ## Install
 

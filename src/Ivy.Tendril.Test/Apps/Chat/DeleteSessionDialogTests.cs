@@ -34,11 +34,12 @@ public class DeleteSessionDialogTests
         public void SaveSession(ChatSessionModel session) { }
         public void DeleteSession(string id) => Sessions.RemoveAll(s => s.Id == id);
         public void RenameSession(string id, string newTitle) { }
+        public void PinSession(string id, bool isPinned) { }
         public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null)
         {
             return new ChatMessageModel(Guid.NewGuid().ToString(), role, content, DateTimeOffset.UtcNow, agentId, modelId, rawStream, effort);
         }
-        public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true) => null;
+        public ChatMessageModel? UpdateMessage(string sessionId, string messageId, ChatMessageUpdate update) => null;
         public void FlushSession(string sessionId) { }
         public void SetSessionGenerating(string sessionId, bool isGenerating)
         {
@@ -59,6 +60,7 @@ public class DeleteSessionDialogTests
         public void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds) { }
         public IReadOnlyList<string> GetSpawnedJobs(string sessionId) => [];
         public bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers) => false;
+        public void PruneEmptySessions(string? activeSessionId = null) { }
     }
 
     private class TestState<T> : IState<T>

@@ -4,7 +4,7 @@ namespace Ivy.Tendril.Test;
 
 internal class FakePlanReaderService : IPlanReaderService
 {
-    public string PlansDirectory => "/tmp";
+    public string PlansDirectory { get; set; } = "/tmp";
     public bool IsDatabaseReady => true;
     public PlanFile? PlanToReturn { get; set; }
 #pragma warning disable CS0067
@@ -27,7 +27,10 @@ internal class FakePlanReaderService : IPlanReaderService
 
     public PlanFile? GetPlanByFolder(string folderPath)
     {
-        return PlanToReturn;
+        return PlanToReturn ?? Plans.FirstOrDefault(p =>
+            p.FolderName.Equals(folderPath, StringComparison.OrdinalIgnoreCase) ||
+            p.FolderPath.Equals(folderPath, StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(p.FolderPath).Equals(folderPath, StringComparison.OrdinalIgnoreCase));
     }
 
     public List<PlanFile> GetIceboxPlans()
@@ -111,11 +114,17 @@ internal class FakePlanReaderService : IPlanReaderService
         return [];
     }
 
+    public List<(DateOnly Date, int Count)> ShippedFeaturesToReturn { get; set; } = [];
+
+    public List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60) => ShippedFeaturesToReturn;
+
     public List<RecentMergedPrDto> RecentMergedPrsToReturn { get; set; } = [];
     public List<RecentPlanCostDto> RecentPlanCostsToReturn { get; set; } = [];
+    public List<DashboardAgentCost> AgentCostsToReturn { get; set; } = [];
 
     public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) => RecentMergedPrsToReturn;
     public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) => RecentPlanCostsToReturn;
+    public List<DashboardAgentCost> GetAgentCostBreakdown(int days) => AgentCostsToReturn;
 
     public decimal GetPlanTotalCost(string folderPath)
     {
@@ -160,9 +169,16 @@ internal class FakePlanReaderService : IPlanReaderService
     {
     }
 
+    /// <summary>
+    ///     What <see cref="FlushPendingWritesAsync" /> hands back. A test that needs a write queue which
+    ///     never drains — a queued write parked on the cross-process plan lock — sets a task that never
+    ///     completes.
+    /// </summary>
+    public Task FlushTask { get; set; } = Task.CompletedTask;
+
     public Task FlushPendingWritesAsync()
     {
-        return Task.CompletedTask;
+        return FlushTask;
     }
 
     public List<RecommendationYaml> GetRecommendationsForPlan(string folderName)

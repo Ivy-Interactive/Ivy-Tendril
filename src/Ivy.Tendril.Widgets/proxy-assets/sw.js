@@ -194,9 +194,11 @@ async function viewContext(req, event) {
 
   const own = tokenFromHref(req.url)
   if (own) {
-    // A navigation names the client it is about to create, which is how the documents that
-    // follow it are placed without another lookup.
-    rememberClientView(id, own)
+    // A navigation names the client it is ABOUT TO create — that is the one whose later
+    // requests need this token, not the outgoing document. And it is the only chance to
+    // record it: the agent rewrites the new document's address to the app's own path as soon
+    // as it runs, and from then on the URL says nothing about which viewer it belongs to.
+    rememberClientView(event.resultingClientId || event.clientId, own)
     return own
   }
 
@@ -523,13 +525,19 @@ self.addEventListener('fetch', (event) => {
   // The proxy's own helper endpoints are served by the Ivy app, not by upstream. The
   // proxied page asks for /__lib itself (the agent imports snapDOM from there), so this
   // guard is load-bearing. Returning without respondWith leaves them to the browser.
+  //
+  // "/ivy/" used to be on this list and must not be: it dates from when the worker was
+  // registered at the origin root and saw the HOST app's own traffic. Scoped to /__view/ it
+  // sees only proxied documents, whose /ivy/ requests belong to the SITE being viewed — an
+  // Ivy app under review asking for its own framework assets and its own SignalR negotiate.
+  // Handing those to the host meant the reviewed app attached itself to the HOST's hub, which
+  // then answered widget events for a tree they were never about ("Node 'x' not found").
   if (
     sameOrigin &&
     (url.pathname.startsWith('/__proxy') ||
       url.pathname.startsWith('/__capture') ||
       url.pathname.startsWith('/__lib') ||
-      url.pathname === '/sw.js' ||
-      url.pathname.startsWith('/ivy/'))
+      url.pathname === '/sw.js')
   )
     return
 

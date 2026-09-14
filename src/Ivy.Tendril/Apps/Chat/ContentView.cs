@@ -29,6 +29,7 @@ public class ContentView(
     bool supportsEffort,
     bool isStreaming,
     string streamingText,
+    string? streamingMessageId,
     string greeting,
     string headline,
     IChatHistoryService chatService,
@@ -37,7 +38,9 @@ public class ContentView(
     Action<ChatSendMessageDto> sendMessage,
     Action<string> selectSession,
     Action startNewChat,
-    bool embedded = false) : ViewBase
+    bool embedded = false,
+    IState<string?>? sharedDeletingSessionId = null,
+    List<ChatSamplePromptDto>? samplePrompts = null) : ViewBase
 {
     internal IState<string> SelectedAgentState => selectedAgent;
     internal IState<string> SelectedModelState => selectedModel;
@@ -46,10 +49,24 @@ public class ContentView(
     /// <summary>The plan a job event names, by folder, numeric id or zero-padded id.</summary>
     internal static PlanFile? FindPlan(IPlanReaderService planService, string planId)
     {
-        var trimmed = planId.TrimStart('0');
+        var rawId = planId;
+        var dashIndex = planId.IndexOf('-');
+        if (dashIndex > 0)
+        {
+            rawId = planId[..dashIndex];
+        }
+
+        var trimmed = rawId.TrimStart('0');
+        if (int.TryParse(trimmed.Length > 0 ? trimmed : rawId, out var id))
+        {
+            var plan = planService.GetPlanById(id);
+            if (plan != null) return plan;
+        }
+
+        var byFolder = planService.GetPlanByFolder(planId);
+        if (byFolder != null) return byFolder;
+
         return planService.GetPlans().FirstOrDefault(p =>
-            p.FolderName.Equals(planId, StringComparison.OrdinalIgnoreCase) ||
-            (trimmed.Length > 0 && p.Id.ToString() == trimmed) ||
             p.FolderName.StartsWith(planId + "-", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -60,7 +77,7 @@ public class ContentView(
         Context.TryUseService<IPlanReaderService>(out var planService);
         Context.TryUseService<IChatAgentPreferences>(out var preferences);
         var navigator = UseNavigation();
-        var deletingSessionId = UseState<string?>(null);
+        var localDeletingSessionId = UseState<string?>(null);
 
         var upload = UseUpload(async (fileUpload, stream, ct) =>
         {
@@ -79,6 +96,7 @@ public class ContentView(
 
         _ = sessionVersion.Value;
 
+        var deletingSessionId = sharedDeletingSessionId ?? localDeletingSessionId;
         var sessionToDelete = deletingSessionId.Value != null
             ? chatService.GetSession(deletingSessionId.Value) ?? activeSession
             : activeSession;
@@ -99,7 +117,7 @@ public class ContentView(
             ? jobService.GetJobs()
                 .Where(j => string.Equals(j.ChatSessionId, activeSessionId.Value, StringComparison.OrdinalIgnoreCase)
                          && (j.Status == JobStatus.Running || j.Status == JobStatus.Pending || j.Status == JobStatus.Queued))
-                .Select(ChatApp.ToJobDto).ToList()
+                .Select(j => ChatApp.ToJobDto(j, planService)).ToList()
             : new List<ChatJobDto>();
 
         var chatWidget = new ChatWidget
@@ -116,10 +134,12 @@ public class ContentView(
             SupportsEffort = supportsEffort,
             IsStreaming = isStreaming,
             StreamingText = streamingText,
+            StreamingMessageId = streamingMessageId,
             QueuedMessages = queuedMessageDtos,
             RunningJobs = runningJobs,
             Greeting = greeting,
             Headline = headline,
+            SamplePrompts = samplePrompts ?? new(),
             Embedded = embedded,
 
             OnSelectSession = e =>
@@ -166,7 +186,7 @@ public class ContentView(
             {
                 if (string.IsNullOrEmpty(e.Value)) return ValueTask.CompletedTask;
                 var preference = preferences?.Get(e.Value) ?? new ChatAgentPreference();
-                var model = ChatApp.ResolveModel(ChatApp.GetModelsForAgent(agentRunner, e.Value), preference.ModelId);
+                var model = ChatApp.ResolveModel(agentRunner, e.Value, ChatApp.GetModelsForAgent(agentRunner, e.Value), preference.ModelId);
                 var effort = ChatApp.ResolveEffort(ChatApp.GetEffortsForAgentAndModel(agentRunner, e.Value, model), preference.Effort);
                 selectedAgent.Set(e.Value);
                 selectedModel.Set(model);
@@ -246,6 +266,10 @@ public class ContentView(
                 if (e.Value != null)
                 {
                     chatService.ApplyQuestionAnswers(e.Value.SessionId, e.Value.MessageId, e.Value.Answers);
+                    if (executionService.IsGenerating(e.Value.SessionId))
+                    {
+                        executionService.ApplyQuestionAnswers(e.Value.SessionId, e.Value.Answers);
+                    }
                     sessionVersion.Set(v => v + 1);
                     if (!string.IsNullOrWhiteSpace(e.Value.ResponseText))
                     {
@@ -260,8 +284,11 @@ public class ContentView(
                 var plan = FindPlan(planService, e.Value);
                 if (plan != null)
                 {
-                    var (app, appArgs) = PlanSearchDialog.ResolveTarget(plan);
-                    navigator.Navigate(app, appArgs);
+                    var target = PlanSearchDialog.ResolveTarget(plan);
+                    if (target.HasValue)
+                    {
+                        navigator.Navigate(target.Value.App, target.Value.Args);
+                    }
                 }
                 return ValueTask.CompletedTask;
             }

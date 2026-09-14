@@ -41,4 +41,12 @@ public class TendrilAppShellSidebarTests
         var result = UsesSidebarList(listAppId, currentAppId);
         Assert.Equal(expected, result);
     }
+
+    [Theory]
+    [InlineData(0, null)]
+    [InlineData(1, "1")]
+    [InlineData(2, "2")]
+    [InlineData(140, "140")]
+    public void ChatRowBadge_CountsSessionsAndHidesAtZero(int sessions, string? expected)
+        => Assert.Equal(expected, ChatRowBadge(sessions));
 }

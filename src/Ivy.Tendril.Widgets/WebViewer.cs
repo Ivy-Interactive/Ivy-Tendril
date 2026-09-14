@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 namespace Ivy.Tendril.Widgets;
 
 /// <summary>Viewport device-emulation profile.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum WebViewerDevice
 {
     Desktop,
@@ -13,9 +14,11 @@ public enum WebViewerDevice
 /// <summary>
 /// A thin viewport widget that loads any URL into a proxied sandbox iframe and surfaces
 /// everything (console, clicks, comments, network, navigation, screenshots) through a
-/// single typed <see cref="OnEvent"/> firehose. All UI (toolbar, DevTools panels) is
-/// meant to be built in Ivy code; the widget owns only the iframe, the comment overlay
-/// and the numbered pins that mark commented elements.
+/// single typed <see cref="OnEvent"/> firehose. The widget owns the iframe, the comment
+/// overlay, the numbered pins that mark commented elements and, with <see cref="Toolbar"/>
+/// on, a browser-style chrome: back, forward, reload, the address bar, the element picker
+/// and a viewport menu, plus whatever <see cref="Actions"/> the host adds as icon buttons.
+/// DevTools-style panels are built in Ivy code from the events.
 ///
 /// <para>The endpoints it depends on ship in this library, in
 /// <see cref="WebViewerProxy"/>, and must be hosted by the Ivy app on the same origin:</para>
@@ -45,9 +48,56 @@ public record WebViewer : WidgetBase<WebViewer>
     /// <summary>Typed imperative command stream (reload/back/forward/capture/select/draw).</summary>
     [Prop] public IWriteStream<WebViewerCommand>? Commands { get; init; }
 
+    [Prop] public bool Toolbar { get; init; }
+
+    [Prop] public WebViewerAction[] Actions { get; init; } = [];
+
     /// <summary>Fired for every event produced by the proxied page, the injected agent,
     /// and the service worker. The payload is a polymorphic <see cref="WebViewerEvent"/>.</summary>
     [Event] public Func<Event<WebViewer, WebViewerEvent>, ValueTask>? OnEvent { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum WebViewerIcon
+{
+    MessageSquare,
+    MessageSquarePlus,
+    Pencil,
+    Highlighter,
+    Camera,
+    Image,
+    ExternalLink,
+    Bug,
+    Terminal,
+    Code,
+    Download,
+    Share,
+    Sparkles,
+    Star,
+    Play,
+    Square,
+    Eye,
+    Send,
+    Check,
+    Copy,
+    Link,
+    Search,
+    Zap,
+    Bell,
+    Flag,
+    Bookmark,
+    Info,
+    CircleHelp,
+    Settings,
+    Globe
+}
+
+public record WebViewerAction(string Id, WebViewerIcon Icon, string Label)
+{
+    public bool Active { get; init; }
+    public bool Disabled { get; init; }
+    public string? Badge { get; init; }
+    public bool Primary { get; init; }
 }
 
 // ===========================================================================
@@ -65,6 +115,7 @@ public record WebViewer : WidgetBase<WebViewer>
 [JsonDerivedType(typeof(CaptureCommand), "capture")]
 [JsonDerivedType(typeof(SelectModeCommand), "select")]
 [JsonDerivedType(typeof(DrawModeCommand), "draw")]
+[JsonDerivedType(typeof(ClearCommentsCommand), "clear-comments")]
 public abstract record WebViewerCommand;
 
 public record ReloadCommand : WebViewerCommand;
@@ -81,6 +132,13 @@ public record SelectModeCommand(bool Enabled) : WebViewerCommand;
 
 /// <summary>Start/stop red-pen drawing mode.</summary>
 public record DrawModeCommand(bool Enabled) : WebViewerCommand;
+
+/// <summary>
+/// Drop every comment and its pin. For the host that has just acted on them — sent them to an
+/// agent, say — and would otherwise leave the page marked up with feedback already delivered.
+/// Silent by design: no <see cref="CommentDeletedEvent"/> follows, since the host asked.
+/// </summary>
+public record ClearCommentsCommand : WebViewerCommand;
 
 // ===========================================================================
 // Events (widget -> Ivy).
@@ -99,6 +157,9 @@ public record DrawModeCommand(bool Enabled) : WebViewerCommand;
 [JsonDerivedType(typeof(HttpEvent), "http")]
 [JsonDerivedType(typeof(NavigateEvent), "navigate")]
 [JsonDerivedType(typeof(CaptureEvent), "capture")]
+[JsonDerivedType(typeof(ActionEvent), "action")]
+[JsonDerivedType(typeof(DeviceChangedEvent), "device")]
+[JsonDerivedType(typeof(SelectModeEvent), "select-mode")]
 public abstract record WebViewerEvent;
 
 /// <summary>A console.log/warn/error (or an uncaught error) from the proxied page.</summary>
@@ -129,6 +190,13 @@ public record ClickEvent(
 /// just its 1-based position: delete pin 2 of 3 and the last one renumbers to 2, with no
 /// event of its own. Keep the comments in arrival order and the numbers fall out of the
 /// order; do not treat a number as an identity.</para>
+///
+/// <para><paramref name="Url"/> is the page it was left on, canonicalized by the widget: the
+/// hash removed, a trailing slash removed, the query kept. Every comment on one page carries
+/// the identical string, so grouping by it is plain equality and nothing else has to re-derive
+/// what counts as the same page. The widget shows a pin only while its own page is on screen —
+/// an xpath resolves on other pages too, and an unscoped pin does not visibly go away, it
+/// re-attaches to whatever occupies the position.</para>
 /// </summary>
 public record CommentEvent(
     string Id,
@@ -137,7 +205,11 @@ public record CommentEvent(
     string Xpath,
     string Selector,
     string Comment,
-    string? DebugJson) : WebViewerEvent;
+    string? DebugJson,
+    string? Url = null,
+    string? Text = null,
+    string? AttrsJson = null,
+    string? Device = null) : WebViewerEvent;
 
 /// <summary>The text of an existing comment was edited in place (the user clicked its pin).</summary>
 public record CommentUpdatedEvent(string Id, int Number, string Comment) : WebViewerEvent;
@@ -165,6 +237,12 @@ public record NavigateEvent(string Url, bool CanGoBack, bool CanGoForward) : Web
 /// come from the /__capture endpoint.</summary>
 public record CaptureEvent(string Url, string Path, int Width, int Height, string Mode) : WebViewerEvent;
 
+public record ActionEvent(string Id) : WebViewerEvent;
+
+public record DeviceChangedEvent(WebViewerDevice Device) : WebViewerEvent;
+
+public record SelectModeEvent(bool Enabled) : WebViewerEvent;
+
 // ===========================================================================
 
 public static class WebViewerExtensions
@@ -177,6 +255,12 @@ public static class WebViewerExtensions
 
     public static WebViewer Commands(this WebViewer w, IWriteStream<WebViewerCommand> commands) =>
         w with { Commands = commands };
+
+    public static WebViewer Toolbar(this WebViewer w, bool toolbar = true) =>
+        w with { Toolbar = toolbar };
+
+    public static WebViewer Actions(this WebViewer w, params WebViewerAction[] actions) =>
+        w with { Actions = actions };
 
     // NOTE: named WithOnEvent, not OnEvent. A fluent method whose name matches a
     // delegate-typed property (OnEvent) is shadowed by delegate-invocation member access

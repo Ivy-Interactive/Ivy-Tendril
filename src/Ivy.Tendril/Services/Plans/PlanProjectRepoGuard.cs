@@ -18,6 +18,9 @@ public static class PlanProjectRepoGuard
     /// </summary>
     public static void EnsureReposBelongToProject(IEnumerable<string> repoPaths, ProjectConfig project)
     {
+        if (project.IsAdHoc)
+            return;
+
         var allowed = AllowedRepoNames(project);
 
         // Fail open: a project with no repos configured gives nothing to validate against.

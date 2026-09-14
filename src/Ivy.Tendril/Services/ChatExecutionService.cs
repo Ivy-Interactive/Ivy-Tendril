@@ -38,6 +38,10 @@ public sealed class ChatExecutionService : IChatExecutionService
     private readonly IPlanDatabaseService? _database;
 
     private readonly ConcurrentDictionary<string, byte> _notifiedJobCompletions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _notifiedPlanEdits = new(StringComparer.OrdinalIgnoreCase);
+    internal sealed record DeferredPlanEdit(string Clause, string EditKey);
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<DeferredPlanEdit>> _deferredPlanEdits = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxDeferredPlanEdits = 20;
     private bool _jobServiceSubscribed;
     private readonly object _jobSubLock = new();
 
@@ -116,7 +120,9 @@ public sealed class ChatExecutionService : IChatExecutionService
             sb.AppendLine($"- Execute the plan: `tendril job start ExecutePlan {folder} --chat-session {sessionId}`");
         }
         sb.AppendLine("Questions that only need an answer, and small edits the user asks you to make directly to the plan's revision, do not need a job.");
-        sb.AppendLine("Job completions are reported back into this chat as system events.");
+        sb.AppendLine("Job completions and direct plan edits are both reported back into this chat as system events.");
+        sb.AppendLine($"So when you edit the plan directly, say why: `tendril plan write-revision {folder} --stdin --reason \"<why you changed it>\" --chat-session {sessionId}`.");
+        sb.AppendLine($"The same two options work on `tendril plan set` and `tendril plan set-verification`. `--reason` is what the plan's other chat sessions are told; `--chat-session {sessionId}` keeps the event from coming back to you.");
         return sb.ToString().TrimEnd();
     }
 
@@ -176,7 +182,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 }
                 if (!string.IsNullOrEmpty(exec.AssistantMessageId))
                 {
-                    _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false, touchUpdatedAt: false);
+                    _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, new ChatMessageUpdate(currentText ?? string.Empty, currentRaw, FlushImmediately: false, TouchUpdatedAt: false));
                 }
             }
         }
@@ -228,6 +234,87 @@ public sealed class ChatExecutionService : IChatExecutionService
             }
         }
         return string.Empty;
+    }
+
+    public string? GetStreamingMessageId(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return null;
+        return _activeExecutions.TryGetValue(sessionId, out var exec) ? exec.AssistantMessageId : null;
+    }
+
+    public void ApplyQuestionAnswers(string sessionId, IReadOnlyDictionary<string, string[]> answers)
+    {
+        if (string.IsNullOrEmpty(sessionId) || answers == null || answers.Count == 0) return;
+        if (!_activeExecutions.TryGetValue(sessionId, out var exec)) return;
+
+        lock (exec.Lock)
+        {
+            if (!string.IsNullOrEmpty(exec.LastText))
+            {
+                var lastText = exec.LastText;
+                foreach (var (qId, ansValues) in answers)
+                {
+                    if (QuestionAnswers.TryApply(lastText, new QuestionAnswer(qId, ansValues), out var updated))
+                    {
+                        lastText = updated;
+                    }
+                }
+                exec.LastText = lastText;
+            }
+
+            for (int i = 0; i < exec.RawLines.Count; i++)
+            {
+                var line = exec.RawLines[i].Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+                try
+                {
+                    var node = System.Text.Json.Nodes.JsonNode.Parse(line);
+                    if (node is not System.Text.Json.Nodes.JsonObject obj) continue;
+
+                    bool lineChanged = false;
+                    if (obj.TryGetPropertyValue("text", out var textNode) && textNode != null)
+                    {
+                        var textVal = textNode.GetValue<string>();
+                        foreach (var (qId, ansValues) in answers)
+                        {
+                            if (QuestionAnswers.TryApply(textVal, new QuestionAnswer(qId, ansValues), out var updatedTextVal))
+                            {
+                                textVal = updatedTextVal;
+                                lineChanged = true;
+                            }
+                        }
+                        if (lineChanged) obj["text"] = textVal;
+                    }
+                    if (obj.TryGetPropertyValue("response", out var respNode) && respNode != null)
+                    {
+                        var respVal = respNode.GetValue<string>();
+                        bool respChanged = false;
+                        foreach (var (qId, ansValues) in answers)
+                        {
+                            if (QuestionAnswers.TryApply(respVal, new QuestionAnswer(qId, ansValues), out var updatedRespVal))
+                            {
+                                respVal = updatedRespVal;
+                                respChanged = true;
+                            }
+                        }
+                        if (respChanged)
+                        {
+                            obj["response"] = respVal;
+                            lineChanged = true;
+                        }
+                    }
+
+                    if (lineChanged)
+                    {
+                        exec.RawLines[i] = obj.ToJsonString();
+                    }
+                }
+                catch
+                {
+                    // ignore malformed lines
+                }
+            }
+        }
     }
 
     public IObservable<string> GetLiveStreamObservable(string sessionId)
@@ -314,6 +401,8 @@ public sealed class ChatExecutionService : IChatExecutionService
                 Directory.CreateDirectory(attachDir);
             }
 
+            var tempDir = Path.Combine(_configService.TendrilHome, "Attachments", "temp");
+
             foreach (var att in attList)
             {
                 try
@@ -334,6 +423,44 @@ public sealed class ChatExecutionService : IChatExecutionService
                             : att.Base64Data;
                         var bytes = Convert.FromBase64String(base64);
                         File.WriteAllBytes(filePath, bytes);
+                    }
+
+                    var tempFilePath = Path.Combine(tempDir, fileName);
+                    var tempCandidate = File.Exists(tempFilePath)
+                        ? tempFilePath
+                        : (!string.IsNullOrWhiteSpace(att.LocalPath) && File.Exists(Path.Combine(tempDir, Path.GetFileName(att.LocalPath)))
+                            ? Path.Combine(tempDir, Path.GetFileName(att.LocalPath))
+                            : null);
+
+                    if (!File.Exists(filePath) && tempCandidate != null)
+                    {
+                        if (!Directory.Exists(attachDir))
+                        {
+                            Directory.CreateDirectory(attachDir);
+                        }
+                        File.Move(tempCandidate, filePath, overwrite: true);
+                    }
+                    else if (File.Exists(filePath))
+                    {
+                        var fullFilePath = Path.GetFullPath(filePath);
+                        var fullTempDir = Path.GetFullPath(tempDir);
+                        var isInsideTemp = fullFilePath.Equals(fullTempDir, StringComparison.OrdinalIgnoreCase) ||
+                                           fullFilePath.StartsWith(fullTempDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                                           fullFilePath.StartsWith(fullTempDir + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+                        if (isInsideTemp)
+                        {
+                            var sessionFilePath = Path.Combine(attachDir, fileName);
+                            if (!Directory.Exists(attachDir))
+                            {
+                                Directory.CreateDirectory(attachDir);
+                            }
+                            if (!string.Equals(fullFilePath, Path.GetFullPath(sessionFilePath), StringComparison.OrdinalIgnoreCase))
+                            {
+                                File.Move(filePath, sessionFilePath, overwrite: true);
+                                filePath = sessionFilePath;
+                            }
+                        }
                     }
 
                     if (File.Exists(filePath))
@@ -510,9 +637,6 @@ public sealed class ChatExecutionService : IChatExecutionService
         // Launch background agent execution
         var executionTask = Task.Run(async () =>
         {
-            string? lastTextEvent = null;
-            var openToolCalls = new HashSet<string>();
-
             try
             {
                 var effortOverride = targetEffort != "default" ? AgentProviderFactory.ParseEffort(targetEffort) : null;
@@ -538,22 +662,8 @@ public sealed class ChatExecutionService : IChatExecutionService
                 {
                     try
                     {
-                        if (evt is ToolCallEvent toolCall && !string.IsNullOrEmpty(toolCall.ToolUseId))
+                        if (evt is ToolResultEvent toolResult)
                         {
-                            lock (activeExec.Lock)
-                            {
-                                openToolCalls.Add(toolCall.ToolUseId);
-                            }
-                        }
-                        else if (evt is ToolResultEvent toolResult)
-                        {
-                            if (!string.IsNullOrEmpty(toolResult.ToolUseId))
-                            {
-                                lock (activeExec.Lock)
-                                {
-                                    openToolCalls.Remove(toolResult.ToolUseId);
-                                }
-                            }
                             if (!string.IsNullOrWhiteSpace(toolResult.Output))
                             {
                                 TryTrackSpawnedJob(sessionId, toolResult.Output);
@@ -563,18 +673,9 @@ public sealed class ChatExecutionService : IChatExecutionService
                         {
                             lock (activeExec.Lock)
                             {
-                                if (textEvt.IsDelta)
-                                {
-                                    lastTextEvent = (lastTextEvent ?? "") + textEvt.Text;
-                                }
-                                else
-                                {
-                                    lastTextEvent = textEvt.Text;
-                                }
-                            }
-                            lock (activeExec.Lock)
-                            {
-                                activeExec.LastText = textEvt.Text;
+                                activeExec.LastText = textEvt.IsDelta
+                                    ? (activeExec.LastText ?? "") + textEvt.Text
+                                    : textEvt.Text;
                             }
                         }
 
@@ -598,7 +699,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                                     currentText = activeExec.LastText;
                                     currentRaw = activeExec.RawLines.Count > 0 ? string.Join("\n", activeExec.RawLines) : null;
                                 }
-                                _chatService.UpdateMessage(sessionId, assistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false, touchUpdatedAt: false);
+                                _chatService.UpdateMessage(sessionId, assistantMessageId, new ChatMessageUpdate(currentText ?? string.Empty, currentRaw, FlushImmediately: false, TouchUpdatedAt: false));
                             }
                         }
                     }
@@ -614,7 +715,22 @@ public sealed class ChatExecutionService : IChatExecutionService
                 string? fullRawStream = null;
                 lock (activeExec.Lock)
                 {
-                    collectedText = lastTextEvent ?? activeExec.LastText;
+                    collectedText = activeExec.LastText;
+
+                    // Reconcile any unclosed tool calls
+                    var missingResults = ToolStreamReconciler.BuildMissingResultLines(
+                        activeExec.RawLines,
+                        _serializer,
+                        "[No output received]",
+                        isError: true,
+                        _logger);
+
+                    foreach (var syntheticLine in missingResults)
+                    {
+                        activeExec.RawLines.Add(syntheticLine);
+                        StreamLineEmitted?.Invoke(sessionId, syntheticLine);
+                    }
+
                     if (activeExec.RawLines.Count > 0)
                         fullRawStream = string.Join("\n", activeExec.RawLines);
                 }
@@ -629,7 +745,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                         ? (result.IsSuccess ? collectedText : $"{collectedText}\n\n{failureText}")
                         : (result.IsSuccess ? "Task completed successfully." : failureText);
 
-                _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true);
+                _chatService.UpdateMessage(sessionId, assistantMessageId, new ChatMessageUpdate(responseContent, fullRawStream, FlushImmediately: true, MarkCompleted: true));
             }
             catch (OperationCanceledException)
             {
@@ -640,26 +756,21 @@ public sealed class ChatExecutionService : IChatExecutionService
                     : $"Agent execution timed out: total timeout limit of {(int)totalTimeout.TotalMinutes} minutes exceeded.";
                 lock (activeExec.Lock)
                 {
-                    collectedText = lastTextEvent ?? activeExec.LastText;
+                    collectedText = activeExec.LastText;
 
-                    foreach (var toolUseId in openToolCalls)
+                    // Reconcile any unclosed tool calls
+                    var missingResults = ToolStreamReconciler.BuildMissingResultLines(
+                        activeExec.RawLines,
+                        _serializer,
+                        "[Cancelled]",
+                        isError: true,
+                        _logger);
+
+                    foreach (var syntheticLine in missingResults)
                     {
-                        var cancelToolResult = new ToolResultEvent
-                        {
-                            Kind = AgentEventKind.ToolResult,
-                            Timestamp = DateTimeOffset.UtcNow,
-                            ToolUseId = toolUseId,
-                            Output = "[Cancelled]",
-                            IsError = true
-                        };
-                        var cancelToolJson = _serializer.Serialize(cancelToolResult);
-                        if (!string.IsNullOrEmpty(cancelToolJson))
-                        {
-                            activeExec.RawLines.Add(cancelToolJson);
-                            StreamLineEmitted?.Invoke(sessionId, cancelToolJson);
-                        }
+                        activeExec.RawLines.Add(syntheticLine);
+                        StreamLineEmitted?.Invoke(sessionId, syntheticLine);
                     }
-                    openToolCalls.Clear();
 
                     var cancelEvt = new TextEvent
                     {
@@ -685,7 +796,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                     ? $"{collectedText}\n\n{abortText}"
                     : abortText;
 
-                _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true);
+                _chatService.UpdateMessage(sessionId, assistantMessageId, new ChatMessageUpdate(responseContent, fullRawStream, FlushImmediately: true, MarkCompleted: true));
             }
             catch (Exception ex)
             {
@@ -694,26 +805,21 @@ public sealed class ChatExecutionService : IChatExecutionService
                 string? collectedText = null;
                 lock (activeExec.Lock)
                 {
-                    collectedText = lastTextEvent ?? activeExec.LastText;
+                    collectedText = activeExec.LastText;
 
-                    foreach (var toolUseId in openToolCalls)
+                    // Reconcile any unclosed tool calls
+                    var missingResults = ToolStreamReconciler.BuildMissingResultLines(
+                        activeExec.RawLines,
+                        _serializer,
+                        $"[Error: {ex.Message}]",
+                        isError: true,
+                        _logger);
+
+                    foreach (var syntheticLine in missingResults)
                     {
-                        var errToolResult = new ToolResultEvent
-                        {
-                            Kind = AgentEventKind.ToolResult,
-                            Timestamp = DateTimeOffset.UtcNow,
-                            ToolUseId = toolUseId,
-                            Output = $"[Error: {ex.Message}]",
-                            IsError = true
-                        };
-                        var errToolJson = _serializer.Serialize(errToolResult);
-                        if (!string.IsNullOrEmpty(errToolJson))
-                        {
-                            activeExec.RawLines.Add(errToolJson);
-                            StreamLineEmitted?.Invoke(sessionId, errToolJson);
-                        }
+                        activeExec.RawLines.Add(syntheticLine);
+                        StreamLineEmitted?.Invoke(sessionId, syntheticLine);
                     }
-                    openToolCalls.Clear();
 
                     var errorEvt = new ErrorEvent
                     {
@@ -738,7 +844,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                     ? $"{collectedText}\n\nError executing request: {ex.Message}"
                     : $"Error executing request: {ex.Message}";
 
-                _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true);
+                _chatService.UpdateMessage(sessionId, assistantMessageId, new ChatMessageUpdate(responseContent, fullRawStream, FlushImmediately: true, MarkCompleted: true));
             }
             finally
             {
@@ -911,49 +1017,21 @@ public sealed class ChatExecutionService : IChatExecutionService
     private void OnJobFinished(JobItem job)
     {
         if (job == null) return;
+        var edits = DrainDeferredPlanEdits(job.PlanFile);
 
         string? targetSessionId = job.ChatSessionId;
         if (string.IsNullOrEmpty(targetSessionId) && !string.IsNullOrEmpty(job.PlanFile))
         {
-            var folderName = Path.GetFileName(job.PlanFile);
-            var planReader = ResolvedPlanReaderService;
-            var plan = planReader?.GetPlanByFolder(job.PlanFile) ?? (folderName != job.PlanFile ? planReader?.GetPlanByFolder(folderName) : null);
-            targetSessionId = plan?.ChatSessionId;
-
-            if (string.IsNullOrEmpty(targetSessionId))
-            {
-                var db = ResolvedDatabase;
-                var dbPlan = db?.GetPlanByFolder(job.PlanFile) ?? (folderName != job.PlanFile ? db?.GetPlanByFolder(folderName) : null);
-                targetSessionId = dbPlan?.ChatSessionId;
-
-                if (string.IsNullOrEmpty(targetSessionId) && db != null)
-                {
-                    try
-                    {
-                        var jobs = db.GetJobsForPlan(folderName);
-                        if (jobs.Count == 0 && folderName != job.PlanFile)
-                            jobs = db.GetJobsForPlan(job.PlanFile);
-
-                        targetSessionId = jobs
-                            .Where(j => !string.IsNullOrEmpty(j.ChatSessionId))
-                            .OrderByDescending(j => j.StartedAt)
-                            .ThenByDescending(j => j.Id)
-                            .FirstOrDefault()?.ChatSessionId;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogDebug(ex, "Failed to resolve historical jobs for plan {PlanFile}", job.PlanFile);
-                    }
-                }
-            }
-
+            targetSessionId = ResolveLivePlanChatSession(job.PlanFile);
             if (!string.IsNullOrEmpty(targetSessionId))
-            {
                 job.ChatSessionId = targetSessionId;
-            }
         }
 
-        if (string.IsNullOrEmpty(targetSessionId)) return;
+        if (string.IsNullOrEmpty(targetSessionId))
+        {
+            AnnounceDeferredPlanEdits(job, edits, excludeSessionId: null);
+            return;
+        }
 
         var sess = _chatService.GetSession(targetSessionId);
         if (sess == null) return;
@@ -969,9 +1047,250 @@ public sealed class ChatExecutionService : IChatExecutionService
             : (!string.IsNullOrEmpty(job.PlanFile) ? Path.GetFileNameWithoutExtension(job.PlanFile) : job.Type);
 
         var eventMessage = $"[System Event] Job {job.Id} ({job.Type}) for '{planInfo}' has finished with status: {job.Status} ({outcomeSummary}). " +
+            DescribeEditsDuringRun(edits) +
             "Please inspect the outcome, determine whether any action is needed or if any issues occurred, and proactively guide the user on the results and next steps.";
 
         _ = SendMessageAsync(targetSessionId, eventMessage, role: "system");
+
+        var planFolder = Path.GetFileName(job.PlanFile) ?? "";
+        foreach (var edit in edits)
+            _notifiedPlanEdits.TryAdd($"{targetSessionId}:{planFolder}:{edit.EditKey}", 0);
+
+        AnnounceDeferredPlanEdits(job, edits, excludeSessionId: targetSessionId);
+    }
+
+    private string? ResolveLivePlanChatSession(string planFile)
+    {
+        var folderName = Path.GetFileName(planFile);
+        var planReader = ResolvedPlanReaderService;
+        var plan = planReader?.GetPlanByFolder(planFile)
+            ?? (folderName != planFile ? planReader?.GetPlanByFolder(folderName) : null);
+        var db = ResolvedDatabase;
+        var dbPlan = db?.GetPlanByFolder(planFile)
+            ?? (folderName != planFile ? db?.GetPlanByFolder(folderName) : null);
+
+        var candidates = new List<string?> { plan?.ChatSessionId, dbPlan?.ChatSessionId };
+
+        // The plan's own panel sessions, newest first: GetSessions is ordered by UpdatedAt.
+        candidates.AddRange(_chatService.GetSessions()
+            .Where(s => string.Equals(s.PlanFolderName, folderName, StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.Id));
+
+        if (db != null)
+        {
+            try
+            {
+                var jobs = db.GetJobsForPlan(folderName);
+                if (jobs.Count == 0 && folderName != planFile) jobs = db.GetJobsForPlan(planFile);
+                candidates.AddRange(jobs
+                    .Where(j => !string.IsNullOrEmpty(j.ChatSessionId))
+                    .OrderByDescending(j => j.StartedAt).ThenByDescending(j => j.Id)
+                    .Select(j => j.ChatSessionId));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to resolve historical jobs for plan {PlanFile}", planFile);
+            }
+        }
+
+        return candidates.FirstOrDefault(id => !string.IsNullOrEmpty(id) && _chatService.GetSession(id!) != null);
+    }
+
+    public async Task NotifyPlanEditAsync(
+        string planFolderName,
+        string summary,
+        string? reason = null,
+        string? sourceChatSessionId = null,
+        string? revisionFile = null,
+        PlanEditOrigin origin = PlanEditOrigin.Chat)
+    {
+        if (string.IsNullOrWhiteSpace(planFolderName) || string.IsNullOrWhiteSpace(summary)) return;
+
+        var plan = ResolvePlanByFolderName(planFolderName);
+        var message = BuildPlanEditEvent(plan, planFolderName, summary, reason, origin);
+
+        // A retried post must not notify twice, so key on the revision the edit produced. An edit that
+        // wrote no revision (plan set, set-verification) is keyed on the summary itself instead.
+        var editKey = !string.IsNullOrWhiteSpace(revisionFile)
+            ? revisionFile.Trim()
+            : PlanEditSummary.Fingerprint($"{summary}|{reason}");
+
+        if (TryDeferWhileAJobRuns(planFolderName, summary, reason, editKey)) return;
+
+        foreach (var sessionId in ResolvePlanEditRecipients(planFolderName, plan, sourceChatSessionId))
+        {
+            if (origin == PlanEditOrigin.Chat &&
+                !_notifiedPlanEdits.TryAdd($"{sessionId}:{planFolderName}:{editKey}", 0))
+                continue;
+
+            await SendMessageAsync(sessionId, message, role: "system");
+        }
+    }
+
+    /// <summary>
+    ///     The sessions that learn about an edit to a plan: the plan's own side-panel sessions, plus
+    ///     the general chat recorded in the plan's <c>chatSessionId</c> — usually the conversation the
+    ///     plan was created from, which is the one at risk of acting on a stale reading of it. The
+    ///     editing session itself is left out, and the list is deduplicated because those two sets
+    ///     overlap once a plan adopts its own session.
+    /// </summary>
+    private List<string> ResolvePlanEditRecipients(string planFolderName, PlanFile? plan, string? sourceChatSessionId)
+    {
+        var candidates = _chatService.GetSessions()
+            .Where(s => string.Equals(s.PlanFolderName, planFolderName, StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.Id)
+            .ToList();
+
+        if (!string.IsNullOrEmpty(plan?.ChatSessionId))
+            candidates.Add(plan.ChatSessionId);
+
+        var recipients = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sessionId in candidates)
+        {
+            if (string.IsNullOrEmpty(sessionId)) continue;
+            if (string.Equals(sessionId, sourceChatSessionId, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!seen.Add(sessionId)) continue;
+            if (_chatService.GetSession(sessionId) == null) continue;
+
+            recipients.Add(sessionId);
+        }
+
+        return recipients;
+    }
+
+    /// <summary>
+    ///     The system event announcing a plan edit, shaped like the job-completion and
+    ///     manual-execution events: what happened, then what the agent is expected to do about it.
+    /// </summary>
+    internal static string BuildPlanEditEvent(
+        PlanFile? plan,
+        string planFolderName,
+        string summary,
+        string? reason,
+        PlanEditOrigin origin = PlanEditOrigin.Chat)
+    {
+        var name = plan != null ? $"'{plan.Title}' (#{plan.Id:D5})" : $"'{planFolderName}'";
+        var reasonClause = string.IsNullOrWhiteSpace(reason)
+            ? string.Empty
+            : $" Reason: {reason.Trim().TrimEnd('.')}.";
+
+        var originClause = origin == PlanEditOrigin.UserInterface
+            ? "was edited directly by the user in the Tendril UI"
+            : "was edited directly from the plan chat";
+
+        return $"[System Event] Plan {name} {originClause}: " +
+            $"{summary.Trim().TrimEnd('.')}.{reasonClause} " +
+            "Check whether this changes your understanding of the plan, and tell the user if anything needs follow-up.";
+    }
+
+    /// <summary>
+    ///     Resolves a plan from its folder name, falling back to the database the way
+    ///     <see cref="OnJobFinished" /> does — the plans directory is not always readable from the
+    ///     process handling the event.
+    /// </summary>
+    private PlanFile? ResolvePlanByFolderName(string folderName)
+    {
+        var planReader = ResolvedPlanReaderService;
+        if (planReader != null)
+        {
+            try
+            {
+                var plan = planReader.GetPlanByFolder(Path.Combine(planReader.PlansDirectory, folderName));
+                if (plan != null) return plan;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to read plan {FolderName} while reporting a plan edit", folderName);
+            }
+        }
+
+        try
+        {
+            return ResolvedDatabase?.GetPlanByFolder(folderName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to look up plan {FolderName} in the database while reporting a plan edit", folderName);
+            return null;
+        }
+    }
+
+    private JobItem? FindRunningJobForPlan(string planFolderName) =>
+        ResolvedJobService?.GetJobs().FirstOrDefault(j =>
+            j.Status == JobStatus.Running &&
+            !string.IsNullOrEmpty(j.PlanFile) &&
+            (string.Equals(j.PlanFile, planFolderName, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(Path.GetFileName(j.PlanFile), planFolderName, StringComparison.OrdinalIgnoreCase)));
+
+    private bool TryDeferWhileAJobRuns(string planFolderName, string summary, string? reason, string editKey)
+    {
+        var job = FindRunningJobForPlan(planFolderName);
+        if (job == null) return false;
+
+        if (!_notifiedPlanEdits.TryAdd($"deferred:{planFolderName}:{editKey}", 0)) return true;
+
+        var clause = summary.Trim().TrimEnd('.');
+        if (!string.IsNullOrWhiteSpace(reason))
+            clause += $" ({reason.Trim().TrimEnd('.')})";
+
+        var queue = _deferredPlanEdits.GetOrAdd(planFolderName, _ => new ConcurrentQueue<DeferredPlanEdit>());
+        if (queue.Count < MaxDeferredPlanEdits)
+        {
+            queue.Enqueue(new DeferredPlanEdit(clause, editKey));
+        }
+
+        return true;
+    }
+
+    private List<DeferredPlanEdit> DrainDeferredPlanEdits(string? planFile)
+    {
+        if (string.IsNullOrEmpty(planFile)) return [];
+
+        var folderName = Path.GetFileName(planFile);
+        if (string.IsNullOrEmpty(folderName)) return [];
+
+        if (!_deferredPlanEdits.TryRemove(folderName, out var queue)) return [];
+
+        var edits = new List<DeferredPlanEdit>();
+        while (queue.TryDequeue(out var edit))
+        {
+            edits.Add(edit);
+        }
+
+        return edits;
+    }
+
+    private static string DescribeEditsDuringRun(IReadOnlyList<DeferredPlanEdit> edits)
+    {
+        if (edits.Count == 0) return string.Empty;
+
+        var clauses = string.Join("; ", edits.Select(e => e.Clause));
+        return $"It edited the plan on the way: {clauses}. ";
+    }
+
+    internal static string BuildPlanEditDigestEvent(PlanFile? plan, string planFolderName, JobItem job, IReadOnlyList<DeferredPlanEdit> edits)
+    {
+        var name = plan != null ? $"'{plan.Title}' (#{plan.Id:D5})" : $"'{planFolderName}'";
+        var clauses = string.Join("; ", edits.Select(e => e.Clause));
+
+        return $"[System Event] Plan {name} was edited by job {job.Id} ({job.Type}) while it ran: {clauses}. " +
+            "Check whether this changes your understanding of the plan, and tell the user if anything needs follow-up.";
+    }
+
+    private void AnnounceDeferredPlanEdits(JobItem job, IReadOnlyList<DeferredPlanEdit> edits, string? excludeSessionId)
+    {
+        if (edits.Count == 0) return;
+        var folderName = Path.GetFileName(job.PlanFile) ?? "";
+        var plan = ResolvePlanByFolderName(folderName);
+        foreach (var sessionId in ResolvePlanEditRecipients(folderName, plan, excludeSessionId))
+        {
+            if (!_notifiedPlanEdits.TryAdd($"{sessionId}:{folderName}:job-{job.Id}", 0)) continue;
+            foreach (var edit in edits)
+                _notifiedPlanEdits.TryAdd($"{sessionId}:{folderName}:{edit.EditKey}", 0);
+            _ = SendMessageAsync(sessionId, BuildPlanEditDigestEvent(plan, folderName, job, edits), role: "system");
+        }
     }
 
     private void FlushExecution(string sessionId, ActiveChatExecution exec, string? fallbackMessage = null)
@@ -984,6 +1303,21 @@ public sealed class ChatExecutionService : IChatExecutionService
             lock (exec.Lock)
             {
                 collectedText = exec.LastText;
+
+                // Reconcile any unclosed tool calls
+                var missingResults = ToolStreamReconciler.BuildMissingResultLines(
+                    exec.RawLines,
+                    _serializer,
+                    "[Cancelled]",
+                    isError: true,
+                    _logger);
+
+                foreach (var syntheticLine in missingResults)
+                {
+                    exec.RawLines.Add(syntheticLine);
+                    StreamLineEmitted?.Invoke(sessionId, syntheticLine);
+                }
+
                 if (exec.RawLines.Count > 0)
                     fullRawStream = string.Join("\n", exec.RawLines);
             }
@@ -992,7 +1326,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 ? collectedText
                 : (fallbackMessage ?? string.Empty);
 
-            _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, content, rawStream: fullRawStream, flushImmediately: true);
+            _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, new ChatMessageUpdate(content, fullRawStream, FlushImmediately: true));
         }
         catch (Exception ex)
         {

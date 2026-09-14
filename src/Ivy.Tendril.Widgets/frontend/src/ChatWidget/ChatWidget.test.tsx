@@ -1,9 +1,10 @@
 import "./ChatWidget.testUtils";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom";
 import { ChatWidget, type ChatSessionDto } from "./ChatWidget";
 import { setupChatWidgetTestEnvironment } from "./ChatWidget.testUtils";
+import { PIN_TOP_PADDING } from "./useThreadScroll";
 
 describe("ChatWidget Running Jobs Badge and Spinner", () => {
   beforeEach(() => {
@@ -529,6 +530,210 @@ describe("ChatWidget embedded mode", () => {
     expect(container.querySelector(".chat-header--embedded")).not.toBeNull();
     expect(screen.getByRole("button", { name: "View running jobs" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Chat options" })).not.toBeInTheDocument();
+  });
+
+  it("opens the plan a spawned job reported from the header jobs menu", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [
+        { id: "00148", type: "ExecutePlan", status: "Completed", planId: "00148", planTitle: "Add login" },
+        { id: "00149", type: "ExecutePlan", status: "Running" },
+      ],
+    };
+    render(
+      <ChatWidget
+        id="chat"
+        activeSessionId="s1"
+        sessions={[session]}
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View running jobs" }));
+    expect(screen.getByText("Spawned Jobs (2)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Add login/ }));
+    expect(handleEvent).toHaveBeenCalledWith("OnOpenPlan", "chat", ["00148"]);
+    expect(screen.queryByText("Spawned Jobs (2)")).not.toBeInTheDocument();
+  });
+
+  it("opens the plan a spawned job reported from the header jobs menu in embedded mode", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [
+        { id: "00148", type: "ExecutePlan", status: "Completed", planId: "00148", planTitle: "Add login" },
+      ],
+    };
+    render(
+      <ChatWidget
+        id="embedded-chat"
+        embedded
+        activeSessionId="s1"
+        sessions={[session]}
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View running jobs" }));
+    fireEvent.click(screen.getByRole("button", { name: /Add login/ }));
+    expect(handleEvent).toHaveBeenCalledWith("OnOpenPlan", "embedded-chat", ["00148"]);
+  });
+
+  it("renders a job item without a planId as non-clickable without triggering onOpenPlan", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [
+        { id: "00149", type: "Promptware", status: "Running" },
+      ],
+    };
+    render(
+      <ChatWidget
+        id="chat"
+        activeSessionId="s1"
+        sessions={[session]}
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View running jobs" }));
+    expect(screen.queryByRole("button", { name: /00149/ })).not.toBeInTheDocument();
+    expect(screen.getByText("00149")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("00149"));
+    expect(handleEvent).not.toHaveBeenCalledWith("OnOpenPlan", expect.anything(), expect.anything());
+  });
+
+  it("renders a job item with planTitle but undefined planId as non-clickable without chevron or triggering OnOpenPlan", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [
+        { id: "00148", type: "ExecutePlan", status: "Completed", planTitle: "Add login" },
+      ],
+    };
+    render(
+      <ChatWidget
+        id="chat"
+        activeSessionId="s1"
+        sessions={[session]}
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View running jobs" }));
+    expect(screen.getByText("Add login")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Add login/ })).not.toBeInTheDocument();
+    expect(document.querySelector(".chat-job-nav-icon")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Add login"));
+    expect(handleEvent).not.toHaveBeenCalledWith("OnOpenPlan", expect.anything(), expect.anything());
+  });
+
+  it("shows the new-chat chord in the header button's tooltip", () => {
+    vi.useFakeTimers();
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [],
+    };
+    render(<ChatWidget id="chat" activeSessionId="s1" sessions={[session]} />);
+
+    fireEvent.pointerMove(screen.getByRole("button", { name: "New chat" }));
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveTextContent("New chat");
+    expect(tooltip.querySelector(".tui-kbd")?.textContent).toBe("Ctrl+Alt+A");
+    vi.useRealTimers();
+  });
+
+  it("keeps top padding when pinning the first message in embedded mode", () => {
+    const layout = { spacerTop: 60 };
+    Object.defineProperty(HTMLElement.prototype, "offsetTop", {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (this.dataset.messageId) return PIN_TOP_PADDING;
+        if (this.classList.contains("chat-scroll-spacer")) return layout.spacerTop;
+        return 0;
+      },
+    });
+
+    try {
+      const session: ChatSessionDto = {
+        id: "s1",
+        title: "Plan chat",
+        agentId: "claude",
+        modelId: "opus",
+        createdAt: "",
+        updatedAt: "",
+        messages: [],
+      };
+      render(
+        <ChatWidget id="embedded" embedded activeSessionId="s1" sessions={[session]} />,
+      );
+
+      const container = document.querySelector(".chat-messages-container") as HTMLDivElement;
+      const spacer = document.querySelector(".chat-scroll-spacer") as HTMLDivElement;
+      let scrollTop = 0;
+      Object.defineProperty(container, "clientHeight", { value: 400, configurable: true });
+      Object.defineProperty(container, "scrollHeight", {
+        get: () => layout.spacerTop + parseFloat(spacer.style.height || "0"),
+        configurable: true,
+      });
+      Object.defineProperty(container, "scrollTop", {
+        get: () => scrollTop,
+        set: (v: number) => {
+          scrollTop = v;
+        },
+        configurable: true,
+      });
+
+      fireEvent.change(screen.getByPlaceholderText(/Ask/i), { target: { value: "test" } });
+      fireEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+      // When the first message's offsetTop equals PIN_TOP_PADDING, scrolling to position 0
+      // means the padding is visible above the message, not scrolled away.
+      expect(scrollTop).toBe(0);
+    } finally {
+      delete (HTMLElement.prototype as any).offsetTop;
+    }
   });
 });
 

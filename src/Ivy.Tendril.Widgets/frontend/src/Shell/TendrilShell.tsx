@@ -4,6 +4,10 @@ import { ShellWidgetProps, isModKey } from "./types";
 import "./shell.css";
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "tendril.shell.sidebarCollapsed";
+export const SIDEBAR_WIDTH_STORAGE_KEY = "tendril.shell.sidebarWidth";
+export const DEFAULT_SIDEBAR_WIDTH = 320;
+export const MIN_SIDEBAR_WIDTH = 200;
+export const MAX_SIDEBAR_WIDTH = 640;
 
 const readStoredCollapsed = (): boolean | null => {
   try {
@@ -19,6 +23,32 @@ const readStoredCollapsed = (): boolean | null => {
 const writeStoredCollapsed = (collapsed: boolean) => {
   try {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed));
+  } catch {
+    /* storage unavailable (private mode, sandboxed host): the state just doesn't persist */
+  }
+};
+
+export const readStoredWidth = (): number | null => {
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    if (raw == null) return null;
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed >= MIN_SIDEBAR_WIDTH) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+export const writeStoredWidth = (width: number | null) => {
+  try {
+    if (width == null) {
+      window.localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(Math.round(width)));
+    }
   } catch {
     /* storage unavailable (private mode, sandboxed host): the state just doesn't persist */
   }
@@ -90,17 +120,82 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [toggle]);
 
+  const [sidebarWidth, setSidebarWidth] = useState<number>(
+    () => readStoredWidth() ?? DEFAULT_SIDEBAR_WIDTH
+  );
+  const [isResizing, setIsResizing] = useState(false);
+  const dragRef = useRef<{ startX: number; startWidth: number; currentWidth?: number } | null>(null);
+
+  const onResizerPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0 || collapsed) return;
+      e.preventDefault();
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      dragRef.current = { startX: e.clientX, startWidth: sidebarWidth, currentWidth: sidebarWidth };
+      setIsResizing(true);
+    },
+    [collapsed, sidebarWidth]
+  );
+
+  const onResizerPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    const delta = e.clientX - dragRef.current.startX;
+    const maxWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, window.innerWidth - 300));
+    const nextWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(maxWidth, dragRef.current.startWidth + delta));
+    dragRef.current.currentWidth = nextWidth;
+    setSidebarWidth(nextWidth);
+  }, []);
+
+  const onResizerPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current) return;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+      const finalWidth = dragRef.current.currentWidth ?? sidebarWidth;
+      dragRef.current = null;
+      setIsResizing(false);
+      writeStoredWidth(finalWidth);
+    },
+    [sidebarWidth]
+  );
+
+  const onResizerDoubleClick = useCallback(() => {
+    setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
+    writeStoredWidth(null);
+  }, []);
+
   const sessionPanes = React.Children.toArray(slots?.SessionContents ?? []);
   const hasActiveSession =
     activeSessionIndex != null && activeSessionIndex >= 0 && activeSessionIndex < sessionPanes.length;
 
   return (
-    <div className="tsh-root remove-parent-padding" data-collapsed={collapsed}>
+    <div
+      className="tsh-root remove-parent-padding"
+      data-collapsed={collapsed}
+      data-resizing={isResizing}
+      style={
+        {
+          "--tsh-sidebar-width": `${sidebarWidth}px`,
+        } as React.CSSProperties
+      }
+    >
       <ShellContext.Provider value={{ collapsed, toggle }}>
         <div className="tsh-sidebar">
           <div className="tsh-sidebar-header">{slots?.SidebarHeader}</div>
           <div className="tsh-sidebar-body">{slots?.SidebarBody}</div>
           <div className="tsh-sidebar-footer">{slots?.SidebarFooter}</div>
+          {!collapsed && (
+            <div
+              className="tsh-sidebar-resizer"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize sidebar"
+              onPointerDown={onResizerPointerDown}
+              onPointerMove={onResizerPointerMove}
+              onPointerUp={onResizerPointerUp}
+              onPointerCancel={onResizerPointerUp}
+              onDoubleClick={onResizerDoubleClick}
+            />
+          )}
         </div>
       </ShellContext.Provider>
       <ShellContext.Provider value={{ collapsed: false, toggle }}>

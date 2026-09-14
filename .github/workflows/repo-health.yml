@@ -15,3 +15,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/check-repo-health.sh
+      - run: bash scripts/test-skills-manifests.sh

@@ -12,4 +12,16 @@ public class ShellAgentButtonDefaultsTests
         // (Cmd+Opt+A / Ctrl+Alt+A), which is exercised by ShellAgentButton.test.tsx.
         Assert.Equal("A", new ShellAgentButton().ShortcutKey);
     }
+
+    [Fact]
+    public void Badge_Default_ReturnsNull()
+    {
+        Assert.Null(new ShellAgentButton().Badge);
+    }
+
+    [Fact]
+    public void Badge_FluentExtension_SetsValue()
+    {
+        Assert.Equal("2", new ShellAgentButton().Badge("2").Badge);
+    }
 }

@@ -29,14 +29,58 @@ public class ChatApp : ViewBase
     internal static string? PlanTag(ChatSessionModel session) =>
         string.IsNullOrEmpty(session.PlanFolderName) ? null : $"#{TendrilAppShell.FormatPlanId(session.PlanFolderName)}";
 
-    internal static ChatJobDto ToJobDto(JobItem job) => new(
-        job.Id,
-        job.Type,
-        job.Status.ToString(),
-        job.ReportedPlanId,
-        job.ReportedPlanTitle,
-        job.StatusMessage,
-        Constants.JobTypeColors.TryGetValue(job.Type, out var color) ? color.ToString() : null);
+    internal static ChatJobDto ToJobDto(JobItem job, IPlanReaderService? planService = null)
+    {
+        var planId = job.ResolvePlanId();
+        if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(job.PlanFile))
+        {
+            var extracted = PlanYamlHelper.ExtractPlanIdFromFolder(job.PlanFile);
+            if (!string.IsNullOrEmpty(extracted)) planId = extracted;
+        }
+        if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+        {
+            var extracted = PlanYamlHelper.ExtractPlanIdFromFolder(job.TypedArgs.PlanFolder);
+            if (!string.IsNullOrEmpty(extracted)) planId = extracted;
+        }
+        var resolvedPlanId = string.IsNullOrEmpty(planId) ? null : planId;
+
+        var planTitle = job.ReportedPlanTitle;
+        PlanFile? resolvedPlan = null;
+        if (resolvedPlanId != null && planService != null)
+        {
+            resolvedPlan = ContentView.FindPlan(planService, resolvedPlanId);
+            if (string.IsNullOrWhiteSpace(planTitle))
+            {
+                planTitle = resolvedPlan?.Title;
+            }
+        }
+        if (string.IsNullOrWhiteSpace(planTitle) && !string.IsNullOrEmpty(job.PlanFile))
+        {
+            planTitle = PlanYamlHelper.ExtractSafeTitleFromFolder(job.PlanFile);
+        }
+        if (string.IsNullOrWhiteSpace(planTitle) && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+        {
+            planTitle = PlanYamlHelper.ExtractSafeTitleFromFolder(job.TypedArgs.PlanFolder);
+        }
+        var resolvedPlanTitle = string.IsNullOrWhiteSpace(planTitle) ? null : planTitle;
+
+        if (resolvedPlanId != null && planService != null)
+        {
+            if (resolvedPlan == null || !Directory.Exists(resolvedPlan.FolderPath) || resolvedPlan.Status is PlanStatus.Completed or PlanStatus.Skipped)
+            {
+                resolvedPlanId = null;
+            }
+        }
+
+        return new(
+            job.Id,
+            job.Type,
+            job.Status.ToString(),
+            resolvedPlanId,
+            resolvedPlanTitle,
+            job.StatusMessage,
+            Constants.JobTypeColors.TryGetValue(job.Type, out var color) ? color.ToString() : null);
+    }
 
     internal static string? BuildRowState(
         ChatSessionModel session,
@@ -59,7 +103,10 @@ public class ChatApp : ViewBase
         IReadOnlySet<string> generatingIds,
         IReadOnlySet<string> completedIds,
         Action openSearch,
-        Action? startNewChat = null)
+        Action? startNewChat = null,
+        Action<string, string>? renameSession = null,
+        Action<string>? deleteSession = null,
+        Action<string>? togglePinSession = null)
     {
         var items = sessions
             .Select(s => new ShellSectionItemDto(
@@ -67,7 +114,8 @@ public class ChatApp : ViewBase
                 DisplayTitle(s),
                 PlanTag(s),
                 Icon: s.IsTerminal() ? "Terminal" : null,
-                State: BuildRowState(s, selectedId, generatingIds, completedIds)))
+                State: BuildRowState(s, selectedId, generatingIds, completedIds),
+                Pinned: s.IsPinned))
             .ToList();
         return new ShellSidebarListState(
             "chat", "Chats", items, selectedId,
@@ -77,7 +125,10 @@ public class ChatApp : ViewBase
             SearchLabel: "Search chats",
             OnNew: startNewChat,
             NewLabel: startNewChat != null ? "New chat" : null,
-            CollapsedMenu: true);
+            CollapsedMenu: true,
+            OnRename: renameSession,
+            OnDelete: deleteSession,
+            OnTogglePin: togglePinSession);
     }
 
     public override object Build()
@@ -88,11 +139,13 @@ public class ChatApp : ViewBase
         var executionService = UseService<IChatExecutionService>();
         var agentRunner = UseService<IAgentRunner>();
         Context.TryUseService<IJobService>(out var jobService);
+        Context.TryUseService<IPlanReaderService>(out var planService);
         Context.TryUseService<IChatAgentPreferences>(out var preferences);
         var navigator = UseNavigation();
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
         var activeSessionId = UseState<string?>(() => InitialSession()?.Id);
         var sessionVersion = UseState(0);
+        var deletingSessionId = UseState<string?>(null);
         var selectedAgent = UseState(() =>
         {
             var sess = InitialSession();
@@ -109,6 +162,8 @@ public class ChatApp : ViewBase
             var sess = InitialSession();
             if (!string.IsNullOrEmpty(sess?.ModelId)) return sess.ModelId;
             return ResolveModel(
+                agentRunner,
+                selectedAgent.Value,
                 GetModelsForAgent(agentRunner, selectedAgent.Value),
                 preferences?.Get(selectedAgent.Value).ModelId,
                 configService.Settings.LastChatModel);
@@ -120,12 +175,36 @@ public class ChatApp : ViewBase
             return preferences?.Get(selectedAgent.Value).Effort ?? configService.Settings.LastChatEffort ?? "default";
         });
         var initialHandled = UseRef(false);
+        var lastSidebarFingerprint = UseRef<string?>(null);
         var streamVersion = UseState(0);
         var (searchDialog, showSearchDialog) = UseTrigger(isOpen =>
         {
             if (!isOpen.Value) return null;
             return new ChatSearchDialog(isOpen, chatService, SelectSession);
         });
+
+        var samplePrompts = UseMemo(() =>
+        {
+            var curSess = activeSessionId.Value != null ? chatService.GetSession(activeSessionId.Value) : null;
+            if (curSess != null && curSess.Messages.Count > 0)
+            {
+                return new List<ChatSamplePromptDto>();
+            }
+
+            var runningChatJobs = jobService?.GetJobs()
+                .Where(j => j.Status is JobStatus.Running or JobStatus.Pending or JobStatus.Queued)
+                .ToList() ?? new List<JobItem>();
+
+            var candidatePlans = new List<PlanFile>();
+            if (planService != null)
+            {
+                candidatePlans.AddRange(planService.GetPlans(PlanStatus.Review));
+                candidatePlans.AddRange(planService.GetPlans(PlanStatus.Failed));
+                candidatePlans.AddRange(planService.GetPlans(PlanStatus.Blocked));
+            }
+
+            return SamplePrompts.ForChat(candidatePlans, runningChatJobs);
+        }, sessionVersion, activeSessionId);
 
         UseEffect(() =>
         {
@@ -165,6 +244,12 @@ public class ChatApp : ViewBase
                 chatService.ClearSessionCompleted(activeSessionId.Value);
             }
 
+            // Prune on entry, not only on teardown. Subscribing first means the SessionsChanged this
+            // raises reaches OnSessionsChanged, which rebuilds and republishes the sidebar list
+            // without the removed rows. A prune in the dispose callback alone races the incoming
+            // view's publish, so an abandoned chat can linger in the shell's snapshot.
+            chatService.PruneEmptySessions(activeSessionId: activeSessionId.Value);
+
             return Disposable.Create(() =>
             {
                 chatService.SessionsChanged -= OnSessionsChanged;
@@ -172,11 +257,13 @@ public class ChatApp : ViewBase
                 executionService.StreamUpdated -= OnStreamUpdated;
                 executionService.SessionGeneratingChanged -= OnSessionGeneratingChanged;
                 if (jobService != null) jobService.JobsChanged -= OnJobsChanged;
+                chatService.PruneEmptySessions();
             });
         });
 
-        // The chat session the args name, when it still exists; a bare prompt starts a fresh chat;
-        // otherwise the most recent chat. Terminal sessions belong to the AgentApp pane, never here.
+        // The chat session the args name, when it still exists; NewChat or a bare prompt starts a
+        // fresh chat; otherwise the most recent chat. Terminal sessions belong to the AgentApp pane,
+        // never here.
         ChatSessionModel? InitialSession()
         {
             if (!string.IsNullOrEmpty(args?.SessionId))
@@ -184,6 +271,7 @@ public class ChatApp : ViewBase
                 var named = chatService.GetSession(args.SessionId);
                 if (named != null && !named.IsTerminal()) return named;
             }
+            if (args?.NewChat == true) return null;
             if (!string.IsNullOrEmpty(args?.Prompt)) return null;
             return chatService.GetSessions().FirstOrDefault(s => !s.IsTerminal());
         }
@@ -196,6 +284,7 @@ public class ChatApp : ViewBase
                 navigator.Navigate(typeof(AgentApp), new AgentAppArgs(SessionId: sessionId));
                 return;
             }
+            chatService.PruneEmptySessions(activeSessionId: sessionId);
             activeSessionId.Set(sessionId);
             chatService.ClearSessionCompleted(sessionId);
             if (sess != null)
@@ -217,9 +306,10 @@ public class ChatApp : ViewBase
         var activeSession = currentSessionId != null ? chatService.GetSession(currentSessionId) : null;
         var isSessionGenerating = currentSessionId != null && executionService.IsGenerating(currentSessionId);
         var streamSnapshot = isSessionGenerating ? executionService.GetStreamSnapshot(currentSessionId!) : string.Empty;
+        var streamingMessageId = isSessionGenerating ? executionService.GetStreamingMessageId(currentSessionId!) : null;
 
         var currentModelOptions = GetModelsForAgent(agentRunner, selectedAgent.Value);
-        var effectiveModel = ResolveModel(currentModelOptions, selectedModel.Value);
+        var effectiveModel = ResolveModel(agentRunner, selectedAgent.Value, currentModelOptions, selectedModel.Value);
         var modelDtos = currentModelOptions.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList();
 
         var supportsEffort = DoesAgentSupportEffort(agentRunner, selectedAgent.Value);
@@ -231,7 +321,7 @@ public class ChatApp : ViewBase
         // Compact DTO serialization: only serialize full message history for the active session,
         // preventing massive SignalR payload bloat when a user has hundreds of sessions.
         var sessionDtos = sessions
-            .Select(s => ToSessionDto(s, s.Id == currentSessionId, executionService, jobService, chatService))
+            .Select(s => ToSessionDto(s, s.Id == currentSessionId, executionService, jobService, chatService, planService))
             .ToList();
 
         void StartNewChat()
@@ -241,8 +331,12 @@ public class ChatApp : ViewBase
                 navigator.Navigate(typeof(AgentApp), new AgentAppArgs());
                 return;
             }
-            var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort, kind: ChatSessionKinds.Chat);
-            SelectSession(newSess.Id);
+            // No session is created here: SendMessage creates one on demand, so a chat the user
+            // never types into never reaches the history. Until then the Chats list shows no row
+            // and no selection.
+            chatService.PruneEmptySessions();
+            activeSessionId.Set((string?)null);
+            navigator.Navigate(typeof(ChatApp), new ChatAppArgs(NewChat: true));
         }
 
         void SendMessage(ChatSendMessageDto dto)
@@ -297,13 +391,33 @@ public class ChatApp : ViewBase
             SendMessage(new ChatSendMessageDto(args.Prompt, null, targetId));
         }
 
-        _ = sidebarListSignal.Send(BuildSidebarList(
-            allSessions,
-            currentSessionId,
-            chatService.GetGeneratingSessionIds(),
-            chatService.GetCompletedSessionIds(),
-            showSearchDialog,
-            StartNewChat));
+        var sidebarFingerprint = $"{currentSessionId}|{allSessions.Count}|{string.Join(",", chatService.GetGeneratingSessionIds())}|{string.Join(",", chatService.GetCompletedSessionIds())}|{string.Join(",", allSessions.Where(s => s.IsPinned).Select(s => s.Id))}|{sessionVersion.Value}";
+        if (sidebarFingerprint != lastSidebarFingerprint.Value)
+        {
+            lastSidebarFingerprint.Value = sidebarFingerprint;
+            _ = sidebarListSignal.Send(BuildSidebarList(
+                allSessions,
+                currentSessionId,
+                chatService.GetGeneratingSessionIds(),
+                chatService.GetCompletedSessionIds(),
+                showSearchDialog,
+                StartNewChat,
+                (id, title) =>
+                {
+                    chatService.RenameSession(id, title);
+                    sessionVersion.Set(v => v + 1);
+                },
+                id => deletingSessionId.Set(id),
+                id =>
+                {
+                    var s = chatService.GetSession(id);
+                    if (s != null)
+                    {
+                        chatService.PinSession(id, !s.IsPinned);
+                        sessionVersion.Set(v => v + 1);
+                    }
+                }));
+        }
 
         var content = new ContentView(
             activeSession,
@@ -319,6 +433,7 @@ public class ChatApp : ViewBase
             supportsEffort,
             isSessionGenerating,
             streamSnapshot,
+            streamingMessageId,
             DashboardApp.BuildGreeting(DateTime.Now),
             "What Are We Producing Today?",
             chatService,
@@ -326,7 +441,9 @@ public class ChatApp : ViewBase
             agentRunner,
             SendMessage,
             SelectSession,
-            StartNewChat
+            StartNewChat,
+            sharedDeletingSessionId: deletingSessionId,
+            samplePrompts: samplePrompts
         );
 
         return new Fragment(content, searchDialog);
@@ -341,7 +458,8 @@ public class ChatApp : ViewBase
         bool isActive,
         IChatExecutionService executionService,
         IJobService? jobService,
-        IChatHistoryService chatService)
+        IChatHistoryService chatService,
+        IPlanReaderService? planService = null)
     {
         var isGenerating = executionService.IsGenerating(s.Id);
         var status = isGenerating ? "generating" : "done";
@@ -354,7 +472,7 @@ public class ChatApp : ViewBase
         }
 
         List<ChatJobDto>? spawnedJobs = null;
-        if (jobService != null)
+        if (isActive && jobService != null)
         {
             var combinedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -363,7 +481,10 @@ public class ChatApp : ViewBase
             {
                 if (combinedIds.Add(mj.Id))
                 {
-                    chatService.AddSpawnedJob(s.Id, mj.Id);
+                    if (s.SpawnedJobIds?.Contains(mj.Id, StringComparer.OrdinalIgnoreCase) != true)
+                    {
+                        chatService.AddSpawnedJob(s.Id, mj.Id);
+                    }
                 }
             }
 
@@ -384,6 +505,10 @@ public class ChatApp : ViewBase
                             staleIds.Add(id);
                         }
                     }
+                    else
+                    {
+                        staleIds.Add(id);
+                    }
                 }
 
                 if (staleIds.Count > 0)
@@ -398,7 +523,7 @@ public class ChatApp : ViewBase
                 {
                     var job = jobService.GetJob(jId);
                     if (job == null) return new ChatJobDto(jId, "Job", "Unknown");
-                    return ToJobDto(job);
+                    return ToJobDto(job, planService);
                 }).ToList();
             }
         }
@@ -419,7 +544,8 @@ public class ChatApp : ViewBase
                     m.AgentId,
                     m.ModelId,
                     m.RawStream,
-                    m.Effort
+                    m.Effort,
+                    CompletedAt: m.CompletedAt?.ToString("o")
                 )).ToList()
                 : [],
             status,
@@ -436,7 +562,35 @@ public class ChatApp : ViewBase
             var match = models.FirstOrDefault(m => m.Id.Equals(candidate, StringComparison.OrdinalIgnoreCase));
             if (match.Id != null) return match.Id;
         }
+
+        var defaultCandidate = models.FirstOrDefault(m =>
+            m.DisplayName.Contains("(Default)", StringComparison.OrdinalIgnoreCase) ||
+            m.DisplayName.EndsWith(" Default", StringComparison.OrdinalIgnoreCase) ||
+            m.Id.Equals("default", StringComparison.OrdinalIgnoreCase));
+        if (defaultCandidate.Id != null) return defaultCandidate.Id;
+
         return models.Count > 0 ? models[0].Id : "default";
+    }
+
+    internal static string ResolveModel(IAgentRunner runner, string agentId, IReadOnlyList<(string Id, string DisplayName)> models, params string?[]? preferred)
+    {
+        foreach (var candidate in preferred ?? [])
+        {
+            if (string.IsNullOrEmpty(candidate)) continue;
+            var match = models.FirstOrDefault(m => m.Id.Equals(candidate, StringComparison.OrdinalIgnoreCase));
+            if (match.Id != null) return match.Id;
+        }
+
+        var normalized = AgentProviderFactory.NormalizeAgentName(agentId);
+        var catalog = runner.GetModelCatalog(normalized);
+        var defaultModelId = catalog?.GetStaticModels()?.FirstOrDefault(m => m.IsDefault)?.Id;
+        if (!string.IsNullOrEmpty(defaultModelId))
+        {
+            var match = models.FirstOrDefault(m => m.Id.Equals(defaultModelId, StringComparison.OrdinalIgnoreCase));
+            if (match.Id != null) return match.Id;
+        }
+
+        return ResolveModel(models, preferred);
     }
 
     internal static string ResolveEffort(IReadOnlyList<EffortOptionDto> efforts, params string?[]? preferred)
@@ -474,7 +628,7 @@ public class ChatApp : ViewBase
             var isSelected = agentId.Equals(selectedAgent, StringComparison.OrdinalIgnoreCase);
             var preference = preferences?.Get(agentId) ?? new ChatAgentPreference();
             var agentModels = GetModelsForAgent(agentRunner, agentId);
-            var model = ResolveModel(agentModels, isSelected ? selectedModel : preference.ModelId);
+            var model = ResolveModel(agentRunner, agentId, agentModels, isSelected ? selectedModel : preference.ModelId);
             var agentEfforts = GetEffortsForAgentAndModel(agentRunner, agentId, model);
             var effort = ResolveEffort(agentEfforts, isSelected ? selectedEffort : preference.Effort);
             return new AgentOptionDto(
@@ -550,7 +704,7 @@ public class ChatApp : ViewBase
             var staticModels = catalog.GetStaticModels();
             if (staticModels != null && staticModels.Count > 0)
             {
-                var sorted = ModelCatalogSorter.Sort(staticModels);
+                var sorted = ModelCatalogSorter.Sort(staticModels, preserveDefault: true);
                 return sorted.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
             }
         }

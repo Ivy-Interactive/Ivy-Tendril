@@ -11,6 +11,7 @@ export interface ChatMessageDto {
   modelId?: string;
   rawStream?: string;
   effort?: string;
+  completedAt?: string; // ISO 8601, only set once the turn has finished
 }
 
 export interface ChatJobDto {
@@ -82,6 +83,11 @@ export interface ChatQueuedMessageDto {
   attachments?: ChatAttachmentDto[];
 }
 
+export interface ChatSamplePromptDto {
+  label: string;
+  prompt: string;
+}
+
 export interface ChatWidgetProps {
   id: string;
   activeSessionId?: string | null;
@@ -99,11 +105,14 @@ export interface ChatWidgetProps {
   supportsEffort?: boolean;
   isStreaming?: boolean;
   streamingText?: string;
+  /** Id of the in-progress assistant message the live row previews. Absent on an older host that hasn't sent it — the live row then stays read-only. */
+  streamingMessageId?: string;
   queuedMessages?: ChatQueuedMessageDto[];
   runningJobs?: ChatJobDto[];
   /** Shown above the headline while the conversation is empty, e.g. "Good Morning, Joel!". */
   greeting?: string;
   headline?: string;
+  samplePrompts?: ChatSamplePromptDto[];
   /** Hosted inside another page (the plan chat panel): no title bar, a tighter composer. */
   embedded?: boolean;
   events?: string[];

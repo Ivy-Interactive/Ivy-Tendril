@@ -2,6 +2,7 @@ using Ivy.Core.Apps;
 using Ivy.Helpers;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
@@ -22,14 +23,21 @@ public static class TendrilServer
     {
         PathHelper.AugmentPath(forceShellPath: true);
         var server = new Server();
-        server.DangerouslyAllowLocalFiles();
+        var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
+
+        ConfigureLocalFileAccess(server, configService);
+
         server.UseCulture("en-US");
 #if DEBUG
         server.UseHotReload();
 #endif
-        server.SetMetaTitle("Ivy Tendril");
+        server.SetMetaTitle(AppBrand.AppName);
 
-        var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
+        // A review action turns into a WebViewer once the app it started prints its URL
+        // (Apps/ReviewAction), and that widget proxies the app through this origin. Its
+        // endpoints have to be served here and kept out of the app router.
+        server.ReservePaths(WebViewerProxy.ReservedPaths);
+
         server.Services.AddSingleton(tendrilArgs);
         server.AddTendrilServices(configService, tendrilArgs);
 
@@ -92,6 +100,7 @@ public static class TendrilServer
                 });
             }
 
+            app.UseMiddleware<LocalFileGuardMiddleware>();
             app.UseMiddleware<ApiKeyAuthMiddleware>();
 
             if (!configService.NeedsOnboarding)
@@ -128,6 +137,11 @@ public static class TendrilServer
                 }
             });
             app.UseAssets(server.Args, app.Services.GetRequiredService<ILogger<Server>>(), "Assets", "tendril/assets");
+
+            // Fetches whatever URL its caller names, so it is held to the app being reviewed:
+            // this machine, or the network it is on. Without a predicate it is an open relay,
+            // and Tendril's origin is reachable by anyone the user shares a tunnel with.
+            app.MapWebViewerProxy(new WebViewerProxyOptions { IsUrlAllowed = AppPreview.IsAllowedTarget });
         });
 
         var assembly = typeof(TendrilServer).Assembly;
@@ -157,7 +171,7 @@ public static class TendrilServer
                 Layout.Horizontal(
                     new Image("/tendril/assets/Tendril.svg").Width(Size.Px(32)).Height(Size.Px(32)),
                     Layout.Vertical(
-                        Text.Block("Ivy Tendril").NoWrap(),
+                        Text.Block(AppBrand.AppName).NoWrap(),
                         Text.Muted($"v{versionString}").NoWrap()
                     ).Gap(0)
                 ).Gap(2).Padding(2).AlignContent(Align.Left)
@@ -168,5 +182,61 @@ public static class TendrilServer
         server.UseAppShell(() => new TendrilAppShell(appShellSettings));
 
         return server;
+    }
+
+    internal static void ConfigureLocalFileAccess(Server server, IConfigService configService)
+    {
+        var roots = GetAllowedRoots(configService);
+        var dangerouslyAllowWithRoots = typeof(Server).GetMethod("DangerouslyAllowLocalFiles", [typeof(string[])]);
+        if (dangerouslyAllowWithRoots != null)
+        {
+            dangerouslyAllowWithRoots.Invoke(server, new object[] { roots });
+        }
+        else
+        {
+            server.DangerouslyAllowLocalFiles();
+        }
+
+        var allowExtensions = typeof(Server).GetMethod("AllowLocalFileExtensions", [typeof(string[])]);
+        if (allowExtensions != null)
+        {
+            allowExtensions.Invoke(server, new object[] { LocalFileGuardMiddleware.AllowedFileExtensions });
+        }
+
+        configService.SettingsReloaded += (_, _) =>
+        {
+            RefreshRoots(server, configService);
+        };
+    }
+
+    internal static string[] GetAllowedRoots(IConfigService configService)
+    {
+        var roots = LocalFileRootPolicy.ComputeRoots(configService);
+        if (roots.Count > 0)
+        {
+            return roots.ToArray();
+        }
+
+        if (!string.IsNullOrWhiteSpace(configService.TendrilHome))
+        {
+            return [configService.TendrilHome];
+        }
+
+        return [];
+    }
+
+    internal static void RefreshRoots(Server server, IConfigService configService)
+    {
+        var roots = GetAllowedRoots(configService);
+        var rootsProp = server.Args?.GetType().GetProperty("LocalFileRoots");
+        if (rootsProp != null && rootsProp.CanWrite)
+        {
+            rootsProp.SetValue(server.Args, roots);
+        }
+        else
+        {
+            var dangerouslyAllowWithRoots = typeof(Server).GetMethod("DangerouslyAllowLocalFiles", [typeof(string[])]);
+            dangerouslyAllowWithRoots?.Invoke(server, new object[] { roots });
+        }
     }
 }

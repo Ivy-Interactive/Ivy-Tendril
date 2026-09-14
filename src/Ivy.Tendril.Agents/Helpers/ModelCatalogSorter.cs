@@ -35,7 +35,8 @@ public static class ModelCatalogSorter
         ModelInfo? defaultModel = null;
         if (preserveDefault)
         {
-            defaultModel = list.FirstOrDefault(m => m.IsDefault || m.Id.Equals("default", StringComparison.OrdinalIgnoreCase));
+            defaultModel = list.FirstOrDefault(m => m.IsDefault)
+                ?? list.FirstOrDefault(m => m.Id.Equals("default", StringComparison.OrdinalIgnoreCase));
         }
 
         var toSort = defaultModel is not null

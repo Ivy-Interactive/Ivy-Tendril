@@ -731,6 +731,8 @@ internal class JobLauncher
             values["PrComment"] = pr.Comment;
         if (!string.IsNullOrWhiteSpace(pr.BaseBranch))
             values["PrBaseBranch"] = pr.BaseBranch.Trim();
+        values["PrSignatureText"] = AppBrand.PrSignatureText;
+        values["PrSignatureUrl"] = AppBrand.PrSignatureUrl;
     }
 
     private static Dictionary<string, string> BuildJobContext(JobItem job, Dictionary<string, string> firmwareValues, string programFolder)

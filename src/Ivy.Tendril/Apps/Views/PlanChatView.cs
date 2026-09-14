@@ -94,7 +94,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
 
         var agentId = selectedAgent.Value;
         var modelOptions = ChatApp.GetModelsForAgent(agentRunner, agentId);
-        var effectiveModel = ChatApp.ResolveModel(modelOptions, selectedModel.Value);
+        var effectiveModel = ChatApp.ResolveModel(agentRunner, agentId, modelOptions, selectedModel.Value);
         var modelDtos = modelOptions.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList();
         var supportsEffort = ChatApp.DoesAgentSupportEffort(agentRunner, agentId);
         var effortOptions = ChatApp.GetEffortsForAgentAndModel(agentRunner, agentId, effectiveModel);
@@ -102,6 +102,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
 
         var isGenerating = session != null && executionService.IsGenerating(session.Id);
         var streamSnapshot = isGenerating ? executionService.GetStreamSnapshot(session!.Id) : string.Empty;
+        var streamingMessageId = isGenerating ? executionService.GetStreamingMessageId(session!.Id) : null;
         var sessionDtos = session != null
             ? [ChatApp.ToSessionDto(session, true, executionService, jobService, chatService)]
             : new List<ChatSessionDto>();
@@ -130,6 +131,8 @@ public class PlanChatView(PlanFile plan) : ViewBase
             streamVersion.Set(v => v + 1);
         }
 
+        var samplePrompts = SamplePrompts.ForPlan(plan);
+
         return new Chat.ContentView(
             session,
             activeSessionId,
@@ -144,6 +147,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
             supportsEffort,
             isGenerating,
             streamSnapshot,
+            streamingMessageId,
             $"#{plan.Id} {plan.Title}",
             Headline,
             chatService,
@@ -152,7 +156,8 @@ public class PlanChatView(PlanFile plan) : ViewBase
             SendMessage,
             id => activeSessionId.Set(id),
             startNewChat: () => { },
-            embedded: true);
+            embedded: true,
+            samplePrompts: samplePrompts);
 
         string DefaultAgent(ChatSessionModel? sess) =>
             sess?.AgentId ?? configService.Settings.CodingAgent ?? "claude";
@@ -161,7 +166,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
         {
             if (!string.IsNullOrEmpty(sess?.ModelId)) return sess.ModelId;
             var agent = DefaultAgent(sess);
-            return ChatApp.ResolveModel(ChatApp.GetModelsForAgent(agentRunner, agent), preferences?.Get(agent).ModelId);
+            return ChatApp.ResolveModel(agentRunner, agent, ChatApp.GetModelsForAgent(agentRunner, agent), preferences?.Get(agent).ModelId);
         }
 
         string DefaultEffort(ChatSessionModel? sess)

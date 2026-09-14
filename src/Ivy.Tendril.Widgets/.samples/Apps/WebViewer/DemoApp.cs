@@ -6,50 +6,80 @@ using WebViewerWidget = Ivy.Tendril.Widgets.WebViewer;
 
 namespace WidgetSamples.Apps.WebViewer;
 
-// A full web-inspector application built entirely in Ivy on top of the WebViewer widget.
-// The widget is just the proxied iframe (+ comment overlay); everything else here — the
-// toolbar, device switch, and Console/Network/Captures panels — is native Ivy UI driven
-// by the widget's typed OnEvent firehose and its Commands stream.
+// A full web-inspector application built on top of the WebViewer widget. The widget brings
+// its own chrome (navigation, address bar, element picker, viewport menu); this app adds Draw
+// and Screenshot as host actions and builds the Console/Network/Captures panels from the
+// widget's typed OnEvent firehose and its Commands stream.
 [App(title: "Inspector", icon: Icons.Globe, group: ["WebViewer"])]
 public class DemoApp : ViewBase
 {
+    private const string DrawActionId = "draw";
+    private const string ScreenshotActionId = "screenshot";
+
     public override object Build()
     {
-        const string home = "https://ivy.app";
+        var site = UseService<DemoSiteAddress>();
 
         var commands = UseStream<WebViewerCommand>();
-        var address = UseState(home);   // editable address-bar text
-        var currentUrl = UseState(home); // value bound to the widget's Url prop
+        var currentUrl = UseState(site.Home); // value bound to the widget's Url prop
         var device = UseState(WebViewerDevice.Desktop);
         var events = UseState(ImmutableList<WebViewerEvent>.Empty);
         // Comments are the one event stream that is not append-only: a pin can be edited or
         // removed from inside the page, so the live set is kept apart from the raw log.
         var comments = UseState(ImmutableList<CommentEvent>.Empty);
         var activeTab = UseState("console");
-        var canGoBack = UseState(false);
-        var canGoForward = UseState(false);
         var selecting = UseState(false);
         var drawing = UseState(false);
+
+        void SetDrawing(bool next)
+        {
+            drawing.Set(next);
+            commands.Write(new DrawModeCommand(next));
+        }
 
         // ---- the widget -----------------------------------------------------
         var viewer = new WebViewerWidget()
             .Url(currentUrl.Value)
             .Device(device.Value)
             .Commands(commands)
+            .Toolbar()
+            .Actions(
+                new WebViewerAction(DrawActionId, WebViewerIcon.Pencil, drawing.Value ? "Stop drawing" : "Draw on the page")
+                {
+                    Active = drawing.Value,
+                },
+                new WebViewerAction(ScreenshotActionId, WebViewerIcon.Camera, "Screenshot the viewport"))
             .WithOnEvent(e =>
             {
                 events.Set(prev => prev.Add(e));
                 switch (e)
                 {
                     case NavigateEvent nav:
-                        address.Set(nav.Url);
                         currentUrl.Set(nav.Url); // widget ignores this (matches current page)
-                        canGoBack.Set(nav.CanGoBack);
-                        canGoForward.Set(nav.CanGoForward);
+                        break;
+                    case DeviceChangedEvent changed:
+                        device.Set(changed.Device);
+                        break;
+                    case SelectModeEvent mode:
+                        // Select and Draw both own the page's pointer, so one gives way to the
+                        // other.
+                        selecting.Set(mode.Enabled);
+                        if (mode.Enabled && drawing.Value) SetDrawing(false);
+                        break;
+                    case ActionEvent { Id: DrawActionId }:
+                        var next = !drawing.Value;
+                        SetDrawing(next);
+                        if (next && selecting.Value)
+                        {
+                            selecting.Set(false);
+                            commands.Write(new SelectModeCommand(false));
+                        }
+                        break;
+                    case ActionEvent { Id: ScreenshotActionId }:
+                        commands.Write(new CaptureCommand("viewport"));
                         break;
                     case CommentEvent c:
                         comments.Set(prev => prev.Add(c));
-                        selecting.Set(false); // the agent stops select mode after a pick
                         break;
                     case CommentUpdatedEvent u:
                         comments.Set(prev => prev
@@ -57,7 +87,7 @@ public class DemoApp : ViewBase
                             .ToImmutableList());
                         break;
                     case CommentDeletedEvent d:
-                        // Numbers are positions, so the remaining pins renumber themselves —
+                        // Numbers are positions, so the remaining pins renumber themselves -
                         // in the page and here. Keeping arrival order is all it takes.
                         comments.Set(prev => prev
                             .RemoveAll(x => x.Id == d.Id)
@@ -68,47 +98,6 @@ public class DemoApp : ViewBase
             })
             .Width(Size.Full())
             .Height(Size.Full());
-
-        // ---- toolbar --------------------------------------------------------
-        Button DeviceBtn(string label, WebViewerDevice d)
-        {
-            var b = new Button(label).Small().OnClick(() => device.Set(d));
-            return device.Value == d ? b.Primary() : b;
-        }
-
-        var toggleSelect = new Button(selecting.Value ? "Selecting…" : "Select").Small()
-            .OnClick(() =>
-            {
-                var next = !selecting.Value;
-                selecting.Set(next);
-                commands.Write(new SelectModeCommand(next));
-                if (next && drawing.Value) { drawing.Set(false); commands.Write(new DrawModeCommand(false)); }
-            });
-        if (selecting.Value) toggleSelect = toggleSelect.Primary();
-
-        var toggleDraw = new Button(drawing.Value ? "Drawing" : "Draw").Small()
-            .OnClick(() =>
-            {
-                var next = !drawing.Value;
-                drawing.Set(next);
-                commands.Write(new DrawModeCommand(next));
-                if (next && selecting.Value) { selecting.Set(false); commands.Write(new SelectModeCommand(false)); }
-            });
-        if (drawing.Value) toggleDraw = toggleDraw.Primary();
-
-        var toolbar = Layout.Horizontal().Gap(1).Width(Size.Full())
-            | new Button("←").Small().Disabled(!canGoBack.Value).OnClick(() => commands.Write(new BackCommand()))
-            | new Button("→").Small().Disabled(!canGoForward.Value).OnClick(() => commands.Write(new ForwardCommand()))
-            | new Button("⟳").Small().OnClick(() => commands.Write(new ReloadCommand()))
-            | address.ToTextInput().Placeholder("Enter a URL").Width(Size.Full())
-                .OnSubmit(_ => currentUrl.Set(address.Value)) // Enter navigates
-            | new Button("Go").Small().Primary().OnClick(() => currentUrl.Set(address.Value))
-            | DeviceBtn("Desktop", WebViewerDevice.Desktop)
-            | DeviceBtn("Mobile", WebViewerDevice.Mobile)
-            | DeviceBtn("Tablet", WebViewerDevice.Tablet)
-            | toggleSelect
-            | toggleDraw
-            | new Button("Screenshot").Small().OnClick(() => commands.Write(new CaptureCommand("viewport")));
 
         // ---- dev-tools panel -----------------------------------------------
         // One tab per event kind in the OnEvent firehose, so each payload is rendered
@@ -164,15 +153,11 @@ public class DemoApp : ViewBase
         var panel = new HeaderLayout(tabs, panelBody).Height(Size.Full());
         if (showsTable) panel = panel.Scroll(Scroll.None);
 
-        // Toolbar in the header; the viewport (70%) and dev-tools panel (30%) share a
-        // vertical resizable split.
-        return new HeaderLayout(
-            toolbar,
-            new ResizablePanelGroup(
-                new ResizablePanel(Size.Fraction(0.70f), viewer),
-                new ResizablePanel(Size.Fraction(0.30f), panel)
-            ).Vertical()
-        ).Scroll(Scroll.None);
+        // The viewport (70%) and dev-tools panel (30%) share a vertical resizable split.
+        return new ResizablePanelGroup(
+            new ResizablePanel(Size.Fraction(0.70f), viewer),
+            new ResizablePanel(Size.Fraction(0.30f), panel)
+        ).Vertical().Height(Size.Full());
     }
 
     // ---- rendering helpers ----------------------------------------------------
@@ -193,7 +178,7 @@ public class DemoApp : ViewBase
 
     private static object RenderClicks(ImmutableList<ClickEvent> items)
     {
-        if (items.Count == 0) return Text.Muted("No clicks — click anywhere in the page");
+        if (items.Count == 0) return Text.Muted("No clicks. Click anywhere in the page");
         var rows = Recent(items)
             .Select(c => new ClickRow(
                 c.Tag,
@@ -210,7 +195,7 @@ public class DemoApp : ViewBase
     // rewrites this list, which is the whole point of the id/number pair on the events.
     private static object RenderComments(ImmutableList<CommentEvent> items)
     {
-        if (items.Count == 0) return Text.Muted("No comments — press Select, then pick an element");
+        if (items.Count == 0) return Text.Muted("No comments. Press Select in the toolbar, then pick an element");
         var rows = items.Select(c => (object)(
             Layout.Vertical().Gap(0)
             | Text.Block($"{c.Number}. {c.Comment}").Color(Colors.Blue)
@@ -224,7 +209,7 @@ public class DemoApp : ViewBase
 
     private static object RenderDraw(ImmutableList<DrawEvent> items)
     {
-        if (items.Count == 0) return Text.Muted("No strokes — press Draw and drag over the page");
+        if (items.Count == 0) return Text.Muted("No strokes. Press the pencil in the toolbar and drag over the page");
         var rows = Recent(items)
             .Select(d =>
             {
@@ -273,7 +258,7 @@ public class DemoApp : ViewBase
 
     private static object RenderCaptures(ImmutableList<CaptureEvent> items)
     {
-        if (items.Count == 0) return Text.Muted("No captures — click Screenshot");
+        if (items.Count == 0) return Text.Muted("No captures. Press the camera in the toolbar");
         var rows = Recent(items).Select(c => (object)(
             Layout.Vertical().Gap(0)
             | Text.Block($"{c.Mode} · {c.Width}×{c.Height}")

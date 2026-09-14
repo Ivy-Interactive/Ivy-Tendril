@@ -50,8 +50,12 @@ export const matchesShortcut = (e: KeyboardEvent, shortcut: string): boolean => 
   const key = keys[keys.length - 1];
   const modifiers = keys.slice(0, -1).map((modifier) => modifier.toLowerCase());
   const mac = isMac();
-  const wantCtrl = modifiers.includes("ctrl") || modifiers.includes("control") || (modifiers.includes("mod") && !mac);
-  const wantMeta = modifiers.includes("meta") || modifiers.includes("cmd") || (modifiers.includes("mod") && mac);
+  const wantCtrl =
+    modifiers.includes("ctrl") ||
+    modifiers.includes("control") ||
+    (modifiers.includes("mod") && !mac);
+  const wantMeta =
+    modifiers.includes("meta") || modifiers.includes("cmd") || (modifiers.includes("mod") && mac);
   const wantAlt = modifiers.includes("alt") || modifiers.includes("option");
   const wantShift = modifiers.includes("shift");
   if (e.ctrlKey !== wantCtrl || e.metaKey !== wantMeta || e.altKey !== wantAlt) return false;
@@ -71,7 +75,9 @@ export interface ShortcutBinding {
 
 /** A modal layer owned by the host (an Ivy dialog or sheet) takes the keyboard; page shortcuts stay quiet under it. */
 const hostModalOpen = (): boolean =>
-  !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+  !!document.querySelector(
+    '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]',
+  );
 
 /**
  * The shell keeps inactive panes mounted but `visibility: hidden`, which neither blurs a focused
@@ -79,7 +85,8 @@ const hostModalOpen = (): boolean =>
  * editable must not swallow them.
  */
 const isVisible = (element: Element): boolean => {
-  if (typeof element.checkVisibility === "function") return element.checkVisibility({ visibilityProperty: true });
+  if (typeof element.checkVisibility === "function")
+    return element.checkVisibility({ visibilityProperty: true });
   for (let node: Element | null = element; node; node = node.parentElement) {
     const style = getComputedStyle(node);
     if (style.display === "none" || style.visibility === "hidden") return false;
@@ -108,8 +115,11 @@ export const useActionShortcuts = (
       const root = rootRef?.current;
       if (root && !isVisible(root)) return;
       if (e.target instanceof Element && isEditableTarget(e) && isVisible(e.target)) return;
-      if (e.key.startsWith("Arrow") && e.target instanceof Element && e.target.closest(ARROW_OWNER)) return;
-      const hit = bindings.find((binding) => binding.shortcut && !binding.disabled && matchesShortcut(e, binding.shortcut));
+      if (e.key.startsWith("Arrow") && e.target instanceof Element && e.target.closest(ARROW_OWNER))
+        return;
+      const hit = bindings.find(
+        (binding) => binding.shortcut && !binding.disabled && matchesShortcut(e, binding.shortcut),
+      );
       if (!hit) return;
       e.preventDefault();
       fire(hit.tag);

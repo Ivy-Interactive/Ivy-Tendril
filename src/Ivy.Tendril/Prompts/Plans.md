@@ -312,7 +312,6 @@ questions:                    # 1-4 items
     header:      string       # optional, <=12 char label shown as an eyebrow above the title
     description: markdown     # optional, block markdown shown under the question
     multiple:    bool         # optional, default false; true = multi-select
-    other:       bool         # optional, default true; user may type a free value
     optional:    bool         # optional, default false; true = answering is not expected
     options:                  # 2-4 items; omit entirely for a pure free-text question
       - title:       string   # required, 1-5 words
@@ -391,19 +390,20 @@ questions:
 Use a `|` block scalar for any description spanning more than one line, so blank lines and
 indentation survive YAML parsing intact. Always quote `title`, `header`, and `description` values when they contain colons (`:`), quotes, or code snippets (e.g. `title: "Option: SQLite"` or `description: "Uses `key: val` syntax"`).
 
-Three shapes fall out of `multiple` / `other` / the presence of `options`:
+A question with options always renders an Other field for a typed answer.
+
+Three shapes fall out of `multiple` and the presence of `options`:
 
 | Shape | How |
 |---|---|
-| Single-select, fixed set | `other: false` plus options |
-| Multi-select, open set | `multiple: true` plus options |
+| Single-select | options |
+| Multi-select | `multiple: true` plus options |
 | Pure free text | no options at all |
 
 ### Answer semantics
 
 - An entry that matches an option's `value` is that option.
-- An entry that matches nothing is the user's own text. Legal when `other` is true, or when there are
-  no options.
+- An entry that matches nothing is the user's own text.
 - `multiple: true` means `answer` is always a list, even with one selection.
 - `answer` absent means not yet answered. UpdatePlan carries the block forward unchanged.
 - There is no third state. `answer` is either absent or a value — **never `null`**. A question that
@@ -438,11 +438,9 @@ revision does not consume a revision number. Fix the reported lines and retry.
 | Every question has a non-empty `id` | `question N: id is required` |
 | `id` unique across the whole revision, blocks included | `question N: duplicate question id '<id>'` |
 | At most one `recommended: true` per question | `question N: more than one option is recommended` |
-| No hand-authored option titled "Other", "Something else", "Custom" | `question N: option '<title>' duplicates what other: true provides` |
-| `other: false` with no options | `question N: other: false with no options is unanswerable` |
+| No hand-authored option titled "Other", "Something else", "Custom" | `question N: option '<title>' duplicates the Other option every question offers` |
 | `answer` is a list iff `multiple: true` | `question N: multiple: true requires a list answer` / `question N: answer must be a scalar when multiple is false` |
 | `value` unique within a question | `question N: duplicate option value '<value>'` |
-| `other: false` and an answer entry matches no option value | `question N: answer '<entry>' matches no option and other is false` |
 | `answer` is present but null | `question N: answer: null is not a state; omit the key, or mark the question optional` |
 
 Schema bounds are enforced too: 1-4 questions, a required `id` and `title`, a `header` of at most 12

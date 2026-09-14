@@ -98,15 +98,27 @@ describe("dashboard.css side block and git activity layout", () => {
     expect(css).toMatch(/\.tdb-activity\s*\{[^}]*gap:\s*5px;/);
   });
 
-  it("aligns the trailing activity label to the right to prevent clipping", () => {
-    expect(css).toMatch(/\.tdb-activity-label:last-child\s*\{[^}]*text-align:\s*right;/);
+  // Issue #2593: the trailing label's text is wider than its column, and an
+  // overflowing line is pinned to its inline start edge, so text-align alone
+  // cannot keep it inside the card. direction: rtl moves that start edge to the
+  // right, which is what actually prevents the clipping; measured 0px clipped at
+  // 280px, 360px and 600px card widths.
+  it("keeps the trailing activity label inside the card by flipping its inline direction", () => {
+    const rule = css.slice(
+      css.indexOf(".tdb-activity-label:last-child {"),
+      css.indexOf("}", css.indexOf(".tdb-activity-label:last-child {")),
+    );
+    expect(rule).toMatch(/direction:\s*rtl;/);
+    expect(rule).toMatch(/text-align:\s*right;/);
   });
 });
 
 describe("dashboard.css rolling average curve and legend", () => {
   it("defines the dashed muted average legend indicator", () => {
     expect(css).toContain(".tdb-legend-line-avg {");
-    expect(css).toMatch(/\.tdb-legend-line-avg\s*\{[^}]*border-top:\s*1\.5px dashed var\(--tdb-muted\)/);
+    expect(css).toMatch(
+      /\.tdb-legend-line-avg\s*\{[^}]*border-top:\s*1\.5px dashed var\(--tdb-muted\)/,
+    );
   });
 
   it("strokes the rolling curve with dashed pattern without filling it", () => {
@@ -158,4 +170,3 @@ describe("dashboard.css pull request bars layout and alignment", () => {
     expect(css).toMatch(/\.tdb-bars-y\s*\{[^}]*padding-bottom:\s*36px;/);
   });
 });
-

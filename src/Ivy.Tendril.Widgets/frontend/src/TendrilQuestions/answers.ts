@@ -30,11 +30,40 @@ export function entryTitle(question: PlanQuestion, entry: string): string {
   return question.options?.find((option) => option.value === entry)?.title ?? entry;
 }
 
-/** Every required question has an answer, either drafted here or already in the document. */
+/** A block is submittable once it carries at least one answer, drafted here or in the document. */
 export function canSubmitAnswers(questions: PlanQuestion[], answers: AnswerMap): boolean {
-  return questions.every(
-    (question) => question.optional || hasEntries(answers[question.id]) || question.answerPresent,
+  return questions.some((question) => hasEntries(answers[question.id]) || question.answerPresent);
+}
+
+/** Required questions with no drafted entry and no answer already in the document. */
+export function unansweredRequired(questions: PlanQuestion[], answers: AnswerMap): PlanQuestion[] {
+  return questions.filter(
+    (question) => !question.optional && !hasEntries(answers[question.id]) && !question.answerPresent,
   );
+}
+
+const TITLE_TRUNCATE_LENGTH = 60;
+
+const truncateTitle = (title: string): string =>
+  title.length > TITLE_TRUNCATE_LENGTH ? `${title.slice(0, TITLE_TRUNCATE_LENGTH - 1)}…` : title;
+
+/**
+ * The footer note explaining why Submit is disabled or what a partial submit leaves to the agent.
+ * Shared by `ChatQuestionsBlock` and `TendrilQuestions` so both surfaces read identically.
+ */
+export function submitNote(questions: PlanQuestion[], answers: AnswerMap): string | undefined {
+  const hasAnyAnswers = questions.some(
+    (question) => hasEntries(answers[question.id]) || question.answerPresent,
+  );
+  if (!hasAnyAnswers) return "Answer a question to submit.";
+
+  const missing = unansweredRequired(questions, answers);
+  if (missing.length === 0) return undefined;
+  if (missing.length === 1) {
+    const title = missing[0].title || missing[0].id;
+    return `Unanswered: "${truncateTitle(title)}". Submitting leaves it to me.`;
+  }
+  return `${missing.length} questions unanswered. Submitting leaves them to me.`;
 }
 
 /**
@@ -50,6 +79,8 @@ export function buildAnswersSummary(questions: PlanQuestion[], answers: AnswerMa
       lines.push(`- **${label}**: ${entries.map((entry) => entryTitle(question, entry)).join(", ")}`);
     } else if (question.optional) {
       lines.push(`- **${label}**: *(skipped)*`);
+    } else {
+      lines.push(`- **${label}**: *(no preference, your call)*`);
     }
   }
   return lines.join("\n");

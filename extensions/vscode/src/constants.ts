@@ -1,9 +1,15 @@
 export const COMMANDS = {
   openDashboard: 'tendril.openDashboard',
+  openInBrowser: 'tendril.openInBrowser',
   openWorktree: 'tendril.openWorktree',
   startServer: 'tendril.startServer',
   stopServer: 'tendril.stopServer',
-  restartServer: 'tendril.restartServer'
+  restartServer: 'tendril.restartServer',
+  addCurrentProject: 'tendril.addCurrentProject',
+  createPlan: 'tendril.createPlan',
+  executePlan: 'tendril.executePlan',
+  checkJobStatus: 'tendril.checkJobStatus',
+  retryPlan: 'tendril.retryPlan'
 } as const;
 
 export const VIEWS = {

@@ -33,19 +33,7 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
             var sessionId = Guid.NewGuid().ToString();
             // GeoIP enabled so we can see which countries have active users
             var appVersion = typeof(TelemetryService).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-            _client = new PostHogClient(new PostHogOptions
-            {
-                ProjectToken = "phc_uHeJHFURzThFPnizzGMzLEimLWnRAuqy8DunK8N3oYcd",
-                HostUrl = new Uri("https://eu.i.posthog.com"),
-                SuperProperties = new Dictionary<string, object>
-                {
-                    ["$session_id"] = sessionId,
-                    ["$geoip_disable"] = false,
-                    ["app_version"] = appVersion,
-                    ["os"] = Environment.OSVersion.Platform.ToString(),
-                    ["os_version"] = Environment.OSVersion.VersionString
-                }
-            });
+            _client = new PostHogClient(CreatePostHogOptions(sessionId, appVersion));
             _distinctId = GetOrCreateAnonymousId();
             _logger?.LogDebug("TelemetryService initialized with anonymous ID: {DistinctId}", _distinctId);
         }
@@ -56,6 +44,22 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
             _distinctId = "";
         }
     }
+
+    internal static PostHogOptions CreatePostHogOptions(string sessionId, string appVersion) => new()
+    {
+        ProjectToken = "phc_uHeJHFURzThFPnizzGMzLEimLWnRAuqy8DunK8N3oYcd",
+        HostUrl = new Uri("https://eu.i.posthog.com"),
+        SuperProperties = new Dictionary<string, object>
+        {
+            ["$session_id"] = sessionId,
+            ["$geoip_disable"] = false,
+            ["app_version"] = appVersion,
+            ["distribution"] = AppBrand.Distribution,
+            ["source"] = AppBrand.Distribution,
+            ["os"] = Environment.OSVersion.Platform.ToString(),
+            ["os_version"] = Environment.OSVersion.VersionString
+        }
+    };
 
     public async ValueTask DisposeAsync()
     {
@@ -82,6 +86,8 @@ public class TelemetryService : ITelemetryService, IAsyncDisposable
                 personPropertiesToSet: new Dictionary<string, object>
                 {
                     ["app_version"] = appVersion,
+                    ["distribution"] = AppBrand.Distribution,
+                    ["source"] = AppBrand.Distribution,
                     ["os"] = Environment.OSVersion.Platform.ToString(),
                     ["os_version"] = Environment.OSVersion.VersionString
                 },

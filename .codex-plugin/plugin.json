@@ -1,0 +1,21 @@
+{
+  "name": "tendril-skills",
+  "version": "1.0.0",
+  "description": "Engineering and debugging skills for Ivy Tendril plans, jobs, reviews, and extension development.",
+  "author": {
+    "name": "Ivy Interactive",
+    "url": "https://github.com/ivy-interactive"
+  },
+  "homepage": "https://github.com/ivy-interactive/ivy-tendril",
+  "repository": "https://github.com/ivy-interactive/ivy-tendril",
+  "license": "FSL-1.1-ALv2",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Tendril Skills",
+    "shortDescription": "Engineering and debugging skills for Ivy Tendril plans and workflows.",
+    "longDescription": "Tendril Skills bundles workflow automation, plan execution debugging, job log analysis, and review skills for AI coding agents.",
+    "developerName": "Ivy Interactive",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Read", "Write"]
+  }
+}

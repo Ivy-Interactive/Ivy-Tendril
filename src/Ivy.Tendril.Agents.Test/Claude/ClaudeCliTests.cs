@@ -130,13 +130,8 @@ public class ClaudeCliTests
         Assert.Contains("--output-format", spec.Arguments);
         Assert.Contains("stream-json", spec.Arguments);
         Assert.Contains("--permission-mode", spec.Arguments);
-        Assert.Contains("dontAsk", spec.Arguments);
-        Assert.Contains("--settings", spec.Arguments);
-
-        var settingsIdx = spec.Arguments.ToList().IndexOf("--settings");
-        Assert.True(settingsIdx >= 0);
-        Assert.Contains("permissions", spec.Arguments[settingsIdx + 1]);
-        Assert.Contains("allow", spec.Arguments[settingsIdx + 1]);
+        Assert.Contains("bypassPermissions", spec.Arguments);
+        Assert.DoesNotContain("--settings", spec.Arguments);
 
         Assert.Contains("-", spec.Arguments);
         Assert.Equal("Hello", spec.StdinContent);
@@ -199,7 +194,6 @@ public class ClaudeCliTests
     }
 
     [Theory]
-    [InlineData(PermissionMode.FullAuto, "dontAsk")]
     [InlineData(PermissionMode.AcceptEdits, "acceptEdits")]
     [InlineData(PermissionMode.Plan, "plan")]
     [InlineData(PermissionMode.Default, "default")]
@@ -215,6 +209,67 @@ public class ClaudeCliTests
         var spec = _cli.BuildProcessSpec(config);
         var idx = spec.Arguments.ToList().IndexOf("--permission-mode");
         Assert.Equal(expected, spec.Arguments[idx + 1]);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_FullAutoWithoutAllowedTools_UsesBypassPermissions()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.FullAuto,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var idx = spec.Arguments.ToList().IndexOf("--permission-mode");
+        Assert.True(idx >= 0);
+        Assert.Equal("bypassPermissions", spec.Arguments[idx + 1]);
+        Assert.DoesNotContain("--settings", spec.Arguments);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_FullAutoWithAllowedTools_KeepsDontAsk()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.FullAuto,
+            AllowedTools = ["Read", "Bash"],
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var idx = spec.Arguments.ToList().IndexOf("--permission-mode");
+        Assert.True(idx >= 0);
+        Assert.Equal("dontAsk", spec.Arguments[idx + 1]);
+
+        var settingsIdx = spec.Arguments.ToList().IndexOf("--settings");
+        Assert.True(settingsIdx >= 0);
+        Assert.Contains("Bash(*)", spec.Arguments[settingsIdx + 1]);
+
+        var toolsIdx = spec.Arguments.ToList().IndexOf("--tools");
+        Assert.True(toolsIdx >= 0);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_PlanModeWithoutAllowedTools_KeepsPlan()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.Plan,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var idx = spec.Arguments.ToList().IndexOf("--permission-mode");
+        Assert.True(idx >= 0);
+        Assert.Equal("plan", spec.Arguments[idx + 1]);
+        Assert.DoesNotContain("--settings", spec.Arguments);
     }
 
     [Fact]

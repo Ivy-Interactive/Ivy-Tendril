@@ -29,8 +29,10 @@ internal static class PlanChatSessions
     }
 
     /// <summary>
-    ///     Starts the plan's session. The plan learns the session id when it has none yet, so jobs
-    ///     launched from the page report their completion into this chat.
+    ///     Starts the plan's session. The plan learns the session id at once (when it has none yet),
+    ///     but the session becomes durable only with its first message. Therefore plan.ChatSessionId
+    ///     is a hint whose target must be checked before use — it may name a session that was pruned
+    ///     at restart. Jobs launched from the page report their completion into this chat.
     /// </summary>
     public static ChatSessionModel CreateForPlan(
         IChatHistoryService chatService,

@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Ivy.Core.Hooks;
 using Ivy.Desktop;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
@@ -22,11 +23,47 @@ public class ProjectRepoPickerView(
         var inputValue = UseState("");
         var addingError = UseState<string?>(null);
         var isAdding = UseState(false);
+        var syncingRepos = UseState(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        var syncError = UseState<(string RepoPath, string? BaseBranch, string Message, string? Details)?>(null);
         Context.TryUseService<DesktopWindow>(out var desktop);
         Context.TryUseService<IConfigService>(out var configService);
+        Context.TryUseService<IClientProvider>(out var client);
+        Context.TryUseService<INavigator>(out var nav);
 
         var isDesktop = desktop != null;
         var tendrilHome = configService?.TendrilHome;
+
+        async Task SyncRepoAsync(RepoRef repoRef)
+        {
+            var set = new HashSet<string>(syncingRepos.Value, StringComparer.OrdinalIgnoreCase) { repoRef.Path };
+            syncingRepos.Set(set);
+            syncError.Set(null);
+            var repoName = RepoPathValidator.ExtractRepoName(repoRef.Path) ?? repoRef.Path;
+            try
+            {
+                var res = await ProjectSyncHelper.SyncRepositoryAsync(repoRef.Path, repoRef.BaseBranch, tendrilHome);
+                if (res.Success)
+                {
+                    client?.Toast($"Repository {repoName} synchronized successfully: {res.Message}", "Synchronized");
+                }
+                else
+                {
+                    syncError.Set((res.RepoPath, res.BaseBranch, res.Message, res.GitErrorDetails));
+                    client?.Toast($"Failed to sync {repoName}: {res.Message}", "Sync Failed", variant: ToastVariant.Destructive);
+                }
+            }
+            catch (Exception ex)
+            {
+                syncError.Set((repoRef.Path, repoRef.BaseBranch, ex.Message, ex.ToString()));
+                client?.Toast($"Sync error for {repoName}: {ex.Message}", "Sync Failed", variant: ToastVariant.Destructive);
+            }
+            finally
+            {
+                var updatedSet = new HashSet<string>(syncingRepos.Value, StringComparer.OrdinalIgnoreCase);
+                updatedSet.Remove(repoRef.Path);
+                syncingRepos.Set(updatedSet);
+            }
+        }
 
         async Task AddAsync()
         {
@@ -115,6 +152,35 @@ public class ProjectRepoPickerView(
             .Loading(isAdding.Value)
             .OnClick(() => { _ = AddAsync(); });
 
+        object? syncErrorAlert = null;
+        if (syncError.Value != null)
+        {
+            var err = syncError.Value.Value;
+            var failedRepoName = RepoPathValidator.ExtractRepoName(err.RepoPath) ?? err.RepoPath;
+            var diagnosticPrompt = ProjectSyncHelper.GenerateDiagnosticPrompt(err.RepoPath, err.BaseBranch, err.Details ?? err.Message);
+
+            var errorLayout = Layout.Vertical()
+                | (Layout.Horizontal().AlignContent(Align.Center).Width(Size.Full())
+                    | new Icon(Icons.TriangleAlert, Colors.Destructive)
+                    | Text.Block($"Sync failed for {failedRepoName}: {err.Message}").Bold().Color(Colors.Destructive)
+                    | new Spacer()
+                    | new Button().Icon(Icons.X).Outline().Small().OnClick(() => syncError.Set(null)).WithTooltip("Dismiss"))
+                | (!string.IsNullOrWhiteSpace(err.Details)
+                    ? Text.Block(err.Details).Small()
+                    : null!)
+                | (Layout.Horizontal().AlignContent(Align.Center)
+                    | new Button("Fix with Agent").Icon(Icons.Bot).Small().OnClick(() =>
+                    {
+                        if (nav != null && configService != null)
+                        {
+                            ChatLauncher.Open(nav, configService, prompt: diagnosticPrompt, title: $"Fix sync: {failedRepoName}");
+                        }
+                    })
+                    | new Button("Dismiss").Outline().Small().OnClick(() => syncError.Set(null)));
+
+            syncErrorAlert = new Box(errorLayout).BorderColor(Colors.Destructive).Background(Colors.Muted).Width(Size.Full());
+        }
+
         var listLayout = Layout.Vertical();
         var current = repos.Value;
         for (var i = 0; i < current.Count; i++)
@@ -126,11 +192,12 @@ public class ProjectRepoPickerView(
 
             object? validityIcon = null;
             object pathLabel = Text.Block(GetDisplayLabel(item, tendrilHome)).Color(Colors.Primary);
+            var isGitRepo = false;
             if (isLocal)
             {
                 var expanded = VariableExpansion.ExpandVariables(item.Path, tendrilHome);
                 var pathExists = Directory.Exists(expanded);
-                var isGitRepo = pathExists && Path.Exists(Path.Combine(expanded, ".git"));
+                isGitRepo = pathExists && Path.Exists(Path.Combine(expanded, ".git"));
                 if (!isGitRepo)
                 {
                     pathLabel = Text.Block(item.Path).Color(Colors.Destructive);
@@ -141,6 +208,8 @@ public class ProjectRepoPickerView(
                 }
             }
 
+            var isSyncingThis = syncingRepos.Value.Contains(item.Path);
+
             object row = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
                          | (validityIcon ?? null!)
                          | pathLabel
@@ -148,6 +217,11 @@ public class ProjectRepoPickerView(
                          | (showBaseBranchPicker
                              ? (object)BuildBaseBranchSelector(repos, idx)
                              : null!)
+                         | new Button().Icon(Icons.RefreshCw).Outline().Small()
+                             .Loading(isSyncingThis)
+                             .Disabled(isSyncingThis || !isGitRepo)
+                             .OnClick(() => { _ = SyncRepoAsync(item); })
+                             .WithTooltip("Sync repository from remote")
                          | new Button().Icon(Icons.X).Outline().Small().OnClick(() =>
                          {
                              var list = new List<RepoRef>(repos.Value);
@@ -160,6 +234,7 @@ public class ProjectRepoPickerView(
 
         var scrollableContent = Layout.Vertical()
                | pickerControls
+               | (syncErrorAlert ?? null!)
                | (current.Count > 0 ? listLayout : null!)
                | addButton;
 

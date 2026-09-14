@@ -64,3 +64,9 @@ dist/
 publish/
 releases/
 build_local.sh
+.nuget/
+**/.nuget/
+Library/
+.claude/*
+!.claude/skills/
+

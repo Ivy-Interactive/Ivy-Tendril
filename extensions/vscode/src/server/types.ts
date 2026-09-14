@@ -30,6 +30,12 @@ export interface TendrilPlanSummary {
   level?: string;
 }
 
+export interface TendrilProjectSummary {
+  name: string;
+  color?: string;
+  repos: string[];
+}
+
 export interface ServerHealthInfo {
   isAlive: boolean;
   port?: number;

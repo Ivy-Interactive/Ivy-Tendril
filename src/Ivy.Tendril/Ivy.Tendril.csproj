@@ -60,15 +60,6 @@
     <PackageReference Include="Ivy" Version="1.4.0" />
     <PackageReference Include="Ivy.Desktop" Version="1.4.0" />
   </ItemGroup>
-  <!-- Ivy Analyser -->
-  <ItemGroup Condition="'$(IvySource)' == 'true'">
-    <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Analyser/Ivy.Analyser.csproj">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-      <OutputItemType>Analyzer</OutputItemType>
-    </ProjectReference>
-  </ItemGroup>
   <!-- Tendril ProjectReferences -->
   <ItemGroup>
     <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />

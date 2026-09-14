@@ -159,6 +159,10 @@ public record JobItem
         set => _staleOutputDetected = value;
     }
 
+    [JsonIgnore] public ResultEvent? LastResultEvent { get; set; }
+    [JsonIgnore] public DateTime? ResultReceivedAt { get; set; }
+    [JsonIgnore] public bool PostResultGraceExceeded { get; set; }
+
     // Path to the .processing inbox file for CreatePlan job recovery
     public string? InboxFile { get; set; }
 
@@ -215,6 +219,12 @@ public record JobItem
 
             if (evt is SessionInitEvent { Model: not null } initEvt)
                 Model = initEvt.Model;
+
+            if (evt is ResultEvent resultEvt)
+            {
+                LastResultEvent = resultEvt;
+                ResultReceivedAt = DateTime.UtcNow;
+            }
 
             var serialized = _eventSerializer.Serialize(evt);
             RecordEvent(serialized);
@@ -351,9 +361,7 @@ public record JobItemRow
 {
     public string Id { get; init; } = "";
     /// <summary>
-    /// Encoded animated-status string: "running:Running" while the job is running
-    /// (so the Status column shimmers), "idle:Completed" / "idle:Failed" / etc.
-    /// otherwise. Built via <see cref="Ivy.AnimatedStatusValue"/>.
+    /// Clean string representation of <see cref="JobStatus"/> (e.g. "Running", "Completed", "Timeout").
     /// </summary>
     public string Status { get; init; } = "";
     public string PlanId { get; init; } = "";
@@ -362,9 +370,13 @@ public record JobItemRow
     public string Project { get; init; } = "";
     public string Timer { get; init; } = "";
     public string AgentOutput { get; init; } = "";
-    public DateTime? LastOutputTimestamp { get; init; }
     public string Cost { get; init; } = "";
     public string Tokens { get; init; } = "";
+    /// <summary>
+    /// When the job finished, in the viewer's local time. Empty of meaning for a job that has not
+    /// reached a terminal status, which renders "-"; the Timer column carries the duration.
+    /// </summary>
+    public string Timestamp { get; init; } = "";
     public string StatusMessage { get; init; } = "";
     public string? ErrorContext { get; init; }  // Multi-line error context for tooltip/expansion
 }

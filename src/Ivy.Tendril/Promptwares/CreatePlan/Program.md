@@ -164,7 +164,10 @@ Report status: `tendril job status TendrilJobId --message="Researching codebase.
   ```
 
   The marker is how the server tells a deliberate duplicate rejection apart from a CreatePlan run
-  that simply produced nothing. Omit it and the job is recorded as **Failed**.
+  that simply produced nothing. Omit it and the job is recorded as **Failed**. `<existing plan
+  folder name>` must be a real plan folder (or its plan id) that resolves on disk; a marker whose
+  target does not resolve is ignored and the job is recorded **Failed** the same as if it were
+  omitted.
 
   Include the reasoning above the marker — the original request, the existing plan's state, and why
   it is a duplicate — so the job log carries the full record.
@@ -274,7 +277,28 @@ Adjust them as the task warrants (the user can also toggle them later in the UI;
 
 #### 4.2. Write the revision
 
-Write the revision content via CLI:
+Write the revision to a temp file in one or more appends, each its own tool call, then submit it in
+a separate final call:
+
+```bash
+cat >> /tmp/revision-<PlanId>.md <<'EOF'
+<first chunk of revision content>
+EOF
+```
+
+```bash
+cat >> /tmp/revision-<PlanId>.md <<'EOF'
+<next chunk of revision content>
+EOF
+```
+
+```bash
+tendril plan write-revision <PlanId> --file=/tmp/revision-<PlanId>.md
+```
+
+A long revision has to be split across appends so no single response has to carry the whole plan in
+one heredoc — each `cat >>` call only needs to fit that chunk, not the entire markdown. `--stdin`
+stays the right choice for short revisions that comfortably fit in one response:
 
 ```bash
 tendril plan write-revision <PlanId> --stdin <<'EOF'
@@ -284,7 +308,7 @@ EOF
 
 **The revision's first line is the `# {title}` H1 heading — it MUST be the exact same string you passed as `<Title>` to `tendril plan create` above** (human-readable Title Case, not the PascalCase folder form). The `plan.yaml` title and the spec H1 must always match.
 
-This reads from STDIN and auto-creates `Revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
+The submitting call (`--file` or `--stdin`) auto-creates `Revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`. The duplicate-candidate block described below is read from stderr of that submitting call, not from any of the append calls.
 
 **Duplicate candidates at finalization.** `write-revision` prints this to **stderr** when it finds overlapping plans, while still writing the revision and exiting 0:
 

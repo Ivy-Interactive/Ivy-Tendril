@@ -41,7 +41,7 @@ interface WidgetProps {
 
 /* C# enums arrive as their PascalCase member names; the primitives speak lowercase. */
 const lower = <T extends string>(value: string | undefined, fallback: T): T =>
-  (value ? (value.toLowerCase() as T) : fallback);
+  value ? (value.toLowerCase() as T) : fallback;
 
 /* Only these icons are bundled for TendrilIconButton; an unknown name renders the slot child
    (or nothing), so a caller that needs another icon passes it as the widget's content. */
@@ -130,7 +130,8 @@ export const TendrilBadge: React.FC<TendrilBadgeProps> = ({
   pulse = false,
 }) => {
   const badgeKind = lower<BadgeKind>(kind, "neutral");
-  if (dot) return <StatusDot tone={lower<DotTone>(dotTone, "neutral")} pulse={pulse} label={label} />;
+  if (dot)
+    return <StatusDot tone={lower<DotTone>(dotTone, "neutral")} pulse={pulse} label={label} />;
   if (count != null) return <CountBadge count={count} max={max} kind={badgeKind} label={label} />;
   return label ? <Badge kind={badgeKind}>{label}</Badge> : null;
 };

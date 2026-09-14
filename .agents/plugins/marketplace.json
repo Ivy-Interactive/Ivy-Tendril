@@ -1,0 +1,22 @@
+{
+  "name": "tendril-skills",
+  "interface": {
+    "displayName": "Tendril Skills"
+  },
+  "plugins": [
+    {
+      "name": "tendril-skills",
+      "version": "1.0.0",
+      "description": "Engineering and debugging skills for Ivy Tendril plans, jobs, reviews, and extension development.",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

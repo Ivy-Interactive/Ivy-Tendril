@@ -23,6 +23,30 @@ public sealed class OpenCodeFailureAnalyzer : IFailureAnalyzer
         var errorEvent = context.Events.OfType<ErrorEvent>().LastOrDefault();
         if (errorEvent is not null)
         {
+            if (errorEvent.Code == OpenCodeEventParser.OutputTruncatedCode)
+            {
+                return new FailureAnalysis
+                {
+                    Kind = FailureKind.OutputTruncated,
+                    Reason = errorEvent.Message,
+                    ContextLines = [errorEvent.Message],
+                    IsRetryable = true,
+                    Suggestion = "Retry with a smaller step, or raise the model's max output token limit",
+                };
+            }
+
+            if (errorEvent.Code == OpenCodeEventParser.UnhandledStopReasonCode)
+            {
+                return new FailureAnalysis
+                {
+                    Kind = FailureKind.UnhandledStopReason,
+                    Reason = errorEvent.Message,
+                    ContextLines = [errorEvent.Message],
+                    IsRetryable = true,
+                    Suggestion = "Retry the step; if this reason recurs often, the parser may need an explicit case for it",
+                };
+            }
+
             if (errorEvent.IsAuthError)
             {
                 return new FailureAnalysis

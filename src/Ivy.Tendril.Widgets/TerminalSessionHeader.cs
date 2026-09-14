@@ -17,6 +17,7 @@ public record TerminalSessionHeader : WidgetBase<TerminalSessionHeader>
     [Event] public EventHandler<Event<TerminalSessionHeader, string>>? OnDeleteSession { get; init; }
     [Event] public EventHandler<Event<TerminalSessionHeader>>? OnCreateSession { get; init; }
     [Event] public EventHandler<Event<TerminalSessionHeader>>? OnReviewJobs { get; init; }
+    [Event] public EventHandler<Event<TerminalSessionHeader, string>>? OnOpenPlan { get; init; }
 }
 
 public static class TerminalSessionHeaderExtensions
@@ -51,4 +52,7 @@ public static class TerminalSessionHeaderExtensions
 
     public static TerminalSessionHeader OnReviewJobs(this TerminalSessionHeader w, Action handler) =>
         w with { OnReviewJobs = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static TerminalSessionHeader OnOpenPlan(this TerminalSessionHeader w, Action<string> handler) =>
+        w with { OnOpenPlan = new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
 }

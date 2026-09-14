@@ -212,7 +212,16 @@ public class JobService : IJobService
         else
         {
             var success = exitCode == 0;
-            if (success)
+            if (!string.IsNullOrEmpty(job.ReportedFailureReason))
+            {
+                // A reason explicitly declared by the promptware via `tendril job fail` is a terminal
+                // verdict about its own run, so it outranks the exit code in both directions: over a
+                // stale `tendril job status` progress message, and over a zero exit from a promptware
+                // that reported the failure but never exited non-zero (issue #2626).
+                success = false;
+                job.StatusMessage = job.ReportedFailureReason;
+            }
+            else if (success)
             {
                 var errorMessage = JobFailureAnalyzer.TryExtractErrorEvent(job.OutputLines);
                 if (errorMessage != null)
@@ -229,13 +238,6 @@ public class JobService : IJobService
                         job.StatusMessage = errorMessage;
                     }
                 }
-            }
-            else if (!string.IsNullOrEmpty(job.ReportedFailureReason))
-            {
-                // A reason explicitly declared by the promptware via `tendril job fail`
-                // wins outright — including over any progress message previously set via
-                // `tendril job status` (which would otherwise leave a stale message shown).
-                job.StatusMessage = job.ReportedFailureReason;
             }
             else
             {
@@ -1125,7 +1127,7 @@ public class JobService : IJobService
         }
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
-            _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
+            FlushPendingPlanWrites();
 
         // Snapshot the plan's pre-job state and perform the start transition in one
         // place (only once the job is actually starting, not while blocked) so
@@ -1145,6 +1147,29 @@ public class JobService : IJobService
         job.SlotReserved = true;
         LaunchJob(job);
         return id;
+    }
+
+    /// <summary>
+    ///     How long <see cref="FlushPendingPlanWrites" /> waits: one full plan-lock budget for the write
+    ///     that may be parked on the lock, plus a second for the write itself. Settable for tests.
+    /// </summary>
+    internal TimeSpan PlanWriteFlushTimeout { get; set; } = PlanFileLock.AcquireBudget + TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    ///     Lets queued plan.yaml writes land before the agent reads the file — bounded, rather than
+    ///     waiting however long it takes. A queued write can be parked on the cross-process plan lock
+    ///     behind a CLI process, and blocking on that indefinitely froze whichever thread started the
+    ///     job, which is the UI thread when the user clicks Execute (#2571). Past the budget the job
+    ///     starts anyway: the agent re-reads plan.yaml itself, so a stale read here is recoverable
+    ///     where a frozen workspace is not.
+    /// </summary>
+    private void FlushPendingPlanWrites()
+    {
+        var flush = _planReaderService?.FlushPendingWritesAsync();
+        if (flush == null || flush.Wait(PlanWriteFlushTimeout)) return;
+
+        _logger.LogWarning("Pending plan writes did not flush within {TimeoutMs}ms; starting the job anyway",
+            PlanWriteFlushTimeout.TotalMilliseconds);
     }
 
     /// <summary>
@@ -1182,6 +1207,28 @@ public class JobService : IJobService
             _planReaderService.ResetVerificationsForRetry(folderName);
 
         _planReaderService.TransitionState(folderName, target.Value);
+
+        if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
+            DeletePlanChatSession(folderName);
+    }
+
+    /// <summary>
+    ///     Drops the side chat that belongs to a plan once the plan has been progressed. The
+    ///     conversation is about deciding whether to execute the draft or open the PR, so it has
+    ///     served its purpose and would otherwise linger in the chat list (#2530). Only a session
+    ///     that records this plan is removed: a plan's <c>chatSessionId</c> may still point at the
+    ///     general chat that created it, which must survive.
+    /// </summary>
+    private void DeletePlanChatSession(string folderName)
+    {
+        if (_chatHistoryService == null || string.IsNullOrEmpty(folderName)) return;
+
+        foreach (var session in _chatHistoryService.GetSessions()
+                     .Where(s => string.Equals(s.PlanFolderName, folderName, StringComparison.OrdinalIgnoreCase))
+                     .ToList())
+        {
+            _chatHistoryService.DeleteSession(session.Id);
+        }
     }
 
     private string? ResolvePlanChatSessionId(string planFolder)
@@ -1612,7 +1659,7 @@ public class JobService : IJobService
     internal static PlanYaml? ReadPlanYaml(string planFolder)
         => PlanYamlHelper.ReadPlanYaml(planFolder);
 
-    internal static void UpdatePlanYamlFields(string planFolder, params (string field, string value)[] updates)
+    internal static bool UpdatePlanYamlFields(string planFolder, params (string field, string value)[] updates)
         => PlanYamlHelper.UpdatePlanYamlFields(planFolder, updates);
 
     internal static void SetPlanStateByFolder(string planFolder, string state)
@@ -1628,8 +1675,8 @@ public class JobService : IJobService
     internal void WriteJobLog(JobItem job)
         => _completionHandler.WriteJobLog(job);
 
-    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null, string? costSource = null)
-        => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost, model, costSource);
+    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null, string? costSource = null, string? agent = null)
+        => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost, model, costSource, agent);
 
     /// <summary>
     /// Writes a cost <see cref="Services.Telemetry.CostBackfillService" /> worked out after the fact

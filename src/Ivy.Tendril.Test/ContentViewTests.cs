@@ -140,6 +140,26 @@ public class ContentViewTests
     }
 
     [Fact]
+    public void BuildFailureCallout_WithTruncatedFinalOutput_ShowsTheSection()
+    {
+        var (tendrilHome, planDir) = CreateHome(
+            "# Job Log 00007-00001-ExecutePlan\n\n- **Status:** Completed\n\n## Final Output (truncated)\n\n*Model output truncated.*\n\npartial answer\n");
+        try
+        {
+            var result = ContentView.BuildFailureCallout(CreateFailedPlan(planDir), tendrilHome);
+
+            var callout = Assert.IsType<Callout>(result);
+            Assert.Equal(CalloutVariant.Destructive, callout.Variant);
+            Assert.Equal("Execution Failed", callout.Title);
+        }
+        finally
+        {
+            if (Directory.Exists(tendrilHome))
+                Directory.Delete(tendrilHome, true);
+        }
+    }
+
+    [Fact]
     public void BuildUpdatePrompt_NumbersAnnotationsAndQuotesSelectedText()
     {
         var annotations = new[]

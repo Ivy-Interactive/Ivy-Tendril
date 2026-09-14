@@ -85,7 +85,7 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
             return 1;
         }
 
-        AnsiConsole.MarkupLine($"[green]Starting Ivy Tendril server on localhost:{server.Args.Port}...[/]");
+        AnsiConsole.MarkupLine($"[green]Starting {AppBrand.AppName} server on localhost:{server.Args.Port}...[/]");
 
         await server.RunAsync();
 

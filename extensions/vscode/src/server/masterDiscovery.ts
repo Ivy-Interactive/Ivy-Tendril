@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { DiscoveryResult, DiscoveryStatus, MasterFileData, TendrilPlanSummary } from './types';
+import { DiscoveryResult, DiscoveryStatus, MasterFileData, TendrilPlanSummary, TendrilProjectSummary } from './types';
 
 export const HEARTBEAT_TIMEOUT_MS = 90_000;
 
@@ -232,4 +232,72 @@ export async function fetchRecentPlans(
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function fetchProjects(
+  baseUrl: string,
+  apiKey?: string,
+  timeoutMs = 3000
+): Promise<TendrilProjectSummary[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const url = `${baseUrl.replace(/\/+$/, '')}/api/projects`;
+    const headers: Record<string, string> = {
+      Accept: 'application/json'
+    };
+    if (apiKey) {
+      headers['x-api-key'] = apiKey;
+    }
+
+    const res = await fetch(url, { headers, signal: controller.signal });
+    if (!res.ok) {
+      return [];
+    }
+
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      return data.map((item: Record<string, unknown>) => ({
+        name: String(item.name ?? ''),
+        color: item.color ? String(item.color) : undefined,
+        repos: Array.isArray(item.repos) ? item.repos.map((r: unknown) => String(r)) : []
+      }));
+    }
+    return [];
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function normalizeRepoPath(p: string): string {
+  if (!p) return '';
+  return path.normalize(p).replace(/[\\/]+$/, '').toLowerCase();
+}
+
+export function isWorkspaceManaged(
+  workspacePath: string,
+  projects: TendrilProjectSummary[]
+): { isManaged: boolean; projectName?: string } {
+  if (!workspacePath) {
+    return { isManaged: true };
+  }
+
+  const normalizedWs = normalizeRepoPath(workspacePath);
+  for (const project of projects) {
+    for (const repo of project.repos) {
+      const normalizedRepo = normalizeRepoPath(repo);
+      if (
+        normalizedWs === normalizedRepo ||
+        normalizedWs.startsWith(normalizedRepo + path.sep) ||
+        normalizedWs.startsWith(normalizedRepo + '/')
+      ) {
+        return { isManaged: true, projectName: project.name };
+      }
+    }
+  }
+
+  return { isManaged: false };
 }

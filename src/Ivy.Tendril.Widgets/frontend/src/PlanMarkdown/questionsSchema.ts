@@ -24,7 +24,7 @@ export interface PlanQuestion {
   description?: string;
   /** True when several options may be selected. Answers are then always a list. */
   multiple: boolean;
-  /** Whether the user may type a value of their own. Defaults to true, per the schema. */
+  /** Retired. Accepted only so revisions written before retirement still deserialize. No behavior depends on it. */
   other: boolean;
   /**
    * Whether the plan is complete without an answer. Worth asking, not worth blocking on — an index
@@ -292,7 +292,7 @@ export function parseQuestions(body: string): ParsedQuestions {
       header: optionalString(entry.header),
       description: optionalString(entry.description),
       multiple: entry.multiple === true,
-      other: entry.other !== false,
+      other: entry.other !== false, // Retired key, kept for back-compat
       optional: entry.optional === true,
       options: readOptions(entry.options),
       answer: entry.answer,

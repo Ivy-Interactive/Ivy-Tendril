@@ -8,6 +8,7 @@ import {
   documentAnswers,
   documentOtherOpen,
   hasEntries,
+  submitNote,
 } from "./answers";
 import type { AnswerMap } from "./answers";
 import "./tendril-questions.css";
@@ -100,6 +101,7 @@ export const TendrilQuestions: React.FC<TendrilQuestionsProps> = ({
           ? {
               label: submitLabel || "Submit response",
               disabled: !submitEnabled,
+              note: submitNote(questions, answers),
               onSubmit: () => emit("OnSubmit", { answers, summary: buildAnswersSummary(questions, answers) }),
             }
           : undefined

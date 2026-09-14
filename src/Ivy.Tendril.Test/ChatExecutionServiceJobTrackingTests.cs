@@ -7,6 +7,7 @@ using Ivy.Core;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
@@ -923,6 +924,153 @@ public class ChatExecutionServiceJobTrackingTests
     }
 
     [Fact]
+    public async Task JobFinished_WhenThePlansRecordedSessionIsGone_ReportsIntoThePlansOwnSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilJobFinishedDeadSessionTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var liveSession = chatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: "00042-TestPlan");
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(42, "Tendril", "NiceToHave", "Test Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: "deadsession"),
+                "# Test",
+                Path.Combine(tempDir, "00042-TestPlan"),
+                "state: Draft"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            var job = new JobItem
+            {
+                Id = "00200",
+                Type = "ExecutePlan",
+                PlanFile = plan.FolderName,
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                StatusMessage = "Plan execution finished"
+            };
+
+            fakeJobService.FireJobFinished(job);
+
+            Assert.Equal(liveSession.Id, job.ChatSessionId);
+
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            ChatSessionModel? updatedSession = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                updatedSession = chatService.GetSession(liveSession.Id);
+                if (updatedSession?.Messages.Any(m => m.Role == "system" && m.Content.Contains("Job 00200")) == true)
+                    break;
+                await Task.Delay(20);
+            }
+
+            Assert.NotNull(updatedSession);
+            var systemMsg = updatedSession.Messages.FirstOrDefault(m => m.Role == "system" && m.Content.Contains("Job 00200"));
+            Assert.NotNull(systemMsg);
+            Assert.Contains("ExecutePlan", systemMsg.Content);
+            Assert.Contains("Completed", systemMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task JobFinished_WhenThePlanHasNoLiveSessionAtAll_DispatchesNothing()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilJobFinishedNoSessionTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(42, "Tendril", "NiceToHave", "Test Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: "deadsession"),
+                "# Test",
+                Path.Combine(tempDir, "00042-TestPlan"),
+                "state: Draft"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            var job = new JobItem
+            {
+                Id = "00200",
+                Type = "ExecutePlan",
+                PlanFile = plan.FolderName,
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                StatusMessage = "Plan execution finished"
+            };
+
+            var sessionsBefore = chatService.GetSessions();
+
+            fakeJobService.FireJobFinished(job);
+
+            await Task.Delay(100);
+
+            var sessionsAfter = chatService.GetSessions();
+            Assert.Equal(sessionsBefore.Count, sessionsAfter.Count);
+            Assert.False(sessionsAfter.Any(s => s.Messages.Any(m => m.Role == "system" && m.Content.Contains("Job 00200"))));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
     public void StartJob_InheritsPlanLinkedChatSessionId_AndTracksInChatSession()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "TendrilInheritChatJobTest_" + Guid.NewGuid().ToString("N"));
@@ -1047,6 +1195,73 @@ public class ChatExecutionServiceJobTrackingTests
             Assert.NotNull(systemMsg);
             Assert.Contains(plan.Title, systemMsg.Content);
             Assert.Contains("Job job-001", systemMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CreatePr_EmitsManualApprovalSystemEventToLinkedChat()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilCreatePrApprovalTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(45, "Tendril", "NiceToHave", "Create PR Plan", PlanStatus.Review,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: session.Id),
+                "# Create PR Test",
+                Path.Combine(tempDir, "00045-CreatePrPlan"),
+                "state: Review"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            ManualApprovalAnnouncer.AnnounceCreatePr(plan, "job-005", isPrUpdate: false, chatService, execService, fakeJobService);
+
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            ChatSessionModel? updatedSession = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                updatedSession = chatService.GetSession(session.Id);
+                if (updatedSession?.Messages.Any(m => m.Role == "system" && m.Content.Contains("Manual approval granted and Create PR started")) == true)
+                    break;
+                await Task.Delay(20);
+            }
+
+            Assert.NotNull(updatedSession);
+            var systemMsg = updatedSession.Messages.FirstOrDefault(m => m.Role == "system" && m.Content.Contains("Manual approval granted and Create PR started"));
+            Assert.NotNull(systemMsg);
+            Assert.Contains(plan.Title, systemMsg.Content);
+            Assert.Contains("Job job-005", systemMsg.Content);
         }
         finally
         {
@@ -1245,6 +1460,423 @@ public class ChatExecutionServiceJobTrackingTests
         }
     }
 
+    [Fact]
+    public void CreatePr_ResolvesPendingPrQuestions_InLinkedChatSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "CreatePrQuestionsTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var questionMarkdown = """
+                Would you like me to proceed with creating the pull request?
+
+                ```questions
+                questions:
+                  - id: pr-approval
+                    title: Create PR now?
+                    options:
+                      - title: Create PR
+                        value: create-pr
+                        recommended: true
+                      - title: Cancel
+                        value: cancel
+                ```
+                """;
+
+            var msg = chatService.AddMessage(session.Id, "assistant", questionMarkdown);
+
+            var plan = new PlanFile(
+                new PlanMetadata(91, "Tendril", "NiceToHave", "PR Approval Plan", PlanStatus.Review,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: session.Id),
+                "# PR Approval Plan",
+                Path.Combine(tempDir, "00091-PrApprovalPlan"),
+                "state: Review"
+            );
+
+            var fakeJobService = new FakeChatJobService();
+            ManualApprovalAnnouncer.AnnounceCreatePr(plan, "job-003", isPrUpdate: false, chatService, chatExecution: null, fakeJobService);
+
+            var updatedSession = chatService.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var updatedMsg = updatedSession.Messages.FirstOrDefault(m => m.Id == msg.Id);
+            Assert.NotNull(updatedMsg);
+
+            var summaries = QuestionAnswers.Read(updatedMsg.Content);
+            Assert.NotEmpty(summaries);
+            var approvalQ = summaries.FirstOrDefault(q => q.Id == "pr-approval");
+            Assert.NotNull(approvalQ);
+            Assert.True(approvalQ.HasAnswer);
+            Assert.Contains("answer: create-pr", updatedMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Every LaunchAsync call returns a session that is already complete, so notifying a plan edit
+    /// never spawns a real agent CLI process. Without this, PlanEditFanOutHarness resolved "codex"
+    /// through the real TestAgentRunner registration and each SendMessageAsync launched an actual
+    /// `codex exec` subprocess against a live model, which cannot finish inside WaitForIdleAsync's
+    /// 20-second budget (plan 00462 recommendation).
+    /// </summary>
+    private sealed class InstantAgentRunner : IAgentRunner
+    {
+        private readonly IAgentRunner _inner;
+
+        public InstantAgentRunner(IAgentRunner inner) => _inner = inner;
+
+        public Task<IAgentSession> LaunchAsync(AgentResolutionContext context, CancellationToken ct = default)
+            => Task.FromResult<IAgentSession>(new InstantCompletionTestSession());
+
+        public Task<ResultEvent> RunToCompletionAsync(AgentResolutionContext context, CancellationToken ct = default)
+            => _inner.RunToCompletionAsync(context, ct);
+
+        public IReadOnlyList<IAgentSession> ActiveSessions => _inner.ActiveSessions;
+        public IObservable<IAgentSession> Sessions => _inner.Sessions;
+        public Task StopAllAsync(CancellationToken ct = default) => _inner.StopAllAsync(ct);
+        public IReadOnlyList<string> RegisteredAgents => _inner.RegisteredAgents;
+        public IAgentCli GetCli(string agentId) => _inner.GetCli(agentId);
+        public IEventParser GetParser(string agentId) => _inner.GetParser(agentId);
+        public IAgentHealthCheck GetHealthCheck(string agentId) => _inner.GetHealthCheck(agentId);
+        public IAgentDescriptor GetDescriptor(string agentId) => _inner.GetDescriptor(agentId);
+        public IFailureAnalyzer? GetFailureAnalyzer(string agentId) => _inner.GetFailureAnalyzer(agentId);
+        public ISessionCostParser? GetCostParser(string agentId) => _inner.GetCostParser(agentId);
+        public IAgentPty? GetPty(string agentId) => _inner.GetPty(agentId);
+        public IModelCatalogProvider? GetModelCatalog(string agentId) => _inner.GetModelCatalog(agentId);
+        public IEnumerable<IModelCatalogProvider> ModelCatalogs => _inner.ModelCatalogs;
+    }
+
+    private sealed class InstantCompletionTestSession : IAgentSession
+    {
+        private static readonly ResultEvent CompletedResult = new()
+        {
+            Kind = AgentEventKind.Result,
+            IsSuccess = true,
+            Response = "Task completed successfully."
+        };
+
+        public string SessionId { get; } = "sess-instant-" + Guid.NewGuid().ToString("N");
+        public string AgentId { get; } = "codex";
+        public SessionState State => SessionState.Completed;
+        public DateTimeOffset StartedAt { get; } = DateTimeOffset.UtcNow;
+        public DateTimeOffset? CompletedAt { get; } = DateTimeOffset.UtcNow;
+        public SessionMetadata? Metadata => null;
+        public IObservable<AgentEvent> Events { get; } = System.Reactive.Linq.Observable.Empty<AgentEvent>();
+        public IObservable<string>? RawOutput => null;
+        public IObservable<string>? RawStderr => null;
+        public ResultEvent? Result => CompletedResult;
+        public bool SupportsPermissionResponse => false;
+        public bool SupportsQuestionResponse => false;
+        public bool SupportsMultiTurn => false;
+
+        public Task<ResultEvent> WaitForCompletionAsync(CancellationToken ct = default) => Task.FromResult(CompletedResult);
+        public Task StopAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task KillAsync() => Task.CompletedTask;
+        public Task RespondToPermissionAsync(string requestId, PermissionDecision decision, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task RespondToQuestionAsync(string questionId, QuestionResponse response, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task SendFollowUpAsync(string message, CancellationToken ct = default) => throw new NotSupportedException();
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// A plan edited directly from one chat has to reach the plan's other sessions, or the agent that
+    /// created the plan keeps reasoning from the version it last read (plan 00400, issue #2455).
+    /// </summary>
+    private sealed class PlanEditFanOutHarness : IDisposable
+    {
+        public string TempDir { get; }
+        public ChatHistoryService ChatService { get; }
+        public ChatExecutionService ExecService { get; }
+        public PlanDatabaseService Database { get; }
+        public FakeChatJobService JobService { get; }
+
+        public PlanEditFanOutHarness(string? planChatSessionId = null, string planFolder = "00400-PlanEdits")
+        {
+            TempDir = Path.Combine(Path.GetTempPath(), "TendrilPlanEditFanOut_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(TempDir);
+
+            var configService = new ConfigService(new TendrilSettings { CodingAgent = "codex" }, TempDir);
+            ChatService = new ChatHistoryService(configService);
+
+            Database = new PlanDatabaseService(Path.Combine(TempDir, "test.db"), NullLogger<PlanDatabaseService>.Instance);
+            Plan = new PlanFile(
+                new PlanMetadata(400, "Tendril", "NiceToHave", "Notify The Master Agent", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null,
+                    ChatSessionId: planChatSessionId),
+                "# Notify",
+                Path.Combine(TempDir, planFolder),
+                "state: Draft");
+            Database.UpsertPlan(Plan);
+
+            var agentRunner = new InstantAgentRunner(TestAgentRunner.Create());
+            JobService = new FakeChatJobService();
+            ExecService = new ChatExecutionService(
+                configService,
+                ChatService,
+                agentRunner,
+                new ChatSessionNamingService(agentRunner, configService, ChatService, NullLogger<ChatSessionNamingService>.Instance),
+                new JsonEventSerializer(),
+                logger: null,
+                serviceProvider: null,
+                jobService: JobService,
+                planReaderService: null,
+                database: Database);
+        }
+
+        public PlanFile Plan { get; }
+
+        public List<string> EditEvents(string sessionId) =>
+            ChatService.GetSession(sessionId)?.Messages
+                .Where(m => m.Role == "system" && m.Content.Contains("was edited directly"))
+                .Select(m => m.Content)
+                .ToList() ?? [];
+
+        public List<string> CompletionEvents(string sessionId) =>
+            ChatService.GetSession(sessionId)?.Messages
+                .Where(m => m.Role == "system" && m.Content.Contains("has finished with status"))
+                .Select(m => m.Content)
+                .ToList() ?? [];
+
+        /// <summary>
+        /// The first event puts the session into an execution, and a system event that arrives during
+        /// one is held back rather than added to the history. Waiting for the execution to drain is
+        /// what makes a second event observable at all.
+        /// </summary>
+        public async Task WaitForIdleAsync(string sessionId) =>
+            await WaitAsync(() => !ExecService.IsGenerating(sessionId), $"session {sessionId} to stop generating");
+
+        public async Task WaitForEventsAsync(string sessionId, int count) =>
+            await WaitAsync(() => EditEvents(sessionId).Count >= count, $"{count} edit event(s) in session {sessionId}");
+
+        private static async Task WaitAsync(Func<bool> condition, string what)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(20);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (condition()) return;
+                await Task.Delay(25);
+            }
+
+            Assert.Fail($"Timed out waiting for {what}");
+        }
+
+        public void Dispose()
+        {
+            ExecService.Dispose();
+            Database.Dispose();
+            if (Directory.Exists(TempDir))
+            {
+                try { Directory.Delete(TempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_ReachesTheSidePanelSessionAndThePlansGeneralChatOnce()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var general = harness.ChatService.CreateSession("codex", "gpt-5.6-sol");
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+        harness.Database.UpsertPlan(harness.Plan with
+        {
+            Metadata = harness.Plan.Metadata with { ChatSessionId = general.Id }
+        });
+
+        await harness.ExecService.NotifyPlanEditAsync(
+            harness.Plan.FolderName,
+            "Solution changed (+12/-3 lines)",
+            reason: "the user dropped the CLI flag from scope",
+            revisionFile: "004.md");
+
+        await harness.WaitForEventsAsync(side.Id, 1);
+        await harness.WaitForEventsAsync(general.Id, 1);
+
+        Assert.Single(harness.EditEvents(side.Id));
+        Assert.Single(harness.EditEvents(general.Id));
+
+        var message = harness.EditEvents(side.Id)[0];
+        Assert.Contains("Solution changed (+12/-3 lines)", message);
+        Assert.Contains("the user dropped the CLI flag from scope", message);
+        Assert.Contains("Notify The Master Agent", message);
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_DoesNotNotifyTheSessionThatMadeTheEdit()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var general = harness.ChatService.CreateSession("codex", "gpt-5.6-sol");
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+        harness.Database.UpsertPlan(harness.Plan with
+        {
+            Metadata = harness.Plan.Metadata with { ChatSessionId = general.Id }
+        });
+
+        await harness.ExecService.NotifyPlanEditAsync(
+            harness.Plan.FolderName,
+            "state set to Review",
+            reason: "ready for review",
+            sourceChatSessionId: side.Id);
+
+        await harness.WaitForEventsAsync(general.Id, 1);
+
+        Assert.Empty(harness.EditEvents(side.Id));
+        Assert.Single(harness.EditEvents(general.Id));
+    }
+
+    /// <summary>
+    /// The CLI reports best-effort and may be retried, so the same revision must not be announced
+    /// twice — while a later revision still has to get through.
+    /// </summary>
+    [Fact]
+    public async Task NotifyPlanEdit_DeduplicatesTheSameRevisionButNotTheNextOne()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "Tests added", revisionFile: "004.md");
+        await harness.WaitForEventsAsync(side.Id, 1);
+        await harness.WaitForIdleAsync(side.Id);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "Tests added", revisionFile: "004.md");
+        Assert.Single(harness.EditEvents(side.Id));
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "Tests changed (+1/-0 lines)", revisionFile: "005.md");
+        await harness.WaitForEventsAsync(side.Id, 2);
+
+        Assert.Equal(2, harness.EditEvents(side.Id).Count);
+    }
+
+    /// <summary>
+    /// UI edits skip the dedupe check because they are in-process calls that are never retried, and
+    /// the dedupe would drop a checkbox toggled back to a status it already held once (unchecked,
+    /// rechecked, unchecked again).
+    /// </summary>
+    [Fact]
+    public async Task NotifyPlanEdit_FromTheUserInterface_AnnouncesEveryToggleIncludingARepeat()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetTest set to Skipped",
+            origin: PlanEditOrigin.UserInterface);
+        await harness.WaitForEventsAsync(side.Id, 1);
+        await harness.WaitForIdleAsync(side.Id);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetTest set to Pending",
+            origin: PlanEditOrigin.UserInterface);
+        await harness.WaitForEventsAsync(side.Id, 2);
+        await harness.WaitForIdleAsync(side.Id);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetTest set to Skipped",
+            origin: PlanEditOrigin.UserInterface);
+        await harness.WaitForEventsAsync(side.Id, 3);
+
+        Assert.Equal(3, harness.EditEvents(side.Id).Count);
+    }
+
+    /// <summary>
+    /// A UI edit (sourceChatSessionId: null) must reach every attached session including side panels,
+    /// since they all have a view of the plan that just went stale.
+    /// </summary>
+    [Fact]
+    public async Task NotifyPlanEdit_FromTheUserInterface_ReachesTheSidePanelEvenWithNoSourceSession()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var general = harness.ChatService.CreateSession("codex", "gpt-5.6-sol");
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+        harness.Database.UpsertPlan(harness.Plan with
+        {
+            Metadata = harness.Plan.Metadata with { ChatSessionId = general.Id }
+        });
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "state set to Skipped",
+            sourceChatSessionId: null, origin: PlanEditOrigin.UserInterface);
+        await harness.WaitForEventsAsync(general.Id, 1);
+        await harness.WaitForEventsAsync(side.Id, 1);
+
+        Assert.Single(harness.EditEvents(general.Id));
+        Assert.Single(harness.EditEvents(side.Id));
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WithNoSessionAttachedToThePlan_DoesNothing()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var unrelated = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: "00099-SomethingElse");
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "Problem changed (+1/-1 lines)");
+
+        Assert.Empty(harness.EditEvents(unrelated.Id));
+        Assert.False(harness.ExecService.IsGenerating(unrelated.Id));
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WithoutASummary_IsIgnored()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "   ");
+
+        Assert.Empty(harness.EditEvents(side.Id));
+    }
+
+    [Fact]
+    public void BuildPlanEditEvent_SaysWhatChangedAndWhy()
+    {
+        var plan = new PlanFile(
+            new PlanMetadata(400, "Tendril", "NiceToHave", "Notify The Master Agent", PlanStatus.Draft,
+                [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: null),
+            "# Notify", "/tmp/Plans/00400-Notify", "state: Draft");
+
+        var withReason = ChatExecutionService.BuildPlanEditEvent(
+            plan, plan.FolderName, "Solution changed (+2/-0 lines)", "the user dropped the CLI flag.");
+
+        Assert.StartsWith("[System Event] Plan 'Notify The Master Agent' (#00400) was edited directly", withReason);
+        Assert.Contains("Solution changed (+2/-0 lines). Reason: the user dropped the CLI flag.", withReason);
+
+        var withoutReason = ChatExecutionService.BuildPlanEditEvent(plan, plan.FolderName, "Tests added", null);
+        Assert.DoesNotContain("Reason:", withoutReason);
+        Assert.Contains("Tests added.", withoutReason);
+
+        // An unresolvable plan still has to produce a usable event — the folder name is what the CLI sent.
+        var unknown = ChatExecutionService.BuildPlanEditEvent(null, "00400-Notify", "Tests added", null);
+        Assert.Contains("Plan '00400-Notify' was edited directly", unknown);
+    }
+
+    [Fact]
+    public void BuildPlanEditEvent_SaysWhenTheUserEditedByHand()
+    {
+        var plan = new PlanFile(
+            new PlanMetadata(400, "Tendril", "NiceToHave", "Notify The Master Agent", PlanStatus.Draft,
+                [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: null),
+            "# Notify", "/tmp/Plans/00400-Notify", "state: Draft");
+
+        var fromUi = ChatExecutionService.BuildPlanEditEvent(
+            plan, plan.FolderName, "state set to Skipped", null, PlanEditOrigin.UserInterface);
+
+        Assert.Contains("was edited directly by the user in the Tendril UI", fromUi);
+        Assert.DoesNotContain("from the plan chat", fromUi);
+
+        var fromChat = ChatExecutionService.BuildPlanEditEvent(
+            plan, plan.FolderName, "state set to Skipped", null, PlanEditOrigin.Chat);
+        Assert.Contains("was edited directly from the plan chat", fromChat);
+
+        // Default is Chat for backward compatibility
+        var defaultOrigin = ChatExecutionService.BuildPlanEditEvent(plan, plan.FolderName, "state set to Skipped", null);
+        Assert.Contains("was edited directly from the plan chat", defaultOrigin);
+    }
+
     private class TestState<T> : IState<T>
     {
         private readonly T _initial;
@@ -1267,6 +1899,229 @@ public class ChatExecutionServiceJobTrackingTests
         public Type GetStateType() => typeof(T);
         public object? GetValueAsObject() => Value;
         public IEffectTrigger ToTrigger() => throw new NotImplementedException();
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WhileAJobRunsForThePlan_IsHeldBackAndFoldedIntoTheCompletionEvent()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetFormat set to Pass");
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetTest set to Pass");
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification CheckResult set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        Assert.Empty(harness.EditEvents(side.Id));
+        Assert.Empty(harness.CompletionEvents(side.Id));
+
+        job.Status = JobStatus.Completed;
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+
+        var completions = harness.CompletionEvents(side.Id);
+        Assert.Single(completions);
+        Assert.Contains("has finished with status", completions[0]);
+        Assert.Contains("verification DotnetFormat set to Pass", completions[0]);
+        Assert.Contains("verification DotnetBuild set to Pass", completions[0]);
+        Assert.Contains("verification DotnetTest set to Pass", completions[0]);
+        Assert.Contains("verification CheckResult set to Pass", completions[0]);
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WhileAJobRunsForAnotherPlan_IsAnnouncedImmediately()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = "00099-SomethingElse",
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForEventsAsync(side.Id, 1);
+
+        Assert.Single(harness.EditEvents(side.Id));
+    }
+
+    [Theory]
+    [InlineData(JobStatus.Queued)]
+    [InlineData(JobStatus.Pending)]
+    [InlineData(JobStatus.Blocked)]
+    public async Task NotifyPlanEdit_WithAJobThatIsNotRunning_IsAnnouncedImmediately(JobStatus status)
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = status
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForEventsAsync(side.Id, 1);
+
+        Assert.Single(harness.EditEvents(side.Id));
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WithARunningJobRecordedByFullPlanPath_IsStillHeldBack()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        Assert.Empty(harness.EditEvents(side.Id));
+
+        job.Status = JobStatus.Completed;
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+
+        Assert.Single(harness.CompletionEvents(side.Id));
+    }
+
+    [Fact]
+    public async Task JobFinished_WithNothingHeldBack_LeavesTheCompletionEventUnchanged()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Completed
+        };
+
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+
+        var completions = harness.CompletionEvents(side.Id);
+        Assert.Single(completions);
+        Assert.DoesNotContain("edited", completions[0]);
+    }
+
+    [Fact]
+    public async Task HeldBackEdits_ReachThePlansOtherSessionsExactlyOnce()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var general = harness.ChatService.CreateSession("codex", "gpt-5.6-sol");
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+        harness.Database.UpsertPlan(harness.Plan with
+        {
+            Metadata = harness.Plan.Metadata with { ChatSessionId = general.Id }
+        });
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        job.Status = JobStatus.Completed;
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+        await harness.WaitForIdleAsync(general.Id);
+
+        var sideMessages = harness.ChatService.GetSession(side.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+        var generalMessages = harness.ChatService.GetSession(general.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+
+        Assert.Single(sideMessages);
+        Assert.Single(generalMessages);
+
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+        await harness.WaitForIdleAsync(general.Id);
+
+        var sideMessagesAfter = harness.ChatService.GetSession(side.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+        var generalMessagesAfter = harness.ChatService.GetSession(general.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+
+        Assert.Single(sideMessagesAfter);
+        Assert.Single(generalMessagesAfter);
+    }
+
+    [Fact]
+    public async Task HeldBackEdit_ReportedAgainAfterTheJobFinished_IsNotAnnouncedTwice()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        var job = new JobItem
+        {
+            Id = "job-001",
+            Type = "ExecutePlan",
+            PlanFile = harness.Plan.FolderName,
+            ChatSessionId = side.Id,
+            Status = JobStatus.Running
+        };
+        harness.JobService.Jobs.Add(job);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        job.Status = JobStatus.Completed;
+        harness.JobService.FireJobFinished(job);
+        await harness.WaitForIdleAsync(side.Id);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetBuild set to Pass");
+        await harness.WaitForIdleAsync(side.Id);
+
+        var messages = harness.ChatService.GetSession(side.Id)?.Messages
+            .Where(m => m.Role == "system" && m.Content.Contains("verification DotnetBuild set to Pass"))
+            .ToList() ?? [];
+
+        Assert.Single(messages);
     }
 }
 

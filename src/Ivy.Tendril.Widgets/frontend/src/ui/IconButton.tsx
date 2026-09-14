@@ -5,8 +5,10 @@ import "./ui.css";
 export type IconButtonSize = "sm" | "md" | "lg";
 export type IconButtonVariant = "ghost" | "danger" | "solid";
 
-export interface IconButtonProps
-  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "title" | "children"> {
+export interface IconButtonProps extends Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  "title" | "children"
+> {
   /** Accessible name, and the tooltip text unless `tooltip` overrides it. */
   label: string;
   /** The icon. */
@@ -15,6 +17,8 @@ export interface IconButtonProps
   tooltip?: React.ReactNode | false;
   shortcut?: string | string[];
   tooltipSide?: TooltipSide;
+  tooltipOpen?: boolean;
+  onTooltipOpenChange?: (open: boolean) => void;
   size?: IconButtonSize;
   variant?: IconButtonVariant;
   /** Held-open look for a button whose panel is showing. */
@@ -26,22 +30,28 @@ export interface IconButtonProps
  * The bundle's one icon button: a square hit target with the shared hover surface and a shared
  * tooltip instead of a native `title`, so every icon control in the app behaves the same.
  */
-export const IconButton: React.FC<IconButtonProps> = ({
-  label,
-  children,
-  tooltip,
-  shortcut,
-  tooltipSide = "top",
-  size = "lg",
-  variant = "ghost",
-  active,
-  className = "",
-  type = "button",
-  ...rest
-}) => {
+export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
+  {
+    label,
+    children,
+    tooltip,
+    shortcut,
+    tooltipSide = "top",
+    tooltipOpen,
+    onTooltipOpenChange,
+    size = "lg",
+    variant = "ghost",
+    active,
+    className = "",
+    type = "button",
+    ...rest
+  },
+  ref,
+) {
   const button = (
     <button
       {...rest}
+      ref={ref}
       type={type}
       className={`tui-icon-btn ${className}`.trim()}
       data-size={size}
@@ -60,10 +70,12 @@ export const IconButton: React.FC<IconButtonProps> = ({
       content={tooltip ?? label}
       shortcut={shortcut}
       side={tooltipSide}
+      open={tooltipOpen}
+      onOpenChange={onTooltipOpenChange}
       wrapTrigger={"disabled" in rest}
       triggerDisabled={Boolean(rest.disabled)}
     >
       {button}
     </Tooltip>
   );
-};
+});

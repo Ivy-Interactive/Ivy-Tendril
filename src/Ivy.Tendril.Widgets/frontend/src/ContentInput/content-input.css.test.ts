@@ -29,6 +29,8 @@ describe("content-input.css theming and responsive variables", () => {
   it("uses --primary and --primary-foreground on submit buttons and split button arrows", () => {
     expect(css).toMatch(/\.civ-submit-btn\s*\{[^}]*background:\s*var\(--primary\);[^}]*color:\s*var\(--primary-foreground\);/);
     expect(css).toMatch(/\.civ-submit-btn\.civ-submit-btn-labeled\s*\{[^}]*background:\s*var\(--primary\);[^}]*color:\s*var\(--primary-foreground\);/);
+    expect(css).toMatch(/\.civ-submit-btn\.civ-submit-btn-labeled:hover:not\(:disabled\)\s*\{[^}]*color:\s*var\(--primary-foreground\);/);
+    expect(css).toMatch(/\.civ-split-btn-left:hover:not\(:disabled\)\s*\{[^}]*color:\s*var\(--primary-foreground\);/);
     expect(css).toMatch(/\.civ-split-btn-container\s*\{[^}]*background:\s*var\(--primary\);/);
     expect(css).toMatch(/\.civ-split-btn-arrow\s*\{[^}]*color:\s*var\(--primary-foreground\);/);
   });

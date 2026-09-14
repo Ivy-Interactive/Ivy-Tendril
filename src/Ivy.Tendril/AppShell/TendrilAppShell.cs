@@ -281,6 +281,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return result;
     }
 
+    /// <summary>
+    ///     The Chat row's count pill: the number of chat sessions, or null when there are none. The
+    ///     rail's chats flyout is only published while the chat page or a terminal pane is showing, so
+    ///     the count cannot be derived from it (issue #2556). The client caps the digits.
+    /// </summary>
+    internal static string? ChatRowBadge(int sessionCount) =>
+        sessionCount > 0 ? sessionCount.ToString() : null;
+
     public override object Build()
     {
         // All hooks must be at the top level of Build()
@@ -309,6 +317,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var chatService = UseService<IChatHistoryService>();
         Context.TryUseService<IChatSessionNamingService>(out var namingService);
         var sessionsVersion = UseState(0);
+        var deletingSessionId = UseState<string?>(null);
         var sessionsSignature = UseRef<string?>(null);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
@@ -409,6 +418,29 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         UseEffect(() =>
         {
+            // The summarizer flushes on a timer thread, so toasts are posted back to the context the
+            // shell was built on, which is where every other client call here happens.
+            var syncContext = SynchronizationContext.Current;
+
+            void Toast(JobNotification notification)
+            {
+                if (notification.IsSuccess)
+                    client.Toast(notification.Message, notification.Title);
+                else
+                    client.Toast(notification.Message, notification.Title).Destructive();
+            }
+
+            void ShowToast(JobNotification notification)
+            {
+                if (syncContext != null)
+                    syncContext.Post(_ => Toast(notification), null);
+                else
+                    Toast(notification);
+            }
+
+            // A wave of jobs exiting together is one toast, not one per job (#2571).
+            var summarizer = new NotificationBurstSummarizer(ShowToast);
+
             void OnNotification(JobNotification notification)
             {
                 // Read the setting at notification time: the user can toggle it in Settings while
@@ -416,14 +448,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 if (!ShouldShowInAppToast(desktopWindow != null, config.Settings.DesktopNotifications))
                     return;
 
-                if (notification.IsSuccess)
-                    client.Toast(notification.Message, notification.Title);
-                else
-                    client.Toast(notification.Message, notification.Title).Destructive();
+                summarizer.Add(notification);
             }
 
             jobService.NotificationReady += OnNotification;
-            return Disposable.Create(() => jobService.NotificationReady -= OnNotification);
+            return Disposable.Create(() =>
+            {
+                jobService.NotificationReady -= OnNotification;
+                summarizer.Dispose();
+            });
         });
 
 
@@ -766,6 +799,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             if (!CheckTabExists(closedIndex)) return;
 
+            var closedTab = tabs.Value[closedIndex];
             var wasSelected = selectedIndex.Value == closedIndex;
             var newTabs = tabs.Value.RemoveAt(closedIndex);
             int? newIndex = null;
@@ -789,6 +823,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
 
             tabs.Set(newTabs);
+
+            // PruneEmptySessions leaves terminal sessions alone, so a pane closed without anything
+            // typed into it is retired here instead. The tab is already gone from tabs, so the
+            // SessionsChanged this raises finds nothing left for CloseTabsOfDeletedSessions to close.
+            // The non-null session check keeps this a no-op when that handler is the caller.
+            if (IsAgentTab(closedTab) && chatService.GetSession(closedTab.Id) is { } closedSession
+                && (closedSession.Messages == null || closedSession.Messages.Count == 0))
+            {
+                chatService.DeleteSession(closedTab.Id);
+            }
 
             if (!wasSelected) return;
 
@@ -876,7 +920,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         var versionString = typeof(TendrilAppShell).Assembly.GetName().Version!.ToString(3);
         var sidebarHeader = new ShellSidebarHeader()
-            .Title("Ivy Tendril")
+            .Title(AppBrand.AppName)
             .Version($"v {versionString}")
             .LogoUrl("/tendril/assets/Tendril.svg");
 
@@ -928,14 +972,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             OpenApp(new NavigateArgs(AgentAppId, resumed != null ? new AgentAppArgs(SessionId: resumed) : null));
         }
 
-        void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService, agentRunner);
-
-        var chatButton = new ShellAgentButton()
-            .IsActive(chatIsActive)
-            .Label("Chat")
-            .Icon(Icons.MessageCircle.ToString())
-            .OnOpen(OpenChat)
-            .OnNewChat(StartNewChat);
+        void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService);
 
         // Plan search is always reachable from the sidebar: apps without a list (and lists
         // with no rows) get the section's full-width Search button in place of the title.
@@ -953,8 +990,29 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 chatService.GetGeneratingSessionIds(),
                 chatService.GetCompletedSessionIds(),
                 showChatSearchDialog,
-                StartNewChat);
+                StartNewChat,
+                (id, title) =>
+                {
+                    chatService.RenameSession(id, title);
+                    sessionsVersion.Set(v => v + 1);
+                },
+                id => deletingSessionId.Set(id),
+                id =>
+                {
+                    var s = chatService.GetSession(id);
+                    if (s != null)
+                    {
+                        chatService.PinSession(id, !s.IsPinned);
+                        sessionsVersion.Set(v => v + 1);
+                    }
+                });
         }
+        var deleteSessionDialog = new DeleteSessionDialog(
+            deletingSessionId,
+            deletingSessionId.Value != null ? chatService.GetSession(deletingSessionId.Value) : null,
+            chatService,
+            null,
+            sessionsVersion);
 
         ShellSidebarSection section;
         if (list != null)
@@ -971,13 +1029,36 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnSelectItem(itemId =>
                     OpenApp(new NavigateArgs(capturedList.AppId, capturedList.BuildSelectArgs(itemId))))
                 .OnSearch(list.OnSearch ?? showPlanSearchDialog)
-                .OnNew(list.OnNew);
+                .OnNew(list.OnNew)
+                .OnRenameItem(list.OnRename)
+                .OnDeleteItem(list.OnDelete)
+                .OnTogglePinItem(list.OnTogglePin);
         }
         else
         {
             section = new ShellSidebarSection()
                 .Searchable()
                 .OnSearch(showPlanSearchDialog);
+        }
+
+        var chatButton = new ShellAgentButton()
+            .IsActive(chatIsActive)
+            .Label("Chat")
+            .Icon(Icons.MessageCircle.ToString())
+            .Badge(ChatRowBadge(chatService.GetSessions().Count))
+            .OnOpen(OpenChat)
+            .OnNewChat(StartNewChat);
+        if (list is { CollapsedMenu: true })
+        {
+            var chatList = list;
+            chatButton = chatButton
+                .List(chatList.Title, chatList.Items, chatList.SelectedId)
+                .OnNewChat(chatList.OnNew ?? StartNewChat)
+                .OnRenameItem(chatList.OnRename)
+                .OnDeleteItem(chatList.OnDelete)
+                .OnTogglePinItem(chatList.OnTogglePin)
+                .OnSelectItem(itemId =>
+                    OpenApp(new NavigateArgs(chatList.AppId, chatList.BuildSelectArgs(itemId))));
         }
 
         // Beta: the inbox moves out of the nav into the footer, beside an icon-only settings button.
@@ -1113,7 +1194,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             shell,
             updateDialog,
             planSearchDialog,
-            chatSearchDialog
+            chatSearchDialog,
+            deleteSessionDialog
         );
     }
 

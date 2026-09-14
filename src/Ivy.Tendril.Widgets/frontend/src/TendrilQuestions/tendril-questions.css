@@ -69,6 +69,14 @@
   color: var(--tq-muted);
 }
 
+.tq-question[data-unanswered="true"] .tq-question-title::after {
+  content: "Unanswered";
+  margin-left: 8px;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--tq-faint);
+}
+
 .tq-question-hint {
   margin-top: -4px;
   font-size: 12px;
@@ -260,6 +268,12 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.tq-footer-note {
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--tq-muted);
 }
 
 .tq-clear {

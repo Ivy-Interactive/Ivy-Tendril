@@ -21,7 +21,6 @@
   --tdb-ramp-3: color-mix(in srgb, var(--foreground, #000000) 60%, transparent);
   --tdb-ramp-4: var(--foreground, #000000);
 
-
   /* KPI card tints. All four derive from the host theme's --primary so
      alternate themes (neon, retro, cupcake...) recolor the cards
      automatically; the cards are told apart by opacity, deliberately
@@ -46,7 +45,11 @@
 
 .dark .tdb-root {
   --tdb-block-bg: color-mix(in srgb, var(--foreground, #f8f8f8) 4%, var(--background, #000000));
-  --tdb-block-border: color-mix(in srgb, var(--foreground, #f8f8f8) 10%, var(--background, #000000));
+  --tdb-block-border: color-mix(
+    in srgb,
+    var(--foreground, #f8f8f8) 10%,
+    var(--background, #000000)
+  );
   /* Dark mode needs lower mixes so saturated theme colors stay muted. */
   --tdb-kpi-1: color-mix(in srgb, var(--primary, #66e0be) 22%, var(--tdb-block-bg));
   --tdb-kpi-2: color-mix(in srgb, var(--primary, #66e0be) 10%, var(--tdb-block-bg));
@@ -216,7 +219,10 @@
   min-height: 110px;
   color: var(--tdb-fg);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .tdb-kpi:hover {
@@ -229,10 +235,18 @@
   outline-offset: 2px;
 }
 
-.tdb-kpi[data-tone="0"] { background: var(--tdb-kpi-1); }
-.tdb-kpi[data-tone="1"] { background: var(--tdb-kpi-2); }
-.tdb-kpi[data-tone="2"] { background: var(--tdb-kpi-3); }
-.tdb-kpi[data-tone="3"] { background: var(--tdb-kpi-4); }
+.tdb-kpi[data-tone="0"] {
+  background: var(--tdb-kpi-1);
+}
+.tdb-kpi[data-tone="1"] {
+  background: var(--tdb-kpi-2);
+}
+.tdb-kpi[data-tone="2"] {
+  background: var(--tdb-kpi-3);
+}
+.tdb-kpi[data-tone="3"] {
+  background: var(--tdb-kpi-4);
+}
 
 .tdb-kpi-label {
   font-size: 14px;
@@ -349,7 +363,6 @@
   flex-shrink: 0;
 }
 
-
 .tdb-legend-line-avg {
   width: 10px;
   height: 0;
@@ -397,7 +410,6 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-
 
 /* Dashed curve for 7-day average to distinguish from solid current usage. */
 .tdb-trend-avg-curve {
@@ -533,11 +545,21 @@
   border-radius: 4px;
 }
 
-.tdb-activity-cell[data-level="0"] { background: color-mix(in srgb, var(--tdb-fg) 6%, transparent); }
-.tdb-activity-cell[data-level="1"] { background: var(--tdb-ramp-1); }
-.tdb-activity-cell[data-level="2"] { background: var(--tdb-ramp-2); }
-.tdb-activity-cell[data-level="3"] { background: var(--tdb-ramp-3); }
-.tdb-activity-cell[data-level="4"] { background: var(--tdb-ramp-4); }
+.tdb-activity-cell[data-level="0"] {
+  background: color-mix(in srgb, var(--tdb-fg) 6%, transparent);
+}
+.tdb-activity-cell[data-level="1"] {
+  background: var(--tdb-ramp-1);
+}
+.tdb-activity-cell[data-level="2"] {
+  background: var(--tdb-ramp-2);
+}
+.tdb-activity-cell[data-level="3"] {
+  background: var(--tdb-ramp-3);
+}
+.tdb-activity-cell[data-level="4"] {
+  background: var(--tdb-ramp-4);
+}
 
 .tdb-activity-labels {
   display: flex;
@@ -555,7 +577,16 @@
   white-space: nowrap;
 }
 
+/* The trailing label sits under the right-most column and its text is wider than
+   that column, so the line overflows. text-align cannot pull it back in: an
+   overflowing line is pinned to its inline start edge, which is why the earlier
+   text-align: right (commit 8cb43501) changed nothing and the label stayed
+   clipped (issue #2593). Flipping the inline direction moves that start edge to
+   the right, so the overhang goes left, inside the card. A Latin label keeps its
+   normal glyph order. text-align: right still applies when the label does fit,
+   which is the wide-card case where columns hit their 22px cap. */
 .tdb-activity-label:last-child {
+  direction: rtl;
   text-align: right;
 }
 
@@ -617,11 +648,21 @@
   min-height: 6px;
 }
 
-.tdb-bar[data-level="0"] { background: color-mix(in srgb, var(--tdb-fg) 5%, transparent); }
-.tdb-bar[data-level="1"] { background: var(--tdb-ramp-1); }
-.tdb-bar[data-level="2"] { background: var(--tdb-ramp-2); }
-.tdb-bar[data-level="3"] { background: var(--tdb-ramp-3); }
-.tdb-bar[data-level="4"] { background: var(--tdb-ramp-4); }
+.tdb-bar[data-level="0"] {
+  background: color-mix(in srgb, var(--tdb-fg) 5%, transparent);
+}
+.tdb-bar[data-level="1"] {
+  background: var(--tdb-ramp-1);
+}
+.tdb-bar[data-level="2"] {
+  background: var(--tdb-ramp-2);
+}
+.tdb-bar[data-level="3"] {
+  background: var(--tdb-ramp-3);
+}
+.tdb-bar[data-level="4"] {
+  background: var(--tdb-ramp-4);
+}
 
 .tdb-bar-label {
   font-size: 11px;

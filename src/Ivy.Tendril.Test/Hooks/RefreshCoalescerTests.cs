@@ -52,6 +52,36 @@ public class RefreshCoalescerTests
     }
 
     [Fact]
+    public void RequestAfterDispose_IsIgnoredRatherThanThrowing()
+    {
+        // A PlansChanged handler for a view that is being torn down can still be invoked after
+        // the view's coalescer is disposed: the raiser snapshots its invocation list before the
+        // unsubscribe runs, and raises on a timer thread. Throwing here landed in that raiser's
+        // catch as "PlansChanged subscriber threw", which is a net meant for real bugs.
+        var scheduler = new TestScheduler();
+        var (token, refreshCount) = CreateRefreshToken();
+        var coalescer = new RefreshCoalescer(token, TimeSpan.FromMilliseconds(400), scheduler);
+
+        coalescer.Dispose();
+
+        coalescer.Request();
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(400).Ticks);
+
+        Assert.Equal(0, refreshCount());
+    }
+
+    [Fact]
+    public void DisposeIsIdempotent()
+    {
+        var scheduler = new TestScheduler();
+        var (token, _) = CreateRefreshToken();
+        var coalescer = new RefreshCoalescer(token, TimeSpan.FromMilliseconds(400), scheduler);
+
+        coalescer.Dispose();
+        coalescer.Dispose();
+    }
+
+    [Fact]
     public void DisposeBeforeWindowElapses_ProducesNoRefresh()
     {
         var scheduler = new TestScheduler();

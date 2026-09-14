@@ -33,6 +33,23 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
 
   const freeTextQuestion = questionsFence("- id: comment", "  title: Anything else?");
 
+  const costAndScopeQuestion = questionsFence(
+    "- id: cost",
+    "  title: How should cost be attributed?",
+    "  options:",
+    "    - title: Per session",
+    "      value: session",
+    "    - title: Per token",
+    "      value: token",
+    "- id: scope",
+    "  title: Which scope should ship first?",
+    "  options:",
+    "    - title: Ledger first",
+    "      value: ledger",
+    "    - title: Surfacing first",
+    "      value: surfacing",
+  );
+
   const twoBlockMessage = [
     "First block:",
     questionsFence(
@@ -203,7 +220,36 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
     expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
   });
 
-  it("clears the draft on submit, so a later remount starts empty rather than re-offering the old selection", () => {
+  it("shows the submitted answer immediately on Submit instead of resetting to an empty form", () => {
+    const sessionA = sessionWith("sess-a", deployQuestion);
+    const sessionB = sessionWith("sess-b", "Just a plain message, no questions here.");
+    const handleEvent = vi.fn();
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-a"
+        sessions={[sessionA, sessionB]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: /Staging Environment/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Submit Response/i }));
+    expect(handleEvent).toHaveBeenCalled();
+
+    // Submitted to the host, but the message content itself is untouched — the host hasn't
+    // written the answer back yet.
+    expect(sessionA.messages[0].content).toBe(deployQuestion);
+
+    // The block shows the decision it was just given rather than an empty, re-enabled form.
+    expect(screen.queryByRole("radio", { name: /Staging Environment/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Submit Response/i })).toBeNull();
+    expect(screen.getByText("Staging Environment")).toBeInTheDocument();
+  });
+
+  it("keeps the submitted read-only view after a remount, and switches to the document once it carries the answer", () => {
     const sessionA = sessionWith("sess-a", deployQuestion);
     const sessionB = sessionWith("sess-b", "Just a plain message, no questions here.");
     const handleEvent = vi.fn();
@@ -220,7 +266,6 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: /Staging Environment/i }));
     fireEvent.click(screen.getByRole("button", { name: /Submit Response/i }));
-    expect(handleEvent).toHaveBeenCalled();
 
     // Switch away and back to force a remount of the message row.
     rerender(
@@ -242,8 +287,83 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
       />,
     );
 
+    // The submitted decision is still on screen, not a reset form.
+    expect(screen.queryByRole("radio", { name: /Staging Environment/i })).toBeNull();
+    expect(screen.getByText("Staging Environment")).toBeInTheDocument();
+
+    // Once the host has echoed the answer into the message document, that document view takes
+    // over — the block never flips back to an editable form on the way.
+    const answeredSessionA = sessionWith(
+      "sess-a",
+      questionsFence(
+        "- id: deploy_target",
+        "  title: Which environment should we deploy to?",
+        "  options:",
+        "    - title: Staging Environment",
+        "      value: staging",
+        "    - title: Production Environment",
+        "      value: prod",
+        "  answer: staging",
+      ),
+    );
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-a"
+        sessions={[answeredSessionA, sessionB]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+      />,
+    );
+
+    expect(screen.queryByRole("radio", { name: /Staging Environment/i })).toBeNull();
+    expect(screen.getByText("Staging Environment")).toBeInTheDocument();
+  });
+
+  it("keeps a second message's block unaffected by the first one's submitted state", () => {
+    const firstMessageQuestion = questionsFence(
+      "- id: deploy_target",
+      "  title: Which environment should we deploy to?",
+      "  options:",
+      "    - title: Staging Environment",
+      "      value: staging",
+      "    - title: Production Environment",
+      "      value: prod",
+    );
+    const secondMessageQuestion = questionsFence(
+      "- id: deploy_target",
+      "  title: Which environment should we deploy to next?",
+      "  options:",
+      "    - title: Staging Environment",
+      "      value: staging",
+      "    - title: Production Environment",
+      "      value: prod",
+    );
+    const session: ChatSessionDto = {
+      id: "sess-multi",
+      title: "sess-multi",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        { id: "msg-1", role: "assistant", content: firstMessageQuestion, timestamp: "12:00 PM" },
+        { id: "msg-2", role: "assistant", content: secondMessageQuestion, timestamp: "12:01 PM" },
+      ],
+    };
+
+    render(
+      <ChatWidget id="test-chat" activeSessionId="sess-multi" sessions={[session]} events={["OnAnswerQuestion"]} />,
+    );
+
+    const [firstRadio, secondRadio] = screen.getAllByRole("radio", { name: /Staging Environment/i });
+    fireEvent.click(firstRadio);
+    fireEvent.click(screen.getAllByRole("button", { name: /Submit Response/i })[0]);
+
+    // The first message's block is now the read-only submitted view; the second is untouched.
     expect(screen.getByRole("radio", { name: /Staging Environment/i })).not.toBeChecked();
     expect(screen.getByRole("button", { name: /Submit Response/i })).toBeDisabled();
+    expect(secondRadio).not.toBeChecked();
   });
 
   it("keeps two question blocks in one message independent when only one is answered", () => {
@@ -318,6 +438,197 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
         runningJobs={[{ id: "job-2", type: "ExecutePlan", status: "Running" }]}
       />,
     );
+
+    expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
+  });
+
+  it("submits a partly answered block, reporting only the answered question and leaving the rest to the agent", () => {
+    const session = sessionWith("sess-partial", costAndScopeQuestion);
+    const handleEvent = vi.fn();
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-partial"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+      />,
+    );
+
+    const submitBtn = screen.getByRole("button", { name: /Submit Response/i });
+    expect(submitBtn).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Ledger first/i }));
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnAnswerQuestion",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: "sess-partial",
+          messageId: "sess-partial-msg",
+          answers: { scope: ["ledger"] },
+          responseText: expect.stringContaining(
+            "How should cost be attributed?**: *(no preference, your call)*",
+          ),
+        }),
+      ]),
+    );
+  });
+});
+
+describe("ChatWidget Interactive Question — Streaming Live Row", () => {
+  beforeEach(() => {
+    setupChatWidgetTestEnvironment();
+  });
+
+  const deployQuestion = questionsFence(
+    "- id: deploy_target",
+    "  title: Which environment should we deploy to?",
+    "  options:",
+    "    - title: Staging Environment",
+    "      value: staging",
+    "    - title: Production Environment",
+    "      value: prod",
+  );
+
+  const streamingTextFor = (content: string) =>
+    JSON.stringify({ kind: "text", text: content, delta: false });
+
+  const emptySession = (id: string): ChatSessionDto => ({
+    id,
+    title: id,
+    agentId: "claude",
+    modelId: "opus",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    messages: [],
+  });
+
+  it("renders the live streaming row interactively when a streamingMessageId is supplied", () => {
+    const handleEvent = vi.fn();
+    const session = emptySession("sess-live");
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+        isStreaming
+        streamingText={streamingTextFor(deployQuestion)}
+        streamingMessageId="msg-live-1"
+      />,
+    );
+
+    const submitBtn = screen.getByRole("button", { name: /Submit Response/i });
+    expect(submitBtn).toBeDisabled();
+
+    const stagingRadio = screen.getByRole("radio", { name: /Staging Environment/i });
+    fireEvent.click(stagingRadio);
+    expect(stagingRadio).toBeChecked();
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnAnswerQuestion",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: "sess-live",
+          messageId: "msg-live-1",
+          answers: { deploy_target: ["staging"] },
+        }),
+      ]),
+    );
+  });
+
+  it("falls back to read-only rendering on the live row when no streamingMessageId is supplied", () => {
+    const session = emptySession("sess-live-none");
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live-none"
+        sessions={[session]}
+        events={["OnAnswerQuestion"]}
+        isStreaming
+        streamingText={streamingTextFor(deployQuestion)}
+      />,
+    );
+
+    expect(screen.getByText("Which environment should we deploy to?")).toBeInTheDocument();
+    expect(screen.getByText("Not answered (agent decided)")).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Staging Environment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Submit Response/i })).not.toBeInTheDocument();
+  });
+
+  it("carries a draft made on the live row over to the settled row once the turn completes", () => {
+    const session = emptySession("sess-live-settle");
+
+    const { rerender } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live-settle"
+        sessions={[session]}
+        events={["OnAnswerQuestion"]}
+        isStreaming
+        streamingText={streamingTextFor(deployQuestion)}
+        streamingMessageId="msg-live-2"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: /Staging Environment/i }));
+    expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
+
+    const settledSession: ChatSessionDto = {
+      ...session,
+      messages: [
+        {
+          id: "msg-live-2",
+          role: "assistant",
+          content: deployQuestion,
+          timestamp: "12:00 PM",
+        },
+      ],
+    };
+
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live-settle"
+        sessions={[settledSession]}
+        events={["OnAnswerQuestion"]}
+      />,
+    );
+
+    expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
+  });
+
+  it("selects an option on the live row when clicking its card, not just the radio", () => {
+    const session = emptySession("sess-live-card");
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-live-card"
+        sessions={[session]}
+        events={["OnAnswerQuestion"]}
+        isStreaming
+        streamingText={streamingTextFor(deployQuestion)}
+        streamingMessageId="msg-live-3"
+      />,
+    );
+
+    const card = container.querySelector<HTMLElement>(".tq-option");
+    expect(card).not.toBeNull();
+    fireEvent.click(card!);
 
     expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
   });

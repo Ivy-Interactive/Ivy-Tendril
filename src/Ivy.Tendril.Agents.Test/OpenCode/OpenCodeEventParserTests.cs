@@ -178,6 +178,66 @@ public class OpenCodeEventParserTests
     }
 
     [Fact]
+    public void ParseLine_StepFinish_WithReasonLength_ReturnsErrorAndFailedResult()
+    {
+        var json = """{"type":"step_finish","part":{"reason":"length","cost":0,"tokens":{"input":2,"output":4096}}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Equal(2, events.Count);
+
+        var errorEvt = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Equal(OpenCodeEventParser.OutputTruncatedCode, errorEvt.Code);
+        Assert.True(errorEvt.IsRetryable);
+        Assert.Contains("4096", errorEvt.Message);
+
+        var result = Assert.IsType<ResultEvent>(events[1]);
+        Assert.False(result.IsSuccess);
+        Assert.False(string.IsNullOrEmpty(result.Error));
+        Assert.NotNull(result.Usage);
+        Assert.Equal(4096, result.Usage.OutputTokens);
+    }
+
+    [Fact]
+    public void ParseLine_StepFinish_Length_ReportsStepTokensNotAccumulated()
+    {
+        _parser.ParseLine("""{"type":"step_finish","part":{"reason":"tool-calls","cost":0,"tokens":{"input":10,"output":134}}}""");
+        var events = _parser.ParseLine("""{"type":"step_finish","part":{"reason":"length","cost":0,"tokens":{"input":2,"output":4096}}}""");
+
+        var errorEvt = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Contains("4096", errorEvt.Message);
+        Assert.DoesNotContain("4230", errorEvt.Message);
+
+        var result = Assert.IsType<ResultEvent>(events[1]);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(4230, result.Usage.OutputTokens);
+    }
+
+    [Fact]
+    public void BuildResult_AfterLengthStop_StaysUnsuccessful()
+    {
+        var events = _parser.ParseLine("""{"type":"step_finish","part":{"reason":"length","cost":0,"tokens":{"input":2,"output":4096}}}""");
+
+        var result = _parser.BuildResult(events, 0);
+        Assert.False(result!.IsSuccess);
+    }
+
+    [Fact]
+    public void ParseLine_StepFinish_WithUnrecognisedReason_ReturnsErrorAndFailedResult()
+    {
+        var json = """{"type":"step_finish","part":{"reason":"content-filter"}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Equal(2, events.Count);
+
+        var errorEvt = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Equal(OpenCodeEventParser.UnhandledStopReasonCode, errorEvt.Code);
+        Assert.Contains("content-filter", errorEvt.Message);
+
+        var result = Assert.IsType<ResultEvent>(events[1]);
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
     public void ParseLine_StepFinish_NoCostOrTokens_UsageIsNull()
     {
         var json = """{"type":"step_finish","part":{"reason":"stop"}}""";
