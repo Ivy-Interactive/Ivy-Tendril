@@ -19,6 +19,19 @@ public sealed class AntigravityFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        // A trailing tool failure with no successful response after it is a structured, authoritative
+        // signal straight from the agent's event stream — it should win over the stderr heuristics below.
+        if (context.Events.Count > 0 && context.Events[^1] is ToolResultEvent { IsError: true } trailingError)
+        {
+            return new FailureAnalysis
+            {
+                Kind = FailureKind.ValidationError,
+                Reason = $"Tool '{trailingError.ToolName}' failed: {trailingError.Output}",
+                ContextLines = context.StderrLines,
+                IsRetryable = false,
+            };
+        }
+
         var stderr = string.Join("\n", context.StderrLines);
 
         if (ContainsAny(stderr, "quota", "rate limit", "429", "too many requests", "RESOURCE_EXHAUSTED"))

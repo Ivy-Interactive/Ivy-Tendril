@@ -165,4 +165,48 @@ public class JobFailureAnalyzerTests
         Assert.Contains("truncated", reason, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("4096", reason);
     }
+
+    [Fact]
+    public void TryExtractErrorEvent_TrailingUnrecoveredToolError_ReturnsToolFailureMessage()
+    {
+        var output = new List<string>
+        {
+            """{"kind":"tool_call","tool_use_id":"t1","tool_name":"write_to_file"}""",
+            """{"kind":"tool_result","tool_use_id":"t1","tool_name":"write_to_file","output":"path is not valid","is_error":true}""",
+        };
+
+        var reason = JobFailureAnalyzer.TryExtractErrorEvent(output);
+
+        Assert.NotNull(reason);
+        Assert.Contains("write_to_file", reason);
+        Assert.Contains("path is not valid", reason);
+    }
+
+    [Fact]
+    public void TryExtractErrorEvent_ToolErrorFollowedBySuccessfulToolResult_ReturnsNull()
+    {
+        var output = new List<string>
+        {
+            """{"kind":"tool_result","tool_use_id":"t1","tool_name":"write_to_file","output":"path is not valid","is_error":true}""",
+            """{"kind":"tool_result","tool_use_id":"t2","tool_name":"write_to_file","output":"written","is_error":false}""",
+        };
+
+        var reason = JobFailureAnalyzer.TryExtractErrorEvent(output);
+
+        Assert.Null(reason);
+    }
+
+    [Fact]
+    public void TryExtractErrorEvent_ToolErrorFollowedBySuccessfulResult_ReturnsNull()
+    {
+        var output = new List<string>
+        {
+            """{"kind":"tool_result","tool_use_id":"t1","tool_name":"write_to_file","output":"path is not valid","is_error":true}""",
+            """{"kind":"result","response":"Recovered and finished","is_success":true}""",
+        };
+
+        var reason = JobFailureAnalyzer.TryExtractErrorEvent(output);
+
+        Assert.Null(reason);
+    }
 }

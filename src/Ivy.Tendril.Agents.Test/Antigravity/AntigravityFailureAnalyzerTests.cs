@@ -102,4 +102,50 @@ public class AntigravityFailureAnalyzerTests
         Assert.Equal(FailureKind.Unknown, result.Kind);
         Assert.False(result.IsRetryable);
     }
+
+    [Fact]
+    public void Analyze_TrailingToolResultError_SurfacesToolFailureReason()
+    {
+        var events = new List<AgentEvent>
+        {
+            new ToolCallEvent { Kind = AgentEventKind.ToolCall, ToolUseId = "t1", ToolName = "write_to_file" },
+            new ToolResultEvent
+            {
+                Kind = AgentEventKind.ToolResult,
+                ToolUseId = "t1",
+                ToolName = "write_to_file",
+                Output = "path is not valid",
+                IsError = true,
+            },
+        };
+        var context = new FailureContext { AgentId = AgentId.Antigravity, Events = events };
+
+        var result = _analyzer.Analyze(context);
+
+        Assert.Contains("write_to_file", result.Reason);
+        Assert.Contains("path is not valid", result.Reason);
+        Assert.False(result.IsRetryable);
+    }
+
+    [Fact]
+    public void Analyze_ToolResultErrorFollowedBySuccessfulResult_DoesNotSurfaceToolFailure()
+    {
+        var events = new List<AgentEvent>
+        {
+            new ToolResultEvent
+            {
+                Kind = AgentEventKind.ToolResult,
+                ToolUseId = "t1",
+                ToolName = "write_to_file",
+                Output = "path is not valid",
+                IsError = true,
+            },
+            new ResultEvent { Kind = AgentEventKind.Result, IsSuccess = true, Response = "Recovered and finished" },
+        };
+        var context = new FailureContext { StderrLines = ["some unrecognized error"], AgentId = AgentId.Antigravity, Events = events };
+
+        var result = _analyzer.Analyze(context);
+
+        Assert.DoesNotContain("write_to_file", result.Reason);
+    }
 }
