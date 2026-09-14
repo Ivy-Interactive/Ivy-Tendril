@@ -156,7 +156,8 @@ public class JobStartCommand : Command<JobStartSettings>
                 settings.Project,
                 settings.Priority ?? 0,
                 settings.Force,
-                settings.SourcePath);
+                settings.SourcePath,
+                Origin: JobOrigin.Cli);
         }
         else if (string.Equals(jobType, Constants.JobTypes.SyncRepo, StringComparison.OrdinalIgnoreCase))
         {

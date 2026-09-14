@@ -817,6 +817,45 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
+    public void UpsertJob_PersistsInboxFileAndChatSessionId()
+    {
+        // Recovery reads these back from the database after a crash, so they have to survive the
+        // round trip rather than living only in the in-memory job list.
+        var job = new JobItem
+        {
+            Id = "job-inbox-001",
+            Type = "CreatePlan",
+            Project = "Tendril",
+            Status = JobStatus.Running,
+            InboxFile = "/inbox/pending-0123456789abcdef.md.processing",
+            TypedArgs = new CreatePlanArgs("Test plan", "Tendril", Origin: JobOrigin.Inbox),
+            ChatSessionId = "chat-session-42"
+        };
+
+        _db.UpsertJob(job);
+
+        var result = Assert.Single(_db.GetRecentJobs());
+        Assert.Equal("/inbox/pending-0123456789abcdef.md.processing", result.InboxFile);
+        Assert.Equal("chat-session-42", result.ChatSessionId);
+    }
+
+    [Fact]
+    public void UpsertJob_LeavesInboxFileNullForNonInboxJobs()
+    {
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-cli-001",
+            Type = "CreatePlan",
+            Project = "Tendril",
+            Status = JobStatus.Running,
+            TypedArgs = new CreatePlanArgs("Test plan", "Tendril", Origin: JobOrigin.Cli)
+        });
+
+        var result = Assert.Single(_db.GetRecentJobs());
+        Assert.Null(result.InboxFile);
+    }
+
+    [Fact]
     public void GetRecentJobs_ReturnsOrderedByCompletedAt()
     {
         _db.UpsertJob(new JobItem

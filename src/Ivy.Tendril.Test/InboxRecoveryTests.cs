@@ -28,9 +28,12 @@ public class InboxRecoveryTests
             using var watcher = new InboxWatcherService(config, jobService, NullLogger<InboxWatcherService>.Instance);
             watcher.Start();
 
-            // .processing file should be gone, .md file should exist
+            // No job owns this breadcrumb, so it is an orphan and still resurrects, now carrying the
+            // attempt counter that caps how often it can come back.
             Assert.False(File.Exists(processingFile));
-            Assert.True(File.Exists(Path.Combine(inboxDir, "pending-job-001.md")));
+            var recovered = Path.Combine(inboxDir, "pending-job-001.md");
+            Assert.True(File.Exists(recovered));
+            Assert.Contains("recoveryAttempts: 1", File.ReadAllText(recovered));
         }
         finally
         {
@@ -228,7 +231,9 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.CreateTestJob(new CreatePlanArgs("Test plan description", "Tendril"));
+            // Only an inbox submission writes a breadcrumb now, so this path has to say so.
+            var id = jobService.CreateTestJob(
+                new CreatePlanArgs("Test plan description", "Tendril", Origin: JobOrigin.Inbox));
 
             var job = jobService.GetJob(id);
             Assert.NotNull(job);
@@ -263,7 +268,8 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.CreateTestJob(new CreatePlanArgs("Failing plan", "Tendril"));
+            var id = jobService.CreateTestJob(
+                new CreatePlanArgs("Failing plan", "Tendril", Origin: JobOrigin.Inbox));
 
             var job = jobService.GetJob(id);
             Assert.NotNull(job?.InboxFile);
@@ -291,7 +297,8 @@ public class InboxRecoveryTests
         {
             var jobService = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), inboxDir);
 
-            var id = jobService.CreateTestJob(new CreatePlanArgs("Stopped plan", "Tendril"));
+            var id = jobService.CreateTestJob(
+                new CreatePlanArgs("Stopped plan", "Tendril", Origin: JobOrigin.Inbox));
 
             var job = jobService.GetJob(id);
             Assert.NotNull(job?.InboxFile);

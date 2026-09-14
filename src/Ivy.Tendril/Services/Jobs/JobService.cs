@@ -729,6 +729,60 @@ public class JobService : IJobService
             j.InboxFile.Equals(filePath, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    ///     Resolves the CreatePlan job that owns a breadcrumb, so recovery can ask whether its work is
+    ///     already finished instead of resurrecting it blind. Falls back to the database for a job that
+    ///     has aged out of memory.
+    /// </summary>
+    public JobItem? GetJobByInboxFile(string filePath)
+    {
+        var tracked = _jobs.Values.FirstOrDefault(j => OwnsInboxFile(j, filePath));
+        if (tracked != null)
+            return tracked;
+
+        try
+        {
+            return _database?.GetRecentJobs().FirstOrDefault(j => OwnsInboxFile(j, filePath));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool OwnsInboxFile(JobItem job, string filePath) =>
+        job.TypedArgs is CreatePlanArgs &&
+        job.InboxFile != null &&
+        job.InboxFile.Equals(filePath, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    ///     Deletes the breadcrumbs of jobs that are still in flight as the process shuts down, so an
+    ///     orderly exit leaves nothing for the next start to interpret as a crash. Idempotent: a
+    ///     breadcrumb that is already gone is not counted and not an error. Returns how many were
+    ///     deleted.
+    /// </summary>
+    internal int ResolveInFlightInboxBreadcrumbs()
+    {
+        var resolved = 0;
+        foreach (var job in _jobs.Values)
+        {
+            if (job.TypedArgs is not CreatePlanArgs) continue;
+            if (job.Status is not (JobStatus.Pending or JobStatus.Queued or JobStatus.Running or JobStatus.Blocked)) continue;
+            if (string.IsNullOrEmpty(job.InboxFile)) continue;
+
+            var existed = File.Exists(job.InboxFile);
+            JobCompletionHandler.CleanupInboxFile(job);
+            if (!existed) continue;
+
+            _logger.LogInformation(
+                "Resolved in-flight inbox breadcrumb {File} for job {JobId} ({Status}) on shutdown.",
+                job.InboxFile, job.Id, job.Status);
+            resolved++;
+        }
+
+        return resolved;
+    }
+
     private void LoadHistoricalJobs()
     {
         if (_database == null) return;
@@ -1266,7 +1320,7 @@ public class JobService : IJobService
         }
 
         if (args is CreatePlanArgs)
-            SetupInboxTracking(job, id, args, inboxFilePath);
+            SetupInboxTracking(job, args, inboxFilePath);
 
         return job;
     }
@@ -1295,27 +1349,41 @@ public class JobService : IJobService
             : (file, "Auto", 0);
     }
 
-    private void SetupInboxTracking(JobItem job, string id, JobArgsBase args, string? inboxFilePath)
+    /// <summary>
+    ///     Links a CreatePlan job to its inbox breadcrumb. A supplied path is genuine intake and is
+    ///     only recorded; a breadcrumb is written only for a submission that came from the Inbox and
+    ///     whose file is already gone. Every other origin used to get one fabricated for it, which
+    ///     the next server start renamed back into a live inbox item and resubmitted (#2710).
+    /// </summary>
+    private void SetupInboxTracking(JobItem job, JobArgsBase args, string? inboxFilePath)
     {
         if (inboxFilePath != null)
         {
             job.InboxFile = inboxFilePath;
+            return;
         }
-        else if (_inboxPath != null)
+
+        if (_inboxPath == null || args is not CreatePlanArgs cp || cp.Origin != JobOrigin.Inbox)
+            return;
+
+        try
         {
-            try
+            FileHelper.EnsureDirectory(_inboxPath);
+            var description = string.IsNullOrWhiteSpace(cp.Description) ? "New Plan" : cp.Description;
+            var inboxProject = string.IsNullOrWhiteSpace(cp.Project) ? "Auto" : cp.Project;
+            // Named after the task rather than the job, so two submissions of the same description
+            // into the same project share one breadcrumb instead of accumulating one each.
+            var pendingFile = Path.Combine(_inboxPath, InboxBreadcrumb.FileName(inboxProject, description));
+            if (!File.Exists(pendingFile))
             {
-                FileHelper.EnsureDirectory(_inboxPath);
-                var cp = args as CreatePlanArgs;
-                var description = cp?.Description ?? "New Plan";
-                var inboxProject = cp?.Project ?? "Auto";
-                var pendingFile = Path.Combine(_inboxPath, $"pending-{id}.md.processing");
-                var content = $"---\nproject: {inboxProject}\n---\n{description}";
+                var content = InboxBreadcrumb.WithRecoveryAttempts(
+                    $"---\nproject: {inboxProject}\n---\n{description}", 0);
                 FileHelper.WriteAllText(pendingFile, content);
-                job.InboxFile = pendingFile;
             }
-            catch { /* Best-effort */ }
+
+            job.InboxFile = pendingFile;
         }
+        catch { /* Best-effort */ }
     }
 
     private bool TryRejectConflictingJob(JobItem job)
@@ -1483,7 +1551,7 @@ public class JobService : IJobService
         // Mirror StartJob (including its CreatePlanArgs guard) so inbox-recovery behaviour can be
         // exercised without a launchable agent.
         if (args is CreatePlanArgs)
-            SetupInboxTracking(job, id, args, inboxFilePath);
+            SetupInboxTracking(job, args, inboxFilePath);
         _jobs[id] = job;
         _jobSlotSemaphore.Wait(0); // Acquire slot so CompleteJob can release it
         job.SlotReserved = true;
@@ -1499,6 +1567,15 @@ public class JobService : IJobService
     {
         if (_configService != null)
             _configService.SettingsReloaded -= OnSettingsReloaded;
+
+        // Before the semaphore goes: a breadcrumb left behind by a job that was still in flight is
+        // indistinguishable from a crash on the next start, and used to be resurrected as a new job.
+        try
+        {
+            ResolveInFlightInboxBreadcrumbs();
+        }
+        catch { /* Best-effort: shutdown must not throw */ }
+
         _jobSlotSemaphore.Dispose();
         _blockedJobCheckTimer?.Dispose();
     }

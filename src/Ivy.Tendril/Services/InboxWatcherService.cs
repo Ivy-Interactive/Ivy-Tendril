@@ -9,6 +9,12 @@ namespace Ivy.Tendril.Services;
 
 public class InboxWatcherService : IInboxWatcherService
 {
+    /// <summary>
+    ///     How many breadcrumbs one recovery pass may resurrect. Past this it resurrects none: a pass
+    ///     that wants to enqueue dozens of jobs is describing a defect, not a workload.
+    /// </summary>
+    internal const int BulkResurrectionLimit = 5;
+
     private readonly string _inboxPath;
     private readonly IJobService _jobService;
     private readonly ILogger<InboxWatcherService> _logger;
@@ -17,6 +23,19 @@ public class InboxWatcherService : IInboxWatcherService
     private Timer? _pollTimer;
     private FileSystemWatcher? _watcher;
     private volatile bool _started;
+
+    /// <summary>
+    ///     Where a breadcrumb goes once it has used up its recovery attempts. Neither the <c>*.md</c>
+    ///     watcher filter nor the <c>*.md.processing</c> recovery glob looks in a subdirectory, so files
+    ///     here are inert: that is the whole safety property of this folder.
+    /// </summary>
+    private string DeadLetterPath => Path.Combine(_inboxPath, "DeadLetter");
+
+    /// <inheritdoc />
+    public event Action<InboxRecoverySummary>? RecoveryCompleted;
+
+    /// <inheritdoc />
+    public InboxRecoverySummary? LastRecovery { get; private set; }
 
     /// <summary>
     ///     Assigns dependencies and nothing else. Resolving this type from DI used to create the inbox
@@ -116,26 +135,166 @@ public class InboxWatcherService : IInboxWatcherService
         }
     }
 
-    internal void RecoverProcessingFiles()
+    /// <summary>
+    ///     Decides what to do with every <c>*.md.processing</c> breadcrumb in the inbox. This used to
+    ///     rename all of them back to <c>.md</c> unconditionally, so a finished job's breadcrumb was
+    ///     resubmitted as a brand new job on every start, and each new job wrote its own breadcrumb: 39
+    ///     tasks became 99 jobs in one hour (#2710). The owning job's persisted status now decides.
+    /// </summary>
+    internal InboxRecoverySummary RecoverProcessingFiles()
     {
         if (!Directory.Exists(_inboxPath))
-            return;
+            return PublishRecovery(InboxRecoverySummary.Empty);
 
-        foreach (var file in Directory.GetFiles(_inboxPath, "*.md.processing"))
+        string[] files;
+        try
+        {
+            files = Directory.GetFiles(_inboxPath, "*.md.processing");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to list inbox breadcrumbs in {InboxPath} for recovery.", _inboxPath);
+            return PublishRecovery(InboxRecoverySummary.Empty);
+        }
+
+        // Every file is classified before any file moves, so the bulk valve below can see how many
+        // resurrections the whole pass would perform rather than finding out one rename too late.
+        var decisions = new List<RecoveryDecision>();
+        foreach (var file in files)
             try
             {
-                var mdPath = file[..^".processing".Length];
-                if (File.Exists(mdPath))
-                    // .md already exists — just delete the stale .processing file
-                    File.Delete(file);
-                else
-                    File.Move(file, mdPath);
+                decisions.Add(Classify(file));
             }
-            catch
+            catch (Exception ex)
             {
-                _logger.LogWarning("Failed to recover inbox file {File}. It will be retried on next startup.", file);
+                _logger.LogWarning(ex, "Failed to classify inbox file {File}. It will be retried on next startup.", file);
             }
+
+        var wouldResurrect = decisions.Count(d => d.Action is RecoveryAction.Resurrect or RecoveryAction.Orphan);
+        var bulkRefused = wouldResurrect > BulkResurrectionLimit;
+        if (bulkRefused)
+            _logger.LogWarning(
+                "Inbox recovery refused to resurrect {Count} breadcrumbs in one pass (limit {Limit}): bulk-refused. " +
+                "They are left as *.md.processing in {InboxPath}; rename the ones you want back to *.md by hand.",
+                wouldResurrect, BulkResurrectionLimit, _inboxPath);
+
+        int resurrected = 0, deleted = 0, orphaned = 0, deadLettered = 0;
+        foreach (var decision in decisions)
+            try
+            {
+                switch (decision.Action)
+                {
+                    case RecoveryAction.Delete:
+                        File.Delete(decision.File);
+                        deleted++;
+                        _logger.LogInformation(
+                            "Inbox recovery: delete {File} ({Reason}, job {JobId}).",
+                            decision.File, decision.Reason, decision.JobId ?? "none");
+                        break;
+
+                    case RecoveryAction.DeadLetter:
+                        MoveToDeadLetter(decision.File);
+                        deadLettered++;
+                        _logger.LogWarning(
+                            "Inbox recovery: dead-letter {File} after {Attempts} attempts (job {JobId}). Moved to {DeadLetterPath}.",
+                            decision.File, decision.Attempts, decision.JobId ?? "none", DeadLetterPath);
+                        break;
+
+                    case RecoveryAction.Resurrect:
+                        if (bulkRefused) break;
+                        Resurrect(decision);
+                        resurrected++;
+                        _logger.LogInformation(
+                            "Inbox recovery: resurrect {File} (job {JobId} was {Reason}, attempt {Attempts}).",
+                            decision.File, decision.JobId ?? "none", decision.Reason, decision.Attempts + 1);
+                        break;
+
+                    case RecoveryAction.Orphan:
+                        if (bulkRefused) break;
+                        Resurrect(decision);
+                        orphaned++;
+                        _logger.LogInformation(
+                            "Inbox recovery: orphan {File} (no owning job, attempt {Attempts}).",
+                            decision.File, decision.Attempts + 1);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to recover inbox file {File}. It will be retried on next startup.", decision.File);
+            }
+
+        return PublishRecovery(new InboxRecoverySummary(resurrected, deleted, orphaned, deadLettered, bulkRefused));
     }
+
+    private RecoveryDecision Classify(string file)
+    {
+        var mdPath = file[..^".processing".Length];
+        if (File.Exists(mdPath))
+            // The live item is already back in the inbox, so this breadcrumb only duplicates it.
+            return new RecoveryDecision(file, RecoveryAction.Delete, null, 0, "sibling .md already exists");
+
+        var attempts = InboxBreadcrumb.ReadRecoveryAttempts(FileHelper.ReadAllText(file));
+        var job = _jobService.GetJobByInboxFile(file);
+
+        if (attempts >= InboxBreadcrumb.RecoveryAttemptCap)
+            return new RecoveryDecision(file, RecoveryAction.DeadLetter, job?.Id, attempts, "attempt cap reached");
+
+        if (job == null)
+            return new RecoveryDecision(file, RecoveryAction.Orphan, null, attempts, "no owning job");
+
+        // Terminal means the work is over, however it ended. A timeout is an abort Tendril decided on
+        // rather than a process that vanished, so it counts as terminal and is never auto-resubmitted.
+        if (job.Status is JobStatus.Completed or JobStatus.Failed or JobStatus.Stopped or JobStatus.Timeout)
+            return new RecoveryDecision(file, RecoveryAction.Delete, job.Id, attempts, $"job is {job.Status}");
+
+        return new RecoveryDecision(file, RecoveryAction.Resurrect, job.Id, attempts, job.Status.ToString());
+    }
+
+    /// <summary>
+    ///     Bumps the counter and only then renames: a crash between the two leaves the counter high
+    ///     rather than low, so the cap still bites on the next pass.
+    /// </summary>
+    private static void Resurrect(RecoveryDecision decision)
+    {
+        var content = FileHelper.ReadAllText(decision.File);
+        FileHelper.WriteAllText(decision.File, InboxBreadcrumb.WithRecoveryAttempts(content, decision.Attempts + 1));
+        File.Move(decision.File, decision.File[..^".processing".Length]);
+    }
+
+    private void MoveToDeadLetter(string file)
+    {
+        FileHelper.EnsureDirectory(DeadLetterPath);
+        var destination = Path.Combine(DeadLetterPath, Path.GetFileName(file));
+        if (File.Exists(destination))
+            File.Delete(destination);
+        File.Move(file, destination);
+    }
+
+    private InboxRecoverySummary PublishRecovery(InboxRecoverySummary summary)
+    {
+        LastRecovery = summary;
+        try
+        {
+            RecoveryCompleted?.Invoke(summary);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "An inbox recovery subscriber threw.");
+        }
+
+        return summary;
+    }
+
+    private enum RecoveryAction
+    {
+        Delete,
+        DeadLetter,
+        Resurrect,
+        Orphan
+    }
+
+    private record RecoveryDecision(string File, RecoveryAction Action, string? JobId, int Attempts, string Reason);
 
     internal async Task ProcessExistingFilesAsync()
     {
@@ -254,7 +413,7 @@ public class InboxWatcherService : IInboxWatcherService
             return;
         }
 
-        var args = new CreatePlanArgs(description, project, SourcePath: sourcePath);
+        var args = new CreatePlanArgs(description, project, SourcePath: sourcePath, Origin: JobOrigin.Inbox);
         _jobService.StartJob(args, processingPath);
     }
 
