@@ -575,6 +575,18 @@ public class JobService : IJobService
     private static readonly TimeSpan StuckJobReapGrace = TimeSpan.FromMinutes(2);
 
     /// <summary>
+    ///     How much longer a detached job whose agent process is confirmed alive may stay silent. For a
+    ///     detached job the only thing that advances <see cref="JobItem.LastOutputAt" /> is an inbound
+    ///     <c>tendril job status</c> call, so one dropped progress report used to be enough to kill a
+    ///     working agent: 61 of 427 rows in the live database were <c>Timeout</c> with the identical
+    ///     message "No output for 20 minutes", and ten of the plans behind them reached Completed or
+    ///     produced good commits anyway. Liveness extends the grace rather than granting immunity,
+    ///     because a genuinely hung agent is also alive and silent, and <c>isHardCapped</c> still reaps
+    ///     it on the job timeout either way.
+    /// </summary>
+    private const int DetachedLiveOutputMultiplier = 4;
+
+    /// <summary>
     ///     Global safety net for jobs stranded Running with no path to completion — e.g. a launch
     ///     that hung before <see cref="JobMonitor" /> ever armed its watchdogs (the "Starting…"
     ///     forever bug). Unlike the per-job stale-output/hard-timeout watchdogs (armed only once
@@ -591,14 +603,31 @@ public class JobService : IJobService
             if (!job.StartedAt.HasValue) continue;
 
             var staleAnchor = job.LastOutputAt ?? job.StartedAt.Value;
-            var isStale = _staleOutputTimeout > TimeSpan.Zero
-                          && now - staleAnchor > _staleOutputTimeout + StuckJobReapGrace;
+
+            // Output age alone, as before, unless this is a detached job with a pid to ask about. A job
+            // that still has a Process handle has a better liveness signal than a pid and an armed
+            // monitor watching it; a job with neither handle nor pid has nothing to ask, and reaping on
+            // that would kill one in the window between Status = Running and the launcher recording its
+            // pid, which is the same false kill this branch exists to prevent.
+            var detached = job.Process is null && job.ProcessId is not null;
+            var pidAlive = detached && IsAgentProcessAlive(job);
+            var outputBudget = pidAlive
+                ? DetachedLiveOutputMultiplier * _staleOutputTimeout + StuckJobReapGrace
+                : _staleOutputTimeout + StuckJobReapGrace;
+            var isStale = (detached && !pidAlive)
+                          || (_staleOutputTimeout > TimeSpan.Zero && now - staleAnchor > outputBudget);
             var isHardCapped = now - job.StartedAt.Value > _jobTimeout + TimeSpan.FromMinutes(5) + StuckJobReapGrace;
 
             if (!isStale && !isHardCapped) continue;
 
-            _logger.LogWarning(
-                "Job {JobId}: Reaped by stuck-job check ({Reason})", job.Id, isStale ? "stale output" : "hard cap");
+            var reason = isHardCapped && !isStale
+                ? "hard cap"
+                : detached
+                    ? pidAlive
+                        ? "stale output, detached agent alive but past its extended grace"
+                        : "detached agent pid is gone, so nothing will ever report output again"
+                    : "stale output";
+            _logger.LogWarning("Job {JobId}: Reaped by stuck-job check ({Reason})", job.Id, reason);
 
             try
             {
