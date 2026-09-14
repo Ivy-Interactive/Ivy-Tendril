@@ -12,6 +12,9 @@ searchHints:
   - agent-instructions
   - instructions
   - prompt
+  - master
+  - claim
+  - release
 ---
 
 # Other Commands
@@ -141,6 +144,69 @@ server to be running. Agents pass the `TendrilJobId` firmware header value as `<
 | Option | Effect |
 |--------|--------|
 | `--summary` | Body text for the log entry |
+
+## master
+
+Inspects and, when necessary, breaks the master claim in `<TendrilHome>/.master` — the file every CLI command uses to find the running server. Reach for these when commands start reporting that the server is not running, or is hung, while you can see it in front of you.
+
+#### master status
+
+```terminal
+>tendril master status
+>tendril master status --json
+```
+
+Prints the claim (PID, port, scheme, start time, heartbeat age) and probes `/ivy/health` on the recorded address to say whether the process it names is actually serving. Never writes to or deletes `.master`, so looking does not destroy the evidence.
+
+| Option | Effect |
+|--------|--------|
+| `--json` | Emit the report as JSON instead of a table |
+
+Exits 0 when the holder is alive and answering — including when its heartbeat is late — and 1 otherwise, so a script can gate on it without parsing anything.
+
+| Verdict | Meaning |
+|---------|---------|
+| `Healthy` | Alive, beating and answering on the scheme it recorded |
+| `SaturatedButServing` | Answering, heartbeat late. The server is busy, not gone: leave the claim alone |
+| `WedgedNotServing` | The process is running but answers on neither scheme, or has not published a port yet |
+| `SchemeMismatch` | Only the other scheme answers, so the recorded one is what every command fails against |
+| `DeadHolder` | The recorded PID is not running. The next launch reclaims the claim automatically |
+| `NoClaim` | No `.master` at all, so nothing can discover the server |
+| `Unreadable` | A claim exists but does not parse, which is what an interrupted write leaves behind |
+
+#### master release
+
+```terminal
+>tendril master release
+>tendril master release --yes
+>tendril master release --force
+```
+
+Deletes the claim. Prompts for confirmation first, and refuses outright when the process it names is alive and answering `/ivy/health`.
+
+| Option | Effect |
+|--------|--------|
+| `--yes` / `-y` | Skip the confirmation prompt |
+| `--force` | Release even a master that is alive and answering (implies `--yes`) |
+
+<Callout type="Warning">
+Releasing the claim of a server that is still running lets the next launch come up as a second master against the same `TENDRIL_HOME`, with both running jobs. Stop the process first, or trust `master status`: a late heartbeat on its own is not a reason to release anything.
+
+</Callout>
+
+#### Recovering a missing or wedged claim
+
+1. Run `tendril master status`.
+2. `SaturatedButServing` — do nothing. The server is running and answering; its heartbeat will catch up when load drops.
+3. `NoClaim` — a running master re-asserts its own claim within 30 seconds, logging `Re-asserted the master claim` to `<TendrilHome>/crash.log`. Wait one beat and look again; if nothing appears, no server is running, so start one with `tendril`.
+4. `Unreadable` — same as above: a running master replaces it on its next beat. Otherwise `tendril master release --yes` and start a server.
+5. `DeadHolder` — nothing to do; the next launch reclaims it. `tendril master release --yes` removes it now.
+6. `WedgedNotServing` or `SchemeMismatch` — stop the process the claim names, then `tendril master release --yes` and start a server.
+
+<Callout type="Info">
+Every claim transition — taken, published, re-asserted, released, refused — is appended to `<TendrilHome>/crash.log`, which is written directly to disk and so survives a server too wedged to log anything else. That file is the history behind whatever `master status` shows you now.
+
+</Callout>
 
 ## agent-instructions
 
