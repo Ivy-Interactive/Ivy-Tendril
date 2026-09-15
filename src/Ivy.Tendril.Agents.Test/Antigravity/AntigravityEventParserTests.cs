@@ -356,4 +356,102 @@ public class AntigravityEventParserTests
         Assert.Equal("test_tool", toolCall.ToolName);
         Assert.NotNull(toolCall.ToolUseId);
     }
+
+    // Regression for the whole bug: this is the exact line Antigravity emits when the provider's
+    // quota is exhausted — a terminal error step with no text payload of any kind. It used to fall
+    // off the end of ParseStepUpdate and produce nothing at all, which is why a fleet of jobs sat at
+    // "Starting..." for an hour with empty eventwire files.
+    [Fact]
+    public void ParseLine_ErrorMessageStep_EmitsErrorEvent()
+    {
+        var json = "{\"event\":\"step_update\",\"step_update\":{\"conversation_id\":\"da84f37e-fe47-4751-9a3a-9a8eaa49dbbf\",\"step_index\":1,\"state\":\"DONE\",\"step_type\":\"error_message\",\"duration_seconds\":0}}";
+
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var errorEvent = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Equal(AgentEventKind.Error, errorEvent.Kind);
+        Assert.Equal("agent reported an error (no detail)", errorEvent.Message);
+        Assert.Null(errorEvent.Code);
+        Assert.False(errorEvent.IsRetryable);
+        Assert.False(errorEvent.IsAuthError);
+    }
+
+    [Fact]
+    public void ParseLine_ErrorMessageStepWithText_UsesText()
+    {
+        var json = "{\"event\":\"step_update\",\"step_update\":{\"step_index\":1,\"state\":\"DONE\",\"step_type\":\"error_message\",\"duration_seconds\":0," +
+                   "\"text\":\"API error (attempt 5): RESOURCE_EXHAUSTED (code 429): Resource has been exhausted (e.g. check quota).\"}}";
+
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var errorEvent = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Contains("RESOURCE_EXHAUSTED", errorEvent.Message);
+        Assert.Equal("RESOURCE_EXHAUSTED", errorEvent.Code);
+        Assert.True(errorEvent.IsRetryable);
+        Assert.False(errorEvent.IsAuthError);
+    }
+
+    [Fact]
+    public void ParseLine_ErrorMessageStepWithNestedError_UsesNestedText()
+    {
+        var json = "{\"event\":\"step_update\",\"step_update\":{\"step_index\":2,\"state\":\"DONE\",\"step_type\":\"error_message\"," +
+                   "\"error_message\":{\"text\":\"401 unauthorized: not logged in\"}}}";
+
+        var events = _parser.ParseLine(json);
+
+        var errorEvent = Assert.IsType<ErrorEvent>(Assert.Single(events));
+        Assert.Contains("unauthorized", errorEvent.Message);
+        Assert.Equal("401", errorEvent.Code);
+        Assert.True(errorEvent.IsAuthError);
+        Assert.False(errorEvent.IsRetryable);
+    }
+
+    // The echo of our own prompt. Dropped deliberately and by name, rather than by falling off the
+    // end of the branch chain the way error_message did.
+    [Fact]
+    public void ParseLine_UserInputStep_ReturnsEmpty()
+    {
+        var json = "{\"event\":\"step_update\",\"step_update\":{\"step_index\":0,\"state\":\"DONE\",\"step_type\":\"user_input\"}}";
+
+        Assert.Empty(_parser.ParseLine(json));
+    }
+
+    // An unrecognised terminal step_type is reported as a SystemEvent, which JobItem.EnqueueOutput
+    // filters out of the eventwire — so nothing user-visible changes, but the next unknown step_type
+    // shows up here instead of vanishing silently.
+    [Fact]
+    public void ParseLine_UnknownStepType_DoesNotThrow()
+    {
+        var json = "{\"event\":\"step_update\",\"step_update\":{\"step_index\":3,\"state\":\"DONE\",\"step_type\":\"some_future_step\"}}";
+
+        var events = _parser.ParseLine(json);
+
+        var systemEvent = Assert.IsType<SystemEvent>(Assert.Single(events));
+        Assert.Equal("step_update", systemEvent.Subtype);
+        Assert.Contains("some_future_step", systemEvent.Message);
+    }
+
+    // The real transcript of job 03456, whose eventwire file held exactly one line (session_init)
+    // while the raw log held eight provider errors.
+    [Fact]
+    public void ParseFixture_ProviderQuotaTranscript_EmitsAnErrorEventPerErrorMessageStep()
+    {
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "Antigravity", "Fixtures", "provider-quota-error.jsonl");
+        Assert.True(File.Exists(fixturePath), $"Fixture not found at {fixturePath}");
+
+        var lines = File.ReadAllLines(fixturePath);
+        var expectedErrorSteps = lines.Count(l => l.Contains("\"step_type\":\"error_message\""));
+        Assert.Equal(8, expectedErrorSteps);
+
+        var events = lines.SelectMany(_parser.ParseLine).ToList();
+
+        Assert.Equal(expectedErrorSteps, events.OfType<ErrorEvent>().Count());
+        Assert.All(events.OfType<ErrorEvent>(), e => Assert.Equal("agent reported an error (no detail)", e.Message));
+
+        var result = Assert.IsType<ResultEvent>(events[^1]);
+        Assert.False(result.IsSuccess);
+        Assert.Contains("RESOURCE_EXHAUSTED", result.Error);
+    }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
+using Ivy.Tendril.Agents.Runtime;
 
 namespace Ivy.Tendril.Agents.Providers.Antigravity;
 
@@ -264,9 +265,74 @@ public sealed class AntigravityEventParser : IEventParser
                 }];
             }
         }
+        else if (stepType == "error_message")
+        {
+            // The provider reporting its own failure — a quota wall, an auth failure, a refused
+            // request. Antigravity sends these with no text payload at all, and dropping them is
+            // what left a job showing "Starting..." for an hour with nothing in its eventwire.
+            var message = FirstNonBlank(
+                TryGetString(su, "text"),
+                TryGetString(su, "text_delta"),
+                TryGetString(su, "error"),
+                TryGetString(su, "message"),
+                su.TryGetProperty("error_message", out var em)
+                    ? FirstNonBlank(TryGetString(em, "text"), TryGetString(em, "error"), TryGetString(em, "message"))
+                    : null);
+
+            // A payload-free step must still produce a visible line: silence is the bug. The full
+            // step_update JSON is preserved on RawLine, so nothing is lost by using a fixed message.
+            var hadDetail = message != null;
+            message ??= NoDetailErrorMessage;
+
+            var kind = hadDetail ? ProviderErrorClassifier.Classify(message) : ProviderErrorClassifier.ProviderErrorKind.None;
+
+            return [new ErrorEvent
+            {
+                Kind = AgentEventKind.Error,
+                Message = message,
+                Code = hadDetail ? ProviderErrorClassifier.ExtractCode(message) : null,
+                IsRetryable = ProviderErrorClassifier.IsRetryable(kind),
+                IsAuthError = kind == ProviderErrorClassifier.ProviderErrorKind.Auth,
+                RawLine = rawLine,
+            }];
+        }
+        else if (stepType == "user_input")
+        {
+            // The echo of our own prompt back at us — deliberately dropped, by name rather than by
+            // falling off the end of the branch chain.
+            return Empty;
+        }
+        else if (stepType != null && state != null && state != "ACTIVE")
+        {
+            // Any step_type we don't recognize, in a terminal state. SystemEvent is filtered out of
+            // the eventwire by JobItem.EnqueueOutput, so this changes nothing user-visible; it exists
+            // so the next unknown step_type shows up in tests and the raw log instead of vanishing
+            // the way error_message did.
+            return [new SystemEvent
+            {
+                Kind = AgentEventKind.System,
+                Subtype = "step_update",
+                Message = $"{stepType} ({state})",
+                RawLine = rawLine,
+            }];
+        }
 
         return Empty;
     }
+
+    /// <summary>
+    ///     Message used when an <c>error_message</c> step carries no text of any kind, which is the
+    ///     shape Antigravity actually emits on a provider quota wall.
+    /// </summary>
+    internal const string NoDetailErrorMessage = "agent reported an error (no detail)";
+
+    private static string? TryGetString(JsonElement element, string property)
+        => element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static string? FirstNonBlank(params string?[] candidates)
+        => candidates.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
 
     private IReadOnlyList<AgentEvent> ParseResult(JsonElement root, string rawLine)
     {

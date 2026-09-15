@@ -91,6 +91,13 @@ internal class AgentModelsCheck(ConfigService? configService = null, IAgentRunne
                 statuses.Add(new CheckStatus(label, result.ErrorMessage ?? "Auth error", StatusKind.Error));
                 hasErrors = true;
                 break;
+            // An exhausted quota must fail doctor, not warn: a fleet launched against it produces
+            // nothing at all, which is the failure this arm exists to catch before launch. The switch
+            // has no default, so a missing arm here would silently report nothing.
+            case ModelValidationStatus.RateLimit:
+                statuses.Add(new CheckStatus(label, result.ErrorMessage ?? "Quota exhausted or rate limited", StatusKind.Error));
+                hasErrors = true;
+                break;
             case ModelValidationStatus.Timeout:
                 statuses.Add(new CheckStatus(label, "Timeout", StatusKind.Warn));
                 break;

@@ -36,6 +36,7 @@ internal class JobMonitor
         _ = RunJobTimeoutWatchdog();
         _ = RunStaleOutputWatchdog(_id, _timeoutCts, _ctx.Jobs, _ctx.StaleOutputTimeout);
         _ = RunPostResultGraceWatchdog(_id, _timeoutCts, _ctx.Jobs, _process, _logger);
+        _ = RunProviderFailureWatchdog(_id, _timeoutCts, _ctx.Jobs, _process, _logger);
 
         // Status updates now arrive via HTTP (PUT /api/jobs/{id}/status)
         // — no file polling needed.
@@ -202,9 +203,14 @@ internal class JobMonitor
         Process process,
         ILogger logger,
         TimeSpan? gracePeriodOverride = null,
-        TimeSpan? tickInterval = null)
+        TimeSpan? tickInterval = null,
+        TimeSpan? failedResultGraceOverride = null)
     {
         var gracePeriod = gracePeriodOverride ?? TimeSpan.FromSeconds(20);
+        // A terminal ResultEvent that reports failure means the agent is not going to produce
+        // anything else, so there is nothing worth waiting twenty seconds for. The full grace stays
+        // for a successful result, where the process may legitimately still be flushing.
+        var failedResultGrace = failedResultGraceOverride ?? TimeSpan.FromSeconds(2);
         var interval = tickInterval ?? TimeSpan.FromSeconds(1);
         try
         {
@@ -219,12 +225,13 @@ internal class JobMonitor
 
                 if (job.ResultReceivedAt is { } resultAt)
                 {
-                    if (DateTime.UtcNow - resultAt >= gracePeriod)
+                    var effectiveGrace = job.LastResultEvent is { IsSuccess: false } ? failedResultGrace : gracePeriod;
+                    if (DateTime.UtcNow - resultAt >= effectiveGrace)
                     {
                         job.PostResultGraceExceeded = true;
                         logger.LogInformation(
                             "Job {JobId}: Agent emitted terminal ResultEvent but process did not exit within {GraceSeconds}s grace period — terminating process tree",
-                            id, (int)gracePeriod.TotalSeconds);
+                            id, (int)effectiveGrace.TotalSeconds);
 
                         try
                         {
@@ -238,6 +245,60 @@ internal class JobMonitor
                         return;
                     }
                 }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    /// <summary>
+    ///     Kills an agent that has hit a provider wall — an exhausted quota, a failed auth — instead of
+    ///     letting it sit out the CLI's own <c>--print-timeout</c> (7200s in the incident this was
+    ///     written for) while every attempt 429s. The kill is the whole mechanism:
+    ///     <c>MonitorProcessAsync</c> observes the exit and completes the job through the normal path,
+    ///     which is how <see cref="RunPostResultGraceWatchdog" /> already works.
+    ///     <para>
+    ///         Deliberately does <em>not</em> cancel the timeout CTS: that is the timeout signal, and
+    ///         using it here would relabel a quota wall as a timeout — exactly the wrong post-mortem.
+    ///     </para>
+    /// </summary>
+    internal static async Task RunProviderFailureWatchdog(
+        string id,
+        CancellationTokenSource timeoutCts,
+        ConcurrentDictionary<string, JobItem> jobs,
+        Process process,
+        ILogger logger,
+        TimeSpan? tickInterval = null)
+    {
+        var interval = tickInterval ?? TimeSpan.FromSeconds(1);
+        try
+        {
+            while (!timeoutCts.Token.IsCancellationRequested)
+            {
+                await Task.Delay(interval, timeoutCts.Token);
+                if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
+                    return;
+
+                if (job.Process is { HasExited: true } || process.HasExited)
+                    return;
+
+                if (!job.ProviderFailureDetected)
+                    continue;
+
+                logger.LogWarning(
+                    "Job {JobId}: Provider failure detected ({Reason}) — terminating the agent rather than waiting out its print timeout",
+                    id, job.ProviderFailureMessage ?? "unknown provider error");
+
+                try
+                {
+                    if (!process.HasExited)
+                        process.Kill(entireProcessTree: true);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Job {JobId}: Failed to kill process after provider failure", id);
+                }
+                return;
             }
         }
         catch (OperationCanceledException) { }

@@ -122,6 +122,10 @@ public class AgentTestDialog(
                             modelResult.ErrorMessage ?? "Invalid model", modelResult.ErrorMessage),
                         ModelValidationStatus.AuthError => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Failed,
                             modelResult.ErrorMessage ?? "Auth error", modelResult.ErrorMessage),
+                        // The model is fine, its quota is not — a failure either way, since nothing run
+                        // against it will do any work until the quota clears.
+                        ModelValidationStatus.RateLimit => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Failed,
+                            modelResult.ErrorMessage ?? "Quota exhausted or rate limited", modelResult.ErrorMessage),
                         _ => new AgentTestResult($"Model: {entry.DisplayName}",
                             modelResult.ErrorMessage != null ? TestStatus.Failed : TestStatus.Warning,
                             modelResult.ErrorMessage ?? "Unknown", modelResult.ErrorMessage)

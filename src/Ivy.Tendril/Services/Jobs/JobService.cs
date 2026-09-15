@@ -71,6 +71,12 @@ public class JobService : IJobService
     private readonly IAgentRunner? _agentRunner;
     private readonly IChatHistoryService? _chatHistoryService;
     private Timer? _blockedJobCheckTimer;
+
+    /// <summary>
+    ///     Stops the queue draining into a provider that has just failed several jobs in a row. Admission
+    ///     refusal only — retry, backoff and model fallback are issue #2705's.
+    /// </summary>
+    private readonly ProviderCircuitBreaker _providerBreaker = new();
     public JobService(
         IConfigService configService,
         ILogger<JobService>? logger = null,
@@ -167,6 +173,7 @@ public class JobService : IJobService
         job.FlushParser();
         var wasRunning = job.Status == JobStatus.Running;
         SetCompletionStatus(job, exitCode, timedOut, staleOutput);
+        RecordProviderOutcome(job);
         if (wasRunning)
         {
             try
@@ -201,6 +208,30 @@ public class JobService : IJobService
         RaiseJobsStructureChanged();
         JobFinished?.Invoke(job);
         ProcessJobQueue();
+    }
+
+    /// <summary>
+    ///     Feeds a completed job's outcome to the provider breaker, so the next jobs in the queue are not
+    ///     launched into a wall this one just hit. Called right after <c>SetCompletionStatus</c>, which is
+    ///     what decides whether this job died of a provider failure at all.
+    /// </summary>
+    private void RecordProviderOutcome(JobItem job)
+    {
+        if (string.IsNullOrEmpty(job.ProviderFailureMessage))
+        {
+            _providerBreaker.RecordSuccess(job.Provider);
+            return;
+        }
+
+        if (!_providerBreaker.RecordFailure(job.Provider, job.ProviderFailureMessage))
+            return;
+
+        // Exactly one notification per trip — the whole point is one alert, not fourteen.
+        var target = string.IsNullOrEmpty(job.Model) ? job.Provider : $"{job.Provider}/{job.Model}";
+        RaiseNotification(new JobNotification(
+            $"{job.Provider} Unavailable",
+            $"Pausing new jobs for {target}: {job.ProviderFailureMessage}",
+            false));
     }
 
     private bool TryContinueForBackgroundTask(JobItem job)
@@ -242,6 +273,17 @@ public class JobService : IJobService
 
     private void SetCompletionStatus(JobItem job, int? exitCode, bool timedOut, bool staleOutput)
     {
+        // A provider wall is known within seconds of launch, so it outranks every other verdict —
+        // including the timeout branch below, which would otherwise report "No output for N minutes"
+        // and send an operator looking for a hung agent that was never hung. Failed, not Timeout: an
+        // exhausted quota is a failure, and the two messages must never be interchangeable.
+        if (!string.IsNullOrEmpty(job.ProviderFailureMessage))
+        {
+            job.Status = JobStatus.Failed;
+            job.StatusMessage = SanitizeForDisplay(job.ProviderFailureMessage);
+            return;
+        }
+
         if (timedOut)
         {
             job.Status = JobStatus.Timeout;
@@ -627,7 +669,11 @@ public class JobService : IJobService
 
             if (!isStale && !isHardCapped) continue;
 
-            var reason = isHardCapped && !isStale
+            // A job with a known provider failure is not a mystery to be reported as stale output —
+            // say what actually happened, even though the reap itself is unchanged.
+            var reason = !string.IsNullOrEmpty(job.ProviderFailureMessage)
+                ? job.ProviderFailureMessage
+                : isHardCapped && !isStale
                 ? "hard cap"
                 : detached
                     ? pidAlive
@@ -1896,6 +1942,25 @@ public class JobService : IJobService
     internal Task RunStaleOutputWatchdog(string id, CancellationTokenSource timeoutCts)
         => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, () => _staleOutputTimeout);
 
+    /// <summary>
+    ///     The provider admission breaker, exposed so tests can trip it (and read it back) without
+    ///     completing a real agent run against an exhausted quota.
+    /// </summary>
+    internal ProviderCircuitBreaker ProviderBreaker => _providerBreaker;
+
+    /// <summary>
+    ///     Local slots currently held, so a test can prove a refused admission gave its slot back rather
+    ///     than leaking one per queue pump.
+    /// </summary>
+    internal int LocalSlotsInUse => MaxLocalSlots - _jobSlotSemaphore.CurrentCount;
+
+    /// <summary>Queues an existing job and pumps the queue, as the launcher's back-pressure paths do.</summary>
+    internal void EnqueueAndPumpQueue(JobItem job, string statusMessage)
+    {
+        EnqueueForLater(job, statusMessage);
+        ProcessJobQueue();
+    }
+
     internal Task RunJobTimeoutWatchdog(string id, CancellationTokenSource timeoutCts, DateTime startedAt, TimeSpan? tickInterval = null)
         => JobMonitor.RunJobTimeoutWatchdog(id, timeoutCts, _jobs, () => _jobTimeout, startedAt, tickInterval);
 
@@ -1946,6 +2011,19 @@ public class JobService : IJobService
                     ReleaseLocalSlot();
                     continue;
                 }
+            }
+
+            // The provider this job would run against has just failed three jobs in a row, so starting
+            // it would only add a fourth. Mirrors the machine-limit branch below exactly, break
+            // included: without it the loop would spin on a queue nothing here can drain. The 60s
+            // housekeeping timer pumps ProcessJobQueue again, so the queue drains by itself once the
+            // breaker's cooldown lapses.
+            if (_providerBreaker.IsOpen(queuedJob.Provider, out var breakerReason))
+            {
+                ReleaseLocalSlot();
+                queuedJob.StatusMessage = breakerReason;
+                lock (_queueLock) { _jobQueue.Enqueue(queuedJob.Id, -queuedJob.Priority); }
+                break;
             }
 
             if (!_leases.TryAcquire(queuedJob.Id, _maxConcurrentJobs, out var liveCount))

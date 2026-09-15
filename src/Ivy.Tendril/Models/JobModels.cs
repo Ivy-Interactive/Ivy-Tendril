@@ -163,6 +163,29 @@ public record JobItem
     [JsonIgnore] public DateTime? ResultReceivedAt { get; set; }
     [JsonIgnore] public bool PostResultGraceExceeded { get; set; }
 
+    /// <summary>
+    /// Consecutive provider-level quota/auth errors seen in this job's event stream. Reset by any
+    /// sign of real progress (a successful tool result, agent text, thinking), because a wall that
+    /// clears is not a wall any more. Counted without regard to wall-clock spacing: the observed
+    /// shape is seven payload-free <c>error_message</c> steps inside one second.
+    /// </summary>
+    [JsonIgnore] public int ProviderErrorCount { get; private set; }
+
+    /// <summary>
+    /// Set once the provider errors above cross the fail-fast threshold — 3 consecutive for a quota
+    /// wall, 1 for an auth failure, which will not clear by itself. Polled by
+    /// <c>JobMonitor.RunProviderFailureWatchdog</c>, which kills the agent rather than letting it
+    /// burn the full <c>--print-timeout</c>.
+    /// </summary>
+    [JsonIgnore] public bool ProviderFailureDetected { get; set; }
+
+    /// <summary>
+    /// The provider failure this job died of, already phrased for display (provider, model and
+    /// condition). Checked by <c>SetCompletionStatus</c> ahead of the timeout branch, so a quota wall
+    /// is never reported as "No output for N minutes".
+    /// </summary>
+    [JsonIgnore] public string? ProviderFailureMessage { get; set; }
+
     // Path to the .processing inbox file for CreatePlan job recovery
     public string? InboxFile { get; set; }
 
@@ -224,11 +247,77 @@ public record JobItem
             {
                 LastResultEvent = resultEvt;
                 ResultReceivedAt = DateTime.UtcNow;
+
+                if (!resultEvt.IsSuccess)
+                {
+                    var detail = !string.IsNullOrWhiteSpace(resultEvt.Error) ? resultEvt.Error : resultEvt.Response;
+                    var resultKind = ProviderErrorClassifier.Classify(detail);
+                    if (resultKind != ProviderErrorClassifier.ProviderErrorKind.None)
+                    {
+                        ProviderFailureMessage = DescribeProviderFailure(resultKind, detail);
+                        ProviderFailureDetected = true;
+                    }
+                }
             }
+
+            TrackProviderErrors(evt);
 
             var serialized = _eventSerializer.Serialize(evt);
             RecordEvent(serialized);
         }
+    }
+
+    /// <summary>
+    /// Fail-fast bookkeeping for provider-level errors. The agent CLI has already exhausted its own
+    /// internal retries by the time one of these reaches us (the observed transcript says
+    /// "attempt 5"), so a second Tendril-side wait for the full <c>--print-timeout</c> is pure waste.
+    /// </summary>
+    private void TrackProviderErrors(AgentEvent evt)
+    {
+        switch (evt)
+        {
+            case ErrorEvent errorEvt:
+                var kind = ProviderErrorClassifier.Classify(errorEvt.Code ?? errorEvt.Message);
+                if (kind == ProviderErrorClassifier.ProviderErrorKind.None)
+                    return;
+
+                ProviderErrorCount++;
+                ProviderFailureMessage = DescribeProviderFailure(kind, errorEvt.Message);
+
+                var threshold = kind == ProviderErrorClassifier.ProviderErrorKind.Auth
+                    ? AuthErrorFailFastThreshold
+                    : QuotaErrorFailFastThreshold;
+                if (ProviderErrorCount >= threshold)
+                    ProviderFailureDetected = true;
+                return;
+
+            // Real progress means the wall cleared, so the streak starts again from zero.
+            case ToolResultEvent { IsError: false }:
+            case TextEvent:
+            case ThinkingEvent:
+                ProviderErrorCount = 0;
+                return;
+        }
+    }
+
+    /// <summary>
+    /// A quota wall clears by itself, so a single error is not proof of one; an auth failure will not,
+    /// so waiting for a second is time spent for nothing.
+    /// </summary>
+    private const int QuotaErrorFailFastThreshold = 3;
+    private const int AuthErrorFailFastThreshold = 1;
+
+    /// <summary>
+    /// Names the provider, the model and the condition, so an operator reading the job list sees the
+    /// real cause instead of a timeout. Deliberately unlike the stale-output message.
+    /// </summary>
+    private string DescribeProviderFailure(ProviderErrorClassifier.ProviderErrorKind kind, string? detail)
+    {
+        var target = string.IsNullOrEmpty(Model) ? Provider : $"{Provider}/{Model}";
+        var condition = ProviderErrorClassifier.Describe(kind);
+        return string.IsNullOrWhiteSpace(detail)
+            ? $"{target}: {condition}"
+            : $"{target}: {condition} — {detail.Trim()}";
     }
 
     public void EnqueueSystemOutput(string message)

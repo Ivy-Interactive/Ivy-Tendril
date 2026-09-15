@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
 
 namespace Ivy.Tendril.Agents.Providers.Antigravity;
 
@@ -34,28 +35,29 @@ public sealed class AntigravityFailureAnalyzer : IFailureAnalyzer
 
         var stderr = string.Join("\n", context.StderrLines);
 
-        if (ContainsAny(stderr, "quota", "rate limit", "429", "too many requests", "RESOURCE_EXHAUSTED"))
+        // Quota and auth terms live in ProviderErrorClassifier, so this analyzer, the event parser,
+        // the doctor model probe and the job-side fail-fast paths all recognize the same wall.
+        switch (ProviderErrorClassifier.Classify(stderr))
         {
-            return new FailureAnalysis
-            {
-                Kind = FailureKind.RateLimit,
-                Reason = "Rate limited or quota exceeded",
-                ContextLines = context.StderrLines,
-                IsRetryable = true,
-                Suggestion = "Wait before retrying or switch to a different model",
-            };
-        }
+            case ProviderErrorClassifier.ProviderErrorKind.Quota:
+                return new FailureAnalysis
+                {
+                    Kind = FailureKind.RateLimit,
+                    Reason = "Rate limited or quota exceeded",
+                    ContextLines = context.StderrLines,
+                    IsRetryable = true,
+                    Suggestion = "Wait before retrying or switch to a different model",
+                };
 
-        if (ContainsAny(stderr, "not logged in", "You are not logged into Antigravity", "oauth", "unauthorized", "401", "403"))
-        {
-            return new FailureAnalysis
-            {
-                Kind = FailureKind.AuthError,
-                Reason = "Authentication failure",
-                ContextLines = context.StderrLines,
-                IsRetryable = false,
-                Suggestion = "Run 'agy' to re-authenticate",
-            };
+            case ProviderErrorClassifier.ProviderErrorKind.Auth:
+                return new FailureAnalysis
+                {
+                    Kind = FailureKind.AuthError,
+                    Reason = "Authentication failure",
+                    ContextLines = context.StderrLines,
+                    IsRetryable = false,
+                    Suggestion = "Run 'agy' to re-authenticate",
+                };
         }
 
         if (ContainsAny(stderr, "network", "connection", "ECONNREFUSED", "ETIMEDOUT", "dns"))
