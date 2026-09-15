@@ -13,7 +13,8 @@ public static class JobExclusionGroups
         [JobExclusionGroup.PlanWorktree] =
         [
             Constants.JobTypes.ExecutePlan, Constants.JobTypes.RetryPlan, Constants.JobTypes.CreatePr,
-            Constants.JobTypes.UpdatePlan, Constants.JobTypes.ExpandPlan, Constants.JobTypes.SplitPlan
+            Constants.JobTypes.UpdatePlan, Constants.JobTypes.ExpandPlan, Constants.JobTypes.SplitPlan,
+            Constants.JobTypes.SyncRepo
         ],
         [JobExclusionGroup.PlanIssue] = [Constants.JobTypes.CreateIssue],
         [JobExclusionGroup.ProjectSetup] = [Constants.JobTypes.SetupProject]
