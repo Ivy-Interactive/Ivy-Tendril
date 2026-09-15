@@ -1025,8 +1025,13 @@ internal class JobCompletionHandler
         job.EnqueueSystemOutput(
             "[Tendril] WARNING: CreatePlan completed but no plan folder was found.");
         job.Status = JobStatus.Failed;
-        job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList())
-            ?? job.StatusMessage
+
+        // A StatusMessage already set (e.g. via `tendril job fail`) is a terminal verdict from the
+        // promptware itself and must be preserved verbatim rather than overwritten here.
+        if (!string.IsNullOrEmpty(job.StatusMessage)) return;
+
+        job.StatusMessage = JobFailureAnalyzer.TryExtractErrorEvent(job.OutputLines)
+            ?? JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList())
             ?? "No plan created";
     }
 

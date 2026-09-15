@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
@@ -297,9 +298,15 @@ public class JobService : IJobService
                             .Where(l => l.StartsWith("[stderr] "))
                             .Select(l => l["[stderr] ".Length..])
                             .ToList();
+                        var serializer = new JsonEventSerializer();
+                        var events = job.OutputLines
+                            .Select(serializer.Deserialize)
+                            .Where(e => e != null)
+                            .Select(e => e!)
+                            .ToList();
                         analysis = analyzer.Analyze(new FailureContext
                         {
-                            Events = [],
+                            Events = events,
                             StderrLines = stderrLines,
                             ExitCode = exitCode,
                             TimedOut = false,

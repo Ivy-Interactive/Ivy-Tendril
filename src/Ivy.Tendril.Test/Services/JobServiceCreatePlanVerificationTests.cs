@@ -61,6 +61,91 @@ public class JobServiceCreatePlanVerificationTests : IDisposable
     }
 
     [Fact]
+    public void VerifyCreatePlanResult_PreservesExistingStatusMessage()
+    {
+        var planReader = new FakePlanReaderService { PlansDirectory = _plansDir };
+        var handler = new JobCompletionHandler(
+            configService: null,
+            logger: NullLogger.Instance,
+            modelPricingService: null,
+            planReaderService: planReader,
+            telemetryService: null,
+            planWatcherService: null,
+            promptsRoot: _promptsRoot
+        );
+
+        var job = new JobItem
+        {
+            Id = "00003",
+            Type = "CreatePlan",
+            Status = JobStatus.Completed,
+            StatusMessage = "Reported failure from tendril job fail",
+        };
+
+        handler.VerifyCreatePlanResult(job);
+
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Reported failure from tendril job fail", job.StatusMessage);
+    }
+
+    [Fact]
+    public void VerifyCreatePlanResult_NoStatusMessage_ExtractsToolFailureBeforeGenericFallback()
+    {
+        var planReader = new FakePlanReaderService { PlansDirectory = _plansDir };
+        var handler = new JobCompletionHandler(
+            configService: null,
+            logger: NullLogger.Instance,
+            modelPricingService: null,
+            planReaderService: planReader,
+            telemetryService: null,
+            planWatcherService: null,
+            promptsRoot: _promptsRoot
+        );
+
+        var job = new JobItem
+        {
+            Id = "00004",
+            Type = "CreatePlan",
+            Status = JobStatus.Completed,
+        };
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_result","tool_use_id":"t1","tool_name":"write_to_file","output":"path is not valid","is_error":true}""");
+
+        handler.VerifyCreatePlanResult(job);
+
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Contains("write_to_file", job.StatusMessage);
+        Assert.Contains("path is not valid", job.StatusMessage);
+    }
+
+    [Fact]
+    public void VerifyCreatePlanResult_NoStatusMessageOrEvents_FallsBackToNoPlanCreated()
+    {
+        var planReader = new FakePlanReaderService { PlansDirectory = _plansDir };
+        var handler = new JobCompletionHandler(
+            configService: null,
+            logger: NullLogger.Instance,
+            modelPricingService: null,
+            planReaderService: planReader,
+            telemetryService: null,
+            planWatcherService: null,
+            promptsRoot: _promptsRoot
+        );
+
+        var job = new JobItem
+        {
+            Id = "00005",
+            Type = "CreatePlan",
+            Status = JobStatus.Completed,
+        };
+
+        handler.VerifyCreatePlanResult(job);
+
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("No plan created", job.StatusMessage);
+    }
+
+    [Fact]
     public void VerifyCreatePlanResult_FailsWhenDuplicateMarkerIsOnlyInToolOutput()
     {
         // The marker's target resolves, but only inside a tool result - it must not count.

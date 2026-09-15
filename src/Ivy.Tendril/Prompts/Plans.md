@@ -43,7 +43,7 @@ Plans live under `planFolder` from `config.yaml`.
 **IMPORTANT: Never read or write `plan.yaml` directly.** Always use `tendril plan` CLI commands. This ensures validation, atomic writes, timestamp updates, and database sync.
 
 Plan IDs can be provided in any of these forms:
-- Full path: `D:\Plans\00015-LogWarning`
+- Full path: `/path/to/Plans/00015-LogWarning`
 - Folder name: `00015-LogWarning`
 - Zero-padded ID: `00015`
 - Bare number: `15`
@@ -227,7 +227,7 @@ allocatedPorts:
 | `project`      | Project name matching a `projects` entry in `config.yaml` |
 | `level`        | One of the levels defined in `config.yaml`       |
 | `title`        | Human-readable plan title in **Title Case with spaces** (e.g. `Show File Details in Local Changes Dialog`). **Never** PascalCase / no-space form (`ShowFileDetailsInLocalChangesDialog`) — that form is reserved for the folder `SafeTitle` only. MUST be identical to the `# {title}` H1 heading in the revision markdown. |
-| `sessionId`    | Claude session ID from CreatePlan (for `claude --resume`) |
+| `sessionId`    | Agent session ID from CreatePlan (for resuming the agent session) |
 | `repos`        | Affected repository paths (plain strings, e.g. `- D:\Repos\Foo` on Windows or `- /home/user/repos/Foo` on Linux — NOT objects) |
 | `created`      | UTC timestamp when the plan was created (use `CurrentTime` from firmware header) |
 | `updated`      | UTC timestamp of last state change (use `CurrentTime` from firmware header)      |

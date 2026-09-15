@@ -57,7 +57,7 @@ public class AntigravityCliTests
     public void DefaultProfiles_Correct()
     {
         Assert.Equal(3, _cli.DefaultProfiles.Count);
-        Assert.All(_cli.DefaultProfiles, p => Assert.Equal("gemini-3.7-flash", p.Model));
+        Assert.All(_cli.DefaultProfiles, p => Assert.Equal("gemini-3.8-flash", p.Model));
     }
 
     [Fact]
@@ -189,5 +189,56 @@ public class AntigravityCliTests
         Assert.Equal("true", spec.Environment["CI"]);
         Assert.Equal("dumb", spec.Environment["TERM"]);
         Assert.Equal("custom-val", spec.Environment["CUSTOM_ENV"]);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_InjectsToolSchemaGuardrailsIntoPromptFile()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "Hello",
+            WorkingDirectory = "/tmp",
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+        var promptArg = spec.Arguments.Single(a => a.StartsWith('@'));
+        var promptContent = File.ReadAllText(promptArg[1..]);
+
+        Assert.Contains(AntigravityCli.ToolSchemaGuardrails, promptContent);
+        Assert.Contains("Hello", promptContent);
+
+        foreach (var tempFile in spec.TempFiles)
+            File.Delete(tempFile);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_WithPromptFilePath_StillInjectsGuardrails()
+    {
+        var sourceFile = Path.Combine(Path.GetTempPath(), $"antigravity-cli-test-{Guid.NewGuid():N}.md");
+        File.WriteAllText(sourceFile, "Prompt from file");
+
+        try
+        {
+            var config = new AgentLaunchConfig
+            {
+                Prompt = "Prompt from file",
+                PromptFilePath = sourceFile,
+                WorkingDirectory = "/tmp",
+            };
+
+            var spec = _cli.BuildProcessSpec(config);
+            var promptArg = spec.Arguments.Single(a => a.StartsWith('@'));
+            var promptContent = File.ReadAllText(promptArg[1..]);
+
+            Assert.Contains(AntigravityCli.ToolSchemaGuardrails, promptContent);
+            Assert.Contains("Prompt from file", promptContent);
+
+            foreach (var tempFile in spec.TempFiles)
+                File.Delete(tempFile);
+        }
+        finally
+        {
+            File.Delete(sourceFile);
+        }
     }
 }

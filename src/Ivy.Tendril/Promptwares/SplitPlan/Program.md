@@ -68,7 +68,7 @@ EOF
 
 **The revision's first line is the `# {title}` H1 heading — it MUST be the exact same string you passed as `<Title>` to `tendril plan create` for that plan** (human-readable Title Case, not the PascalCase folder form). The `plan.yaml` title and the spec H1 must always match.
 
-The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
+The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Tests sections. Each plan must be fully self-contained. Do NOT create revision files directly in `Revisions/`; only use the command above.
 
 #### Open Questions
 

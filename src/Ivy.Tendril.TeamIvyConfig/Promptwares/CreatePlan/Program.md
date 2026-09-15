@@ -135,7 +135,11 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
   Include the reasoning above the marker — the original request, the existing plan's state, and why
   it is a duplicate — so the job log carries the full record.
 
-- Read relevant source files to understand the codebase areas involved (READ ONLY — do not write, edit, or create any source files)
+- Read relevant source files to understand the codebase areas involved (READ ONLY — do not write, edit, or create any source files).
+- **Safe Codebase Search Guidelines**:
+  - When using `grep_search` or CLI search tools, **ALWAYS** target specific source subdirectories (e.g. `src/`) and provide specific file-pattern filters (e.g. `*.cs`, `*.tsx`, `*.ts`, `*.rs`, `*.py`, `*.md`). If the search tool's file-filter argument (e.g. `Includes`) takes a list, pass it as an array of glob strings (e.g. `["*.cs"]`), not a comma-separated string.
+  - **NEVER** run broad unconstrained grep searches across entire repository roots without file filters. Searching unconstrained roots encounters generated bundles and build artifacts (`dist/`, `bin/`, `obj/`, `node_modules/`) whose minified lines trigger tool buffer limits (`bufio.Scanner: token too long`).
+  - When using a file-finder tool (e.g. `find_by_name`) that requires a pattern argument, always pass one — use a wildcard (e.g. `*`) to match all files.
 
 ### 3.1. Search GitHub Issues
 
@@ -234,7 +238,7 @@ tendril plan write-revision <PlanId> <<'EOF'
 EOF
 ```
 
-This reads from STDIN and auto-creates `Revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
+This reads from STDIN and auto-creates `Revisions/001.md` (or the next sequential number) in the plan folder. Do NOT create revision files directly in `Revisions/`; only use the command above.
 
 **Duplicate candidates at finalization.** `write-revision` prints this to **stderr** when it finds overlapping plans, while still writing the revision and exiting 0:
 

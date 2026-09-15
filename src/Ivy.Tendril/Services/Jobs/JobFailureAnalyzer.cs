@@ -221,6 +221,8 @@ internal static class JobFailureAnalyzer
     internal static string? TryExtractErrorEvent(IEnumerable<string> outputLines)
     {
         var serializer = new JsonEventSerializer();
+        var sawRecovery = false;
+        ToolResultEvent? trailingToolError = null;
         foreach (var line in outputLines.Reverse())
         {
             var evt = serializer.Deserialize(line);
@@ -235,7 +237,22 @@ internal static class JobFailureAnalyzer
                 if (!string.IsNullOrWhiteSpace(r.Response))
                     return FormatFailedResultMessage(r.Response);
             }
+
+            // Track whether a tool error was ever recovered from (a later successful tool result or a
+            // successful terminal result) so a trailing, unrecovered tool failure can still be reported
+            // even when the agent never emitted an explicit error/result event of its own.
+            if (!sawRecovery && trailingToolError is null)
+            {
+                if (evt is ToolResultEvent { IsError: true } toolError)
+                    trailingToolError = toolError;
+                else if (evt is ToolResultEvent { IsError: false } or ResultEvent { IsSuccess: true })
+                    sawRecovery = true;
+            }
         }
+
+        if (trailingToolError is not null)
+            return SanitizeForDisplay($"Tool '{trailingToolError.ToolName}' failed: {trailingToolError.Output}");
+
         return null;
     }
 

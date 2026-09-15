@@ -31,7 +31,7 @@ Read the `UpdateInstructions` value from the firmware header. Instructions are e
 ### 3. Research and Answer Questions
 
 For each question in the instructions:
-1. Read relevant source files to find the answer
+1. Read relevant source files to find the answer. Scope `grep_search` to specific subdirectories (e.g. `src/`) and file patterns (`*.cs`, `*.tsx`, etc.), avoiding unconstrained root searches over build artifacts. If the tool's file-filter argument (e.g. `Includes`) takes a list, pass it as an array of glob strings (e.g. `["*.cs"]`), not a comma-separated string. When using a file-finder tool (e.g. `find_by_name`) that requires a pattern argument, always pass one — use a wildcard (e.g. `*`) to match all files.
 2. Use the firmware header for project context if needed
 
 ### 3.5. Resolve Answered Questions
@@ -55,7 +55,7 @@ If all questions are resolved and no new questions arose, omit the `## Questions
   EOF
   ```
 
-  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
+  The command reads from STDIN and auto-creates the next numbered revision file. Do NOT create revision files directly in `Revisions/`; only use the command above.
 - Incorporate the intent of each instruction into the updated plan
 - Maintain the `## Questions` section (placed after the title, before `## Problem`) using `<details>` tags: (1) Existing questions answered by the user's instructions or research should be collapsed into `<details>` blocks with the answer. (2) New questions become new `<details>` blocks with answers. (3) Unanswered questions from prior revisions remain as open items (not in `<details>`). (4) If all questions are resolved and no new ones arose, omit the section entirely. Format:
   ```html

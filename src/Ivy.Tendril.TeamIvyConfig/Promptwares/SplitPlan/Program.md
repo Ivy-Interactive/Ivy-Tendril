@@ -59,7 +59,7 @@ tendril plan write-revision <PlanId> <<'EOF'
 EOF
 ```
 
-The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
+The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT create revision files directly in `Revisions/`; only use the command above.
 
 #### Project Assignment
 

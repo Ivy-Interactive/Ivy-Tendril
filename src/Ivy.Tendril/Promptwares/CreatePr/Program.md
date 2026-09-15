@@ -386,6 +386,6 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 - **Retry transient failures** per the transient-error retry convention before giving up
 - **Accurate failure reporting:** if a step ultimately fails, the final error message must
   state the *actual* cause (e.g. `git push to origin failed after 3 retries: <stderr>` or
-  `gh pr create failed: <stderr>`). Never phrase a git/GitHub/network failure as a Claude
+  `gh pr create failed: <stderr>`). Never phrase a git/GitHub/network failure as an agent
   usage, quota, or rate-limit problem — that misleads the user about what to fix.
 - NEVER embed images via GitHub branch URLs (`github.com/blob/<branch>/...`) — these 404 after branch deletion. All screenshots/images in PR bodies must use persistent storage URLs (from the artifact upload tool, if available).
