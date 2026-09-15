@@ -19,7 +19,11 @@ public class JobArgsConflictKeyContractTests
     ///     Every concrete <see cref="JobArgsBase" /> subtype mapped to its
     ///     <see cref="JobArgsBase.ExclusionGroup" />. <see cref="JobExclusionGroup.None" /> is the
     ///     documented dedup opt-out (a null <see cref="JobArgsBase.ConflictKey" />); anything else
-    ///     expects a non-null key.
+    ///     expects a non-null key. This maps a type to its group <b>for the sample instance</b> below,
+    ///     not universally: <see cref="SyncRepoArgs" /> is path-dependent (Plan 00675) — its sample here
+    ///     is a bare checkout path, which is the documented opt-out branch, while a worktree-targeting
+    ///     path takes <see cref="JobExclusionGroup.PlanWorktree" /> instead (see
+    ///     <see cref="SyncRepoArgs_TakesPlanWorktreeScope_WhenItTargetsAWorktree" />).
     /// </summary>
     private static readonly Dictionary<Type, JobExclusionGroup> Expectations = new()
     {
@@ -163,6 +167,36 @@ public class JobArgsConflictKeyContractTests
         // counts as the same request.
         Assert.Equal(InboxBreadcrumb.TaskHash("Tendril", "Add a widget"), args.ConflictKey);
         Assert.Contains(args.ConflictKey!, InboxBreadcrumb.FileName("Tendril", "Add a widget"));
+    }
+
+    [Fact]
+    public void SyncRepoArgs_TakesPlanWorktreeScope_WhenItTargetsAWorktree()
+    {
+        var flat = new SyncRepoArgs(Path.Combine(SampleFolder, "Worktrees", "ivy-tendril"), "development");
+        Assert.Equal(SampleFolder, flat.ConflictKey);
+        Assert.Equal(JobExclusionGroup.PlanWorktree, flat.ExclusionGroup);
+
+        var nested = new SyncRepoArgs(
+            Path.Combine(SampleFolder, "Worktrees", "ivy-interactive", "ivy-tendril"), "development");
+        Assert.Equal(SampleFolder, nested.ConflictKey);
+        Assert.Equal(JobExclusionGroup.PlanWorktree, nested.ExclusionGroup);
+
+        var bareCheckout = new SyncRepoArgs("/repos/ivy-tendril", "development");
+        Assert.Null(bareCheckout.ConflictKey);
+        Assert.Equal(JobExclusionGroup.None, bareCheckout.ExclusionGroup);
+    }
+
+    [Fact]
+    public void AddProjectArgs_IsNotPlanScoped()
+    {
+        // AddProjectArgs.RepoRef paths belong to a project being registered, not to any plan
+        // worktree — it has no plan scope at all, so it keeps the None opt-out unconditionally
+        // (unlike SyncRepoArgs, whose scope depends on the path it targets).
+        var args = new AddProjectArgs("Tendril", [new RepoRef { Path = "/repos/ivy-tendril" }]);
+
+        Assert.Null(args.PlanFolder);
+        Assert.Null(args.ConflictKey);
+        Assert.Equal(JobExclusionGroup.None, args.ExclusionGroup);
     }
 
     [Fact]
