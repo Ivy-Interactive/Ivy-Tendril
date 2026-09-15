@@ -1015,6 +1015,52 @@ public class DatabaseMigratorTests : IDisposable
         Assert.Equal("chat-7", reader.GetString(1));
     }
 
+    [Fact]
+    public void Migration_JobConflictKeyAndSlots_AddsColumnAndTable_AndIsIdempotent()
+    {
+        ApplyMigrationsThrough026();
+        Assert.Equal(26, GetUserVersion());
+        Assert.False(TableExists("JobSlots"));
+
+        // Simulate a database where the column was already added by hand, so the guard that skips the
+        // ALTER is exercised rather than only the happy path.
+        using (var alterCmd = _connection.CreateCommand())
+        {
+            alterCmd.CommandText = "ALTER TABLE Jobs ADD COLUMN ConflictKey TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+
+        new Migration_027_JobConflictKeyAndSlots().Apply(_connection);
+        new Migration_027_JobConflictKeyAndSlots().Apply(_connection);
+
+        Assert.Equal(27, GetUserVersion());
+        Assert.Contains("ConflictKey", GetColumns("Jobs"));
+        Assert.True(TableExists("JobSlots"));
+        Assert.True(IndexExists("idx_jobs_conflictkey"));
+        Assert.True(IndexExists("idx_jobslots_heartbeat"));
+
+        // The lease columns the admission path reads back: whose instance holds it, which agent it is
+        // protecting, and the two timestamps the TTL and the pid-reuse guard compare against.
+        var slotColumns = GetColumns("JobSlots");
+        Assert.Equal(["JobId", "OwnerPid", "AgentPid", "MachineName", "AcquiredAt", "Heartbeat"], slotColumns);
+
+        // JobId is the primary key, so one row per job however many times a lease is re-taken.
+        using (var insertCmd = _connection.CreateCommand())
+        {
+            insertCmd.CommandText = """
+                INSERT OR REPLACE INTO JobSlots (JobId, OwnerPid, AgentPid, MachineName, AcquiredAt, Heartbeat)
+                VALUES ('job-1', 4242, NULL, 'some-machine', '2026-09-15T07:00:00.0000000Z', '2026-09-15T07:00:00.0000000Z');
+                INSERT OR REPLACE INTO JobSlots (JobId, OwnerPid, AgentPid, MachineName, AcquiredAt, Heartbeat)
+                VALUES ('job-1', 4242, 99, 'some-machine', '2026-09-15T07:00:00.0000000Z', '2026-09-15T07:01:30.0000000Z');
+                """;
+            insertCmd.ExecuteNonQuery();
+        }
+
+        using var countCmd = _connection.CreateCommand();
+        countCmd.CommandText = "SELECT COUNT(*) FROM JobSlots;";
+        Assert.Equal(1L, countCmd.ExecuteScalar());
+    }
+
     private List<string> GetColumns(string tableName)
     {
         var columns = new List<string>();
@@ -1063,6 +1109,12 @@ public class DatabaseMigratorTests : IDisposable
     {
         ApplyMigrationsThrough024();
         new Migration_025_CostsAgent().Apply(_connection);
+    }
+
+    private void ApplyMigrationsThrough026()
+    {
+        ApplyMigrationsThrough025();
+        new Migration_026_JobsInboxFileAndChatSessionId().Apply(_connection);
     }
 
     private class FakeMigration : IMigration

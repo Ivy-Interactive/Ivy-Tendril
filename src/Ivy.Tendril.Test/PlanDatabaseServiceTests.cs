@@ -856,6 +856,63 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
+    public void UpsertJob_RoundTripsConflictKey()
+    {
+        // The dedup guard used to scan an in-process dictionary only, so 3-4 instances over one
+        // TENDRIL_HOME each admitted the same submission (#2710). The column is what makes another
+        // instance's live job visible, so a write that silently dropped it would restore the storm while
+        // every in-process test still passed.
+        var args = new CreatePlanArgs("Deduplicate the create plan submission", "Tendril");
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-conflict-001",
+            Type = "CreatePlan",
+            Project = "Tendril",
+            Status = JobStatus.Running,
+            TypedArgs = args
+        });
+
+        // Read from the raw column: MapJobRow deliberately does not project it back onto JobItem, since
+        // the key is derived from TypedArgs and a stale copy would be worse than none.
+        Assert.Equal(args.ConflictKey, ReadJobColumn("job-conflict-001", "ConflictKey"));
+
+        var candidates = _db.FindLiveJobsByConflictKey("CreatePlan", args.ConflictKey!, "job-conflict-002");
+        var candidate = Assert.Single(candidates);
+        Assert.Equal("job-conflict-001", candidate.Id);
+    }
+
+    [Fact]
+    public void UpsertJob_LeavesConflictKeyNull_ForTheTypesThatOptOut()
+    {
+        // SyncRepo has something better than a rejection (it merges into the job already in flight) and
+        // AddProject opts out outright, so a null here is the intended answer, not a missed override.
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-sync-001",
+            Type = "SyncRepo",
+            Project = "Tendril",
+            Status = JobStatus.Running,
+            TypedArgs = new SyncRepoArgs(_tempDir.Path, "development")
+        });
+
+        Assert.Null(ReadJobColumn("job-sync-001", "ConflictKey"));
+        // A null key never matches a computed one, so the guard has nothing to find and both submissions
+        // keep the behaviour they had before the column existed.
+        Assert.Empty(_db.FindLiveJobsByConflictKey("SyncRepo", _tempDir.Path, "job-sync-002"));
+    }
+
+    private string? ReadJobColumn(string jobId, string column)
+    {
+        using var connection = new SqliteConnection($"Data Source={_dbPath};Mode=ReadWrite");
+        connection.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = $"SELECT {column} FROM Jobs WHERE Id = @id";
+        cmd.Parameters.AddWithValue("@id", jobId);
+        var value = cmd.ExecuteScalar();
+        return value is null or DBNull ? null : value.ToString();
+    }
+
+    [Fact]
     public void GetRecentJobs_ReturnsOrderedByCompletedAt()
     {
         _db.UpsertJob(new JobItem
