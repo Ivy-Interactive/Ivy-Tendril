@@ -16,7 +16,42 @@ public class JobService : IJobService
     private readonly string? _inboxPath;
     private readonly PriorityQueue<string, int> _jobQueue = new();
     private readonly Lock _queueLock = new();
-    private SemaphoreSlim _jobSlotSemaphore;
+
+    /// <summary>
+    ///     The fast local bound on launches. Sized to a fixed upper bound and never replaced or
+    ///     disposed: it used to be rebuilt on every <c>maxConcurrentJobs</c> change, which left jobs
+    ///     already running holding permits on a disposed semaphore. Their release then threw
+    ///     <see cref="ObjectDisposedException" /> straight through the
+    ///     <c>catch (SemaphoreFullException)</c> guards in <see cref="JobLauncher" /> and stranded them
+    ///     Running, while <see cref="CompleteJob" /> fabricated slots on the replacement they never took
+    ///     from. The configured limit is now applied by <see cref="TryReserveLocalSlot" /> reading
+    ///     <see cref="_maxConcurrentJobs" /> at admission time, so a config change takes effect at once
+    ///     with nothing to resize.
+    /// </summary>
+    private readonly SemaphoreSlim _jobSlotSemaphore;
+
+    /// <summary>
+    ///     Ceiling on the never-resized semaphore: comfortably above any realistic
+    ///     <c>maxConcurrentJobs</c>, since the real limit is enforced against the configured value on
+    ///     each admission.
+    /// </summary>
+    private const int MaxLocalSlots = 256;
+
+    /// <summary>
+    ///     Serialises the check-and-acquire in <see cref="TryReserveLocalSlot" />. Separate from
+    ///     <see cref="_queueLock" />, which <see cref="ProcessJobQueue" /> holds while already owning a
+    ///     permit.
+    /// </summary>
+    private readonly Lock _localSlotLock = new();
+
+    /// <summary>
+    ///     Serialises admission: id allocation, conflict check, insert and first persist. The conflict
+    ///     check used to be a bare check-then-insert with nothing serialising it, so two submissions
+    ///     arriving together could both find nothing and both proceed.
+    /// </summary>
+    private readonly Lock _admissionLock = new();
+
+    private readonly JobSlotLeaseService _leases;
     private TimeSpan _jobTimeout;
     private readonly ConcurrentDictionary<string, JobItem> _jobs = new();
     private int _maxConcurrentJobs;
@@ -60,9 +95,8 @@ public class JobService : IJobService
         _jobTimeout = TimeSpan.FromMinutes(configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(configService.Settings.StaleOutputTimeout);
         _maxConcurrentJobs = configService.Settings.MaxConcurrentJobs;
-        _jobSlotSemaphore = _maxConcurrentJobs > 0
-            ? new SemaphoreSlim(_maxConcurrentJobs, _maxConcurrentJobs)
-            : new SemaphoreSlim(0, 1);
+        _jobSlotSemaphore = new SemaphoreSlim(MaxLocalSlots, MaxLocalSlots);
+        _leases = new JobSlotLeaseService(database, _logger);
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
         _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
@@ -72,7 +106,7 @@ public class JobService : IJobService
         configService.SettingsReloaded += OnSettingsReloaded;
         JobIdAllocator.SeedIfNeeded(configService.TendrilHome);
         LoadHistoricalJobs();
-        _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
+        _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, JobHousekeepingPeriod, JobHousekeepingPeriod);
     }
 
     public JobService(
@@ -92,9 +126,8 @@ public class JobService : IJobService
         _jobTimeout = jobTimeout;
         _staleOutputTimeout = staleOutputTimeout;
         _maxConcurrentJobs = maxConcurrentJobs;
-        _jobSlotSemaphore = maxConcurrentJobs > 0
-            ? new SemaphoreSlim(maxConcurrentJobs, maxConcurrentJobs)
-            : new SemaphoreSlim(0, 1);
+        _jobSlotSemaphore = new SemaphoreSlim(MaxLocalSlots, MaxLocalSlots);
+        _leases = new JobSlotLeaseService(database, _logger);
         _inboxPath = inboxPath;
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
@@ -107,7 +140,7 @@ public class JobService : IJobService
             null, _logger, null, planReaderService, telemetryService,
             null, promptsRoot, database: database);
         LoadHistoricalJobs();
-        _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
+        _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, JobHousekeepingPeriod, JobHousekeepingPeriod);
     }
 
     public event Action? JobsChanged;
@@ -141,10 +174,15 @@ public class JobService : IJobService
             }
             catch (SemaphoreFullException)
             {
-                // Semaphore is already at max capacity (can happen if MaxConcurrentJobs
-                // was decreased while jobs were running). Silently ignore.
+                // Semaphore is already at max capacity. Silently ignore.
             }
         }
+
+        // Keyed off SlotReserved rather than wasRunning, because that is exactly when a lease was taken.
+        // This covers success, failure, timeout and the exit-code-137 kill alike, and TryClaimCompletion
+        // above guarantees it runs once.
+        if (job.SlotReserved)
+            _leases.Release(id);
 
         // Close only the raw CLI transcript here: the agent has exited, but HandleCompletion still enqueues
         // the completion summary, permission denials and hook output. Those must reach the eventwire file,
@@ -185,7 +223,8 @@ public class JobService : IJobService
                 job, _jobs, _jobSlotSemaphore, () => _jobTimeout, () => _staleOutputTimeout,
                 (when, type, folder, project, j) => RunHooks(when, type, folder, project, j),
                 (id, exitCode, timedOut, staleOutput) => CompleteJob(id, exitCode, timedOut, staleOutput),
-                RaiseJobsStructureChanged);
+                RaiseJobsStructureChanged,
+                ReleaseLease: j => _leases.Release(j.Id));
             _jobLauncher.RegisterContext(ctx);
         }
 
@@ -335,7 +374,10 @@ public class JobService : IJobService
 
         // Release job slot if this launch attempt held one
         if (heldSlot)
+        {
             _jobSlotSemaphore.Release();
+            _leases.Release(id);
+        }
 
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.RevertPlanStateToPrevious(job);
@@ -468,6 +510,14 @@ public class JobService : IJobService
     /// </summary>
     internal void RunBlockedJobCheck() => OnBlockedJobCheckTimer(null);
 
+    /// <summary>
+    ///     How often the one housekeeping timer runs. 30s rather than the original 60s because a slot
+    ///     lease has to be renewed well inside <see cref="JobSlotLeaseService.LeaseTtl" />, and its two
+    ///     older passengers are threshold-based and idempotent, so running them twice as often changes
+    ///     nothing but how promptly they notice.
+    /// </summary>
+    private static readonly TimeSpan JobHousekeepingPeriod = TimeSpan.FromSeconds(30);
+
     private void OnBlockedJobCheckTimer(object? state)
     {
         try
@@ -489,11 +539,52 @@ public class JobService : IJobService
         {
             // Best-effort — don't crash on timer callback
         }
+
+        try
+        {
+            RenewAndReclaimJobSlotLeases();
+        }
+        catch
+        {
+            // Best-effort — don't crash on timer callback
+        }
+    }
+
+    /// <summary>
+    ///     Keeps this instance's leases alive, drops the ones nothing is using any more, and pumps the
+    ///     queue. The pump is the point of doing it here: a job queued because <em>another</em> instance
+    ///     filled the machine would otherwise wait on a local completion that may never come.
+    /// </summary>
+    internal void RenewAndReclaimJobSlotLeases()
+    {
+        if (!_leases.Enabled)
+            return;
+
+        var held = _jobs.Values
+            .Where(j => j.SlotReserved && j.Status == JobStatus.Running)
+            .Select(j => j.Id)
+            .ToList();
+
+        _leases.Renew(held);
+        _leases.ReclaimStale();
+        ProcessJobQueue();
     }
 
     // Extra margin on top of the configured timeouts before a job is reaped, so a legitimately
     // slow-but-progressing job isn't killed the instant it crosses the nominal threshold.
     private static readonly TimeSpan StuckJobReapGrace = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    ///     How much longer a detached job whose agent process is confirmed alive may stay silent. For a
+    ///     detached job the only thing that advances <see cref="JobItem.LastOutputAt" /> is an inbound
+    ///     <c>tendril job status</c> call, so one dropped progress report used to be enough to kill a
+    ///     working agent: 61 of 427 rows in the live database were <c>Timeout</c> with the identical
+    ///     message "No output for 20 minutes", and ten of the plans behind them reached Completed or
+    ///     produced good commits anyway. Liveness extends the grace rather than granting immunity,
+    ///     because a genuinely hung agent is also alive and silent, and <c>isHardCapped</c> still reaps
+    ///     it on the job timeout either way.
+    /// </summary>
+    private const int DetachedLiveOutputMultiplier = 4;
 
     /// <summary>
     ///     Global safety net for jobs stranded Running with no path to completion — e.g. a launch
@@ -512,14 +603,31 @@ public class JobService : IJobService
             if (!job.StartedAt.HasValue) continue;
 
             var staleAnchor = job.LastOutputAt ?? job.StartedAt.Value;
-            var isStale = _staleOutputTimeout > TimeSpan.Zero
-                          && now - staleAnchor > _staleOutputTimeout + StuckJobReapGrace;
+
+            // Output age alone, as before, unless this is a detached job with a pid to ask about. A job
+            // that still has a Process handle has a better liveness signal than a pid and an armed
+            // monitor watching it; a job with neither handle nor pid has nothing to ask, and reaping on
+            // that would kill one in the window between Status = Running and the launcher recording its
+            // pid, which is the same false kill this branch exists to prevent.
+            var detached = job.Process is null && job.ProcessId is not null;
+            var pidAlive = detached && IsAgentProcessAlive(job);
+            var outputBudget = pidAlive
+                ? DetachedLiveOutputMultiplier * _staleOutputTimeout + StuckJobReapGrace
+                : _staleOutputTimeout + StuckJobReapGrace;
+            var isStale = (detached && !pidAlive)
+                          || (_staleOutputTimeout > TimeSpan.Zero && now - staleAnchor > outputBudget);
             var isHardCapped = now - job.StartedAt.Value > _jobTimeout + TimeSpan.FromMinutes(5) + StuckJobReapGrace;
 
             if (!isStale && !isHardCapped) continue;
 
-            _logger.LogWarning(
-                "Job {JobId}: Reaped by stuck-job check ({Reason})", job.Id, isStale ? "stale output" : "hard cap");
+            var reason = isHardCapped && !isStale
+                ? "hard cap"
+                : detached
+                    ? pidAlive
+                        ? "stale output, detached agent alive but past its extended grace"
+                        : "detached agent pid is gone, so nothing will ever report output again"
+                    : "stale output";
+            _logger.LogWarning("Job {JobId}: Reaped by stuck-job check ({Reason})", job.Id, reason);
 
             try
             {
@@ -954,9 +1062,15 @@ public class JobService : IJobService
     // means the OS handed the same PID to an unrelated process.
     private static readonly TimeSpan PidReuseGrace = TimeSpan.FromMinutes(5);
 
-    private static bool IsAgentProcessAlive(JobItem job)
+    private static bool IsAgentProcessAlive(JobItem job) => IsAgentProcessAlive(job.ProcessId, job.StartedAt);
+
+    /// <summary>
+    ///     The pid-reuse-safe liveness test, taking just the two fields it needs so it can also be asked
+    ///     about a bare database row rather than only about a live <see cref="JobItem" />.
+    /// </summary>
+    private static bool IsAgentProcessAlive(int? processId, DateTime? startedAt)
     {
-        if (job.ProcessId is not { } pid) return false;
+        if (processId is not { } pid) return false;
 
         try
         {
@@ -975,9 +1089,9 @@ public class JobService : IJobService
             }
 
             // Verify process start time is within valid window of job start time
-            if (job.StartedAt.HasValue)
+            if (startedAt.HasValue)
             {
-                var jobStart = job.StartedAt.Value;
+                var jobStart = startedAt.Value;
                 if (startTime < jobStart - TimeSpan.FromMinutes(1) || startTime > jobStart + PidReuseGrace)
                     return false;
             }
@@ -1111,24 +1225,34 @@ public class JobService : IJobService
                 return existingId;
         }
 
-        var id = _configService != null
-            ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
-            : Guid.NewGuid().ToString("N")[..5];
-        var job = BuildJobItem(id, args, inboxFilePath);
+        // Admission is serialised: allocation, the conflict check, the insert and the first persist have
+        // to be one step. Two identical submissions arriving together used to both find nothing and both
+        // proceed, and the persist has to be inside too so the row a concurrent submission in another
+        // process looks for exists before this one lets go. Dictionary and single-row work only, never a
+        // launch.
+        string id;
+        JobItem job;
+        lock (_admissionLock)
+        {
+            id = _configService != null
+                ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
+                : Guid.NewGuid().ToString("N")[..5];
+            job = BuildJobItem(id, args, inboxFilePath);
 
-        if (TryRejectConflictingJob(job))
-            return id;
+            if (TryRejectConflictingJob(job))
+                return id;
 
-        _jobs[id] = job;
+            _jobs[id] = job;
+
+            // Persist while in flight, not just on completion: the agent reports status over HTTP and
+            // must still be resolvable if the master restarts mid-job (#1759).
+            PersistJob(job);
+        }
 
         if (!string.IsNullOrEmpty(job.ChatSessionId))
         {
             _chatHistoryService?.AddSpawnedJob(job.ChatSessionId, id);
         }
-
-        // Persist while in flight, not just on completion: the agent reports status over HTTP and
-        // must still be resolvable if the master restarts mid-job (#1759).
-        PersistJob(job);
 
         // Tracked here rather than at launch: the job is queued from this point on, even if it
         // goes straight to Blocked below. Not flushed — job_completed flushes the batch later.
@@ -1154,19 +1278,64 @@ public class JobService : IJobService
         // Stop/Delete/Failed can revert the plan to where it came from.
         CaptureAndTransitionPlanStateForStart(job);
 
-        if (!_jobSlotSemaphore.Wait(0))
+        if (!TryReserveLocalSlot())
         {
-            job.Status = JobStatus.Queued;
-            job.StatusMessage = $"Waiting (max {_maxConcurrentJobs} concurrent jobs)";
-            lock (_queueLock) { _jobQueue.Enqueue(id, -job.Priority); }
-            PersistJob(job);
-            RaiseJobsStructureChanged();
+            EnqueueForLater(job, $"Waiting (max {_maxConcurrentJobs} concurrent jobs)");
+            return id;
+        }
+
+        // The lease is authoritative: local room means nothing if another instance on this machine has
+        // already filled the cap.
+        if (!_leases.TryAcquire(id, _maxConcurrentJobs, out var liveCount))
+        {
+            ReleaseLocalSlot();
+            EnqueueForLater(job,
+                $"Waiting (machine limit {_maxConcurrentJobs} concurrent jobs, {liveCount} running)");
             return id;
         }
 
         job.SlotReserved = true;
         LaunchJob(job);
         return id;
+    }
+
+    /// <summary>
+    ///     Takes a local permit if the configured limit allows one. The check and the acquire are one
+    ///     step under <see cref="_localSlotLock" />, and <see cref="_maxConcurrentJobs" /> is read here
+    ///     rather than baked into the semaphore's capacity, which is what lets a config change apply
+    ///     immediately without anything being resized out from under a running job.
+    /// </summary>
+    private bool TryReserveLocalSlot()
+    {
+        lock (_localSlotLock)
+        {
+            var inUse = MaxLocalSlots - _jobSlotSemaphore.CurrentCount;
+            if (inUse >= _maxConcurrentJobs)
+                return false;
+
+            return _jobSlotSemaphore.Wait(0);
+        }
+    }
+
+    private void ReleaseLocalSlot()
+    {
+        try
+        {
+            _jobSlotSemaphore.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+            // Semaphore is already at max capacity. Silently ignore.
+        }
+    }
+
+    private void EnqueueForLater(JobItem job, string statusMessage)
+    {
+        job.Status = JobStatus.Queued;
+        job.StatusMessage = statusMessage;
+        lock (_queueLock) { _jobQueue.Enqueue(job.Id, -job.Priority); }
+        PersistJob(job);
+        RaiseJobsStructureChanged();
     }
 
     /// <summary>
@@ -1386,23 +1555,37 @@ public class JobService : IJobService
         catch { /* Best-effort */ }
     }
 
+    /// <summary>
+    ///     Refuses a submission that duplicates one already in progress. Keyed on
+    ///     <see cref="JobArgsBase.ConflictKey" />, which every args type has to state, rather than the
+    ///     five-name type allow-list this used to be: CreatePlan, CreatePr, CreateIssue and
+    ///     SetupProject were all simply missing from it, and the resulting storm was 99 CreatePlan jobs
+    ///     from 39 descriptions in an hour plus five CreatePr jobs on one plan in 82 seconds (#2710).
+    ///     The rejected job is kept as a Failed row on purpose: the rejection count is a useful signal,
+    ///     and nothing here should silently vanish.
+    /// </summary>
     private bool TryRejectConflictingJob(JobItem job)
     {
-        if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs or UpdatePlanArgs or ExpandPlanArgs or SplitPlanArgs))
+        var conflictKey = job.TypedArgs?.ConflictKey;
+        if (string.IsNullOrEmpty(conflictKey))
             return false;
 
-        var planFolder = job.TypedArgs?.PlanFolder ?? "";
-        var conflictingJob = _jobs.Values.FirstOrDefault(j =>
-            j.Type == job.Type &&
-            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked &&
-            !string.IsNullOrEmpty(j.TypedArgs?.PlanFolder) &&
-            j.TypedArgs!.PlanFolder!.Equals(planFolder, StringComparison.OrdinalIgnoreCase));
+        if (job.TypedArgs is { ForceDuplicate: true })
+        {
+            // CreatePlan's own firmware spawns siblings with --force and the Create Plan dialog always
+            // passes it, so a guard that ignored it would break both paths.
+            _logger.LogInformation(
+                "Job {JobId}: {JobType} submitted with --force, bypassing duplicate detection", job.Id, job.Type);
+            return false;
+        }
 
-        if (conflictingJob == null)
+        var existingId = FindConflictingJobId(job, conflictKey);
+        if (existingId == null)
             return false;
 
         job.Status = JobStatus.Failed;
-        job.StatusMessage = $"{job.Type} already in progress for this plan (job {conflictingJob.Id})";
+        job.StatusMessage =
+            $"{job.Type} already in progress for this scope (job {existingId}). Re-run with --force to submit a duplicate.";
         job.CompletedAt = DateTime.UtcNow;
         _jobs[job.Id] = job;
 
@@ -1412,6 +1595,68 @@ public class JobService : IJobService
             false));
         RaiseJobsStructureChanged();
         return true;
+    }
+
+    private string? FindConflictingJobId(JobItem job, string conflictKey)
+    {
+        var conflictingJob = _jobs.Values.FirstOrDefault(j =>
+            j.Id != job.Id &&
+            j.Type == job.Type &&
+            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked &&
+            !string.IsNullOrEmpty(j.TypedArgs?.ConflictKey) &&
+            j.TypedArgs!.ConflictKey!.Equals(conflictKey, StringComparison.OrdinalIgnoreCase));
+
+        if (conflictingJob != null)
+            return conflictingJob.Id;
+
+        // _jobs only holds what this process launched, and during the storm 3-4 instances shared one
+        // TENDRIL_HOME, so ask the database too.
+        if (_database == null)
+            return null;
+
+        List<JobConflictCandidate> candidates;
+        try
+        {
+            candidates = _database.FindLiveJobsByConflictKey(job.Type, conflictKey, job.Id);
+        }
+        catch (Exception ex)
+        {
+            // A submission must never fail because the dedup lookup did.
+            _logger.LogWarning(ex, "Job {JobId}: Could not check the database for duplicate submissions", job.Id);
+            return null;
+        }
+
+        foreach (var candidate in candidates)
+        {
+            if (_jobs.ContainsKey(candidate.Id))
+                continue; // Already considered by the in-memory scan above, which found it not live.
+
+            if (IsCandidateStillLive(candidate))
+                return candidate.Id;
+
+            // Not fatal, but worth saying out loud: a row left Running by a crashed instance would lock
+            // this scope out forever if it were taken at face value.
+            _logger.LogWarning(
+                "Job {JobId}: Ignoring stale live-looking job {StaleJobId} with the same conflict key " +
+                "(pid {Pid} is gone and it started at {StartedAt})",
+                job.Id, candidate.Id, candidate.ProcessId, candidate.StartedAt);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Whether a database row that claims to be live really is. A job that never started counts as
+    ///     live (it is a queued submission in another instance); one that started counts as live while
+    ///     its process is alive, or until it passes the job timeout.
+    /// </summary>
+    private bool IsCandidateStillLive(JobConflictCandidate candidate)
+    {
+        if (candidate.StartedAt is not { } startedAt)
+            return true;
+
+        return IsAgentProcessAlive(candidate.ProcessId, startedAt)
+               || DateTime.UtcNow - startedAt <= _jobTimeout;
     }
 
     private string? TryFindExistingSyncRepoJob(SyncRepoArgs args)
@@ -1554,6 +1799,7 @@ public class JobService : IJobService
             SetupInboxTracking(job, args, inboxFilePath);
         _jobs[id] = job;
         _jobSlotSemaphore.Wait(0); // Acquire slot so CompleteJob can release it
+        _leases.TryAcquire(id, _maxConcurrentJobs, out _); // Likewise for the lease
         job.SlotReserved = true;
         return id;
     }
@@ -1576,7 +1822,17 @@ public class JobService : IJobService
         }
         catch { /* Best-effort: shutdown must not throw */ }
 
-        _jobSlotSemaphore.Dispose();
+        // A detached agent survives this process and is still consuming the slot it was granted, so its
+        // lease stays and is reclaimed on agent-pid liveness once it really finishes.
+        try
+        {
+            foreach (var job in _jobs.Values.Where(j => j.SlotReserved && !j.Detached))
+                _leases.Release(job.Id);
+        }
+        catch { /* Best-effort: shutdown must not throw */ }
+
+        // The semaphore is deliberately not disposed: a job's captured reference may still release into
+        // it, and disposing it out from under one is exactly the defect this stopped doing on reload.
         _blockedJobCheckTimer?.Dispose();
     }
 
@@ -1589,21 +1845,12 @@ public class JobService : IJobService
         var newMaxConcurrent = _configService.Settings.MaxConcurrentJobs;
         if (newMaxConcurrent != _maxConcurrentJobs)
         {
-            var oldSemaphore = _jobSlotSemaphore;
+            // Just the number. This used to build a replacement semaphore and dispose the old one while
+            // jobs still held permits on it, so their release threw ObjectDisposedException out of the
+            // completion path and the slot was never returned to either semaphore. Admission reads this
+            // field on every attempt, so the new limit is in force from here with nothing to resize.
             var runningCount = _jobs.Values.Count(j => j.Status == JobStatus.Running);
-            var availableSlots = Math.Max(0, newMaxConcurrent - runningCount);
-
-            // Create new semaphore with correct capacity
-            var newSemaphore = newMaxConcurrent > 0
-                ? new SemaphoreSlim(availableSlots, newMaxConcurrent)
-                : new SemaphoreSlim(0, 1);
-
-            // Replace semaphore (field assignment is atomic)
-            _jobSlotSemaphore = newSemaphore;
             _maxConcurrentJobs = newMaxConcurrent;
-
-            // Dispose old semaphore
-            oldSemaphore.Dispose();
 
             // Process queue in case new capacity allows more jobs to run
             if (newMaxConcurrent > runningCount)
@@ -1617,7 +1864,13 @@ public class JobService : IJobService
             job, _jobs, _jobSlotSemaphore, () => _jobTimeout, () => _staleOutputTimeout,
             (when, type, folder, project, j) => RunHooks(when, type, folder, project, j),
             (id, exitCode, timedOut, staleOutput) => CompleteJob(id, exitCode, timedOut, staleOutput),
-            RaiseJobsStructureChanged);
+            RaiseJobsStructureChanged,
+            releaseLease: j => _leases.Release(j.Id));
+
+        // Recorded once the agent exists, so the lease knows which process it is protecting: an agent
+        // that outlives this instance keeps its slot on pid liveness alone.
+        if (job.ProcessId is { } agentPid)
+            _leases.RecordAgentPid(job.Id, agentPid);
 
         // Capture the launch details (Running, StartedAt, SessionId, ProcessId, WorkingDirectory,
         // CliCommand) so a master restart can find — and reconcile — this job by its process id.
@@ -1662,7 +1915,7 @@ public class JobService : IJobService
     {
         while (true)
         {
-            if (!_jobSlotSemaphore.Wait(0))
+            if (!TryReserveLocalSlot())
                 break;
 
             JobItem? queuedJob = null;
@@ -1670,16 +1923,28 @@ public class JobService : IJobService
             {
                 if (!_jobQueue.TryDequeue(out var queuedId, out _))
                 {
-                    _jobSlotSemaphore.Release();
+                    ReleaseLocalSlot();
                     break;
                 }
 
                 // Check status INSIDE the lock, immediately after dequeue
                 if (!_jobs.TryGetValue(queuedId, out queuedJob) || queuedJob.Status != JobStatus.Queued)
                 {
-                    _jobSlotSemaphore.Release();
+                    ReleaseLocalSlot();
                     continue;
                 }
+            }
+
+            if (!_leases.TryAcquire(queuedJob.Id, _maxConcurrentJobs, out var liveCount))
+            {
+                // The machine is full even though this process has room, so put the job back and stop
+                // rather than spinning on a queue nothing here can drain. The housekeeping timer pumps
+                // again, since the completion that frees a slot may happen in another instance.
+                ReleaseLocalSlot();
+                queuedJob.StatusMessage =
+                    $"Waiting (machine limit {_maxConcurrentJobs} concurrent jobs, {liveCount} running)";
+                lock (_queueLock) { _jobQueue.Enqueue(queuedJob.Id, -queuedJob.Priority); }
+                break;
             }
 
             queuedJob.SlotReserved = true;

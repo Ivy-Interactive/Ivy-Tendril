@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Models;
@@ -20,6 +21,30 @@ public abstract record JobArgsBase
     public abstract string Type { get; }
     [JsonIgnore]
     public virtual string? PlanFolder => null;
+
+    /// <summary>
+    ///     What makes two submissions of this job type the same request. Null means this type is not
+    ///     deduplicated: a deliberate, visible opt-out, not an omission. Non-null values are compared
+    ///     case-insensitively within the same <see cref="Type" />.
+    ///     <para>
+    ///     Abstract rather than virtual on purpose. The guard this feeds used to be an allow-list of
+    ///     five type names, so every job type added afterwards shipped undeduplicated until someone
+    ///     noticed the hard way (#2710): 99 CreatePlan jobs from 39 descriptions in one hour, and five
+    ///     CreatePr jobs on one plan in 82 seconds. A new subtype now fails to compile until its author
+    ///     states an answer.
+    ///     </para>
+    /// </summary>
+    [JsonIgnore]
+    public abstract string? ConflictKey { get; }
+
+    /// <summary>
+    ///     Whether this submission deliberately bypasses <see cref="ConflictKey" /> deduplication.
+    ///     Virtual with a false default: a type with no <c>--force</c> affordance simply cannot opt out,
+    ///     which is the safe direction.
+    /// </summary>
+    [JsonIgnore]
+    public virtual bool ForceDuplicate => false;
+
     public List<string>? WaitForJobs { get; init; }
     public string? ChatSessionId { get; init; }
 }
@@ -52,6 +77,15 @@ public record CreatePlanArgs(
     JobOrigin Origin = JobOrigin.Unspecified) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.CreatePlan;
+
+    /// <summary>
+    ///     The one deduplicated type with no plan to scope to, so it keys on the task itself. Shares
+    ///     <see cref="InboxBreadcrumb.TaskHash" /> with the breadcrumb naming so the two paths cannot
+    ///     disagree about what counts as the same request.
+    /// </summary>
+    public override string? ConflictKey => InboxBreadcrumb.TaskHash(Project, Description);
+
+    public override bool ForceDuplicate => Force;
 }
 
 public record ExecutePlanArgs(
@@ -60,6 +94,7 @@ public record ExecutePlanArgs(
 {
     public override string Type => Constants.JobTypes.ExecutePlan;
     public override string PlanFolder => FolderPath;
+    public override string? ConflictKey => PlanFolder;
 }
 
 public record RetryPlanArgs(
@@ -68,6 +103,7 @@ public record RetryPlanArgs(
 {
     public override string Type => Constants.JobTypes.RetryPlan;
     public override string PlanFolder => FolderPath;
+    public override string? ConflictKey => PlanFolder;
 }
 
 public record ExpandPlanArgs(
@@ -75,6 +111,7 @@ public record ExpandPlanArgs(
 {
     public override string Type => Constants.JobTypes.ExpandPlan;
     public override string PlanFolder => FolderPath;
+    public override string? ConflictKey => PlanFolder;
 }
 
 public record UpdatePlanArgs(
@@ -84,6 +121,7 @@ public record UpdatePlanArgs(
 {
     public override string Type => Constants.JobTypes.UpdatePlan;
     public override string PlanFolder => FolderPath;
+    public override string? ConflictKey => PlanFolder;
 }
 
 public record SplitPlanArgs(
@@ -91,6 +129,7 @@ public record SplitPlanArgs(
 {
     public override string Type => Constants.JobTypes.SplitPlan;
     public override string PlanFolder => FolderPath;
+    public override string? ConflictKey => PlanFolder;
 }
 
 public record CreatePrArgs(
@@ -102,10 +141,13 @@ public record CreatePrArgs(
     string[]? Reviewers = null,
     string? Comment = null,
     bool Draft = false,
-    string? BaseBranch = null) : JobArgsBase
+    string? BaseBranch = null,
+    bool Force = false) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.CreatePr;
     public override string PlanFolder => FolderPath;
+    public override string? ConflictKey => PlanFolder;
+    public override bool ForceDuplicate => Force;
 }
 
 public record CreateIssueArgs(
@@ -113,10 +155,13 @@ public record CreateIssueArgs(
     string Repo,
     string? Assignee = null,
     string? Comment = null,
-    string? Labels = null) : JobArgsBase
+    string? Labels = null,
+    bool Force = false) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.CreateIssue;
     public override string PlanFolder => FolderPath;
+    public override string? ConflictKey => PlanFolder;
+    public override bool ForceDuplicate => Force;
 }
 
 public record SetupProjectArgs(
@@ -124,6 +169,7 @@ public record SetupProjectArgs(
 {
     public override string Type => Constants.JobTypes.SetupProject;
     public override string PlanFolder => FolderPath;
+    public override string? ConflictKey => PlanFolder;
 }
 
 public record SyncRepoArgs(
@@ -134,6 +180,9 @@ public record SyncRepoArgs(
 {
     public override string Type => Constants.JobTypes.SyncRepo;
     public override string? PlanFolder => PlanFolderPath;
+    // Opt-out on purpose: JobService.TryFindExistingSyncRepoJob already merges a duplicate submission
+    // into the existing job, which is richer than rejecting it.
+    public override string? ConflictKey => null;
 }
 
 public record AddProjectArgs(
@@ -141,6 +190,9 @@ public record AddProjectArgs(
     List<RepoRef> Repos) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.AddProject;
+    // Opt-out on purpose: no plan scope, and no duplicate submissions of this type in the #2710
+    // incident. Stated rather than inherited so the next reader knows it was considered.
+    public override string? ConflictKey => null;
 }
 
 // How SyncRepo should treat uncommitted changes and/or untracked files when syncing a repo.

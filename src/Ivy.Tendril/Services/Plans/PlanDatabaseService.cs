@@ -839,8 +839,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason, Model, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, ReasoningTokens, CostSource, ExecutionProfile, Effort, InboxFile, ChatSessionId)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason, @model, @inputTokens, @outputTokens, @cacheReadTokens, @cacheWriteTokens, @reasoningTokens, @costSource, @executionProfile, @effort, @inboxFile, @chatSessionId)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason, Model, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, ReasoningTokens, CostSource, ExecutionProfile, Effort, InboxFile, ChatSessionId, ConflictKey)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason, @model, @inputTokens, @outputTokens, @cacheReadTokens, @cacheWriteTokens, @reasoningTokens, @costSource, @executionProfile, @effort, @inboxFile, @chatSessionId, @conflictKey)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -882,6 +882,11 @@ public class PlanDatabaseService : IPlanDatabaseService
             // breadcrumb and resurrected all of them (#2710).
             cmd.Parameters.AddWithValue("@inboxFile", (object?)job.InboxFile ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@chatSessionId", (object?)job.ChatSessionId ?? DBNull.Value);
+            // Derived from the args, never stored on JobItem: the dedup guard has to be able to ask this
+            // question in SQL, because the in-memory scan cannot see another instance's submissions
+            // (#2710). MapJobRow deliberately does not read it back - TypedArgs comes back from the blob
+            // and recomputes it, so a second copy on the restored object could only drift from it.
+            cmd.Parameters.AddWithValue("@conflictKey", (object?)job.TypedArgs?.ConflictKey ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -1109,6 +1114,247 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             ExecuteNonQuery("DELETE FROM Jobs WHERE Id = @id", new SqliteParameter("@id", id));
         }
+    }
+
+    /// <inheritdoc />
+    public List<JobConflictCandidate> FindLiveJobsByConflictKey(string jobType, string conflictKey, string excludeJobId)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            return ReadList(
+                """
+                SELECT Id, ProcessId, StartedAt FROM Jobs
+                WHERE Type = @type AND ConflictKey = @key
+                  AND Status IN ('Pending','Queued','Running','Blocked')
+                  AND Id <> @self
+                ORDER BY Id DESC
+                """,
+                reader => new JobConflictCandidate(
+                    reader.GetString(0),
+                    reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    reader.IsDBNull(2)
+                        ? null
+                        : DateTime.Parse(reader.GetString(2), CultureInfo.InvariantCulture,
+                            DateTimeStyles.RoundtripKind)),
+                new SqliteParameter("@type", jobType),
+                new SqliteParameter("@key", conflictKey),
+                new SqliteParameter("@self", excludeJobId));
+        }
+    }
+
+    /// <inheritdoc />
+    public bool TryAcquireJobSlot(string jobId, int maxConcurrentJobs, int ownerPid, string machineName,
+        TimeSpan leaseTtl, Func<int, DateTime, bool> isPidAliveSince, out int liveCount)
+    {
+        using (new WriteLockHandle(_lock))
+        {
+            // Immediate, not deferred: a deferred transaction would let two instances both read a count
+            // of max - 1 and only discover the conflict when one escalated to a write.
+            using var transaction = _batchTransaction == null ? _connection.BeginTransaction(deferred: false) : null;
+            try
+            {
+                ReclaimStaleJobSlotsInternal(isPidAliveSince, leaseTtl, machineName);
+
+                var held = ExecuteScalar<long>("SELECT COUNT(*) FROM JobSlots WHERE JobId = @id",
+                    new SqliteParameter("@id", jobId)) > 0;
+                liveCount = (int)ExecuteScalar<long>("SELECT COUNT(*) FROM JobSlots");
+
+                // Re-acquisition for a job that already holds its lease is a heartbeat, not a new slot.
+                if (!held && liveCount >= maxConcurrentJobs)
+                {
+                    transaction?.Commit();
+                    return false;
+                }
+
+                InsertOrReplaceJobSlot(jobId, ownerPid, machineName, agentPid: null);
+                if (!held)
+                    liveCount++;
+
+                transaction?.Commit();
+                return true;
+            }
+            catch
+            {
+                transaction?.Rollback();
+                throw;
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public List<string> RenewJobSlots(IReadOnlyCollection<string> jobIds, int ownerPid, string machineName)
+    {
+        var reinserted = new List<string>();
+        if (jobIds.Count == 0)
+            return reinserted;
+
+        using (new WriteLockHandle(_lock))
+        {
+            using var transaction = _batchTransaction == null ? _connection.BeginTransaction() : null;
+            try
+            {
+                var now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+                foreach (var jobId in jobIds)
+                {
+                    var updated = ExecuteNonQuery("UPDATE JobSlots SET Heartbeat = @now WHERE JobId = @id",
+                        new SqliteParameter("@now", now),
+                        new SqliteParameter("@id", jobId));
+                    if (updated > 0)
+                        continue;
+
+                    // The row is gone while we still believe we own it: another instance reclaimed it on a
+                    // pid-liveness false negative or a clock jump past the TTL. Take it back rather than
+                    // letting the job run without a slot.
+                    InsertOrReplaceJobSlot(jobId, ownerPid, machineName, agentPid: null);
+                    reinserted.Add(jobId);
+                }
+
+                transaction?.Commit();
+            }
+            catch
+            {
+                transaction?.Rollback();
+                throw;
+            }
+        }
+
+        return reinserted;
+    }
+
+    /// <inheritdoc />
+    public void SetJobSlotAgentPid(string jobId, int agentPid)
+    {
+        using (new WriteLockHandle(_lock))
+        {
+            ExecuteNonQuery("UPDATE JobSlots SET AgentPid = @pid WHERE JobId = @id",
+                new SqliteParameter("@pid", agentPid),
+                new SqliteParameter("@id", jobId));
+        }
+    }
+
+    /// <inheritdoc />
+    public void ReleaseJobSlot(string jobId)
+    {
+        using (new WriteLockHandle(_lock))
+        {
+            ExecuteNonQuery("DELETE FROM JobSlots WHERE JobId = @id", new SqliteParameter("@id", jobId));
+        }
+    }
+
+    /// <inheritdoc />
+    public int ReclaimStaleJobSlots(Func<int, DateTime, bool> isPidAliveSince, TimeSpan ttl, string machineName)
+    {
+        using (new WriteLockHandle(_lock))
+        {
+            using var transaction = _batchTransaction == null ? _connection.BeginTransaction() : null;
+            try
+            {
+                var reclaimed = ReclaimStaleJobSlotsInternal(isPidAliveSince, ttl, machineName);
+                transaction?.Commit();
+                return reclaimed;
+            }
+            catch
+            {
+                transaction?.Rollback();
+                throw;
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public int CountLiveJobSlots()
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            return (int)ExecuteScalar<long>("SELECT COUNT(*) FROM JobSlots");
+        }
+    }
+
+    private void InsertOrReplaceJobSlot(string jobId, int ownerPid, string machineName, int? agentPid)
+    {
+        var now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        ExecuteNonQuery(
+            """
+            INSERT INTO JobSlots (JobId, OwnerPid, AgentPid, MachineName, AcquiredAt, Heartbeat)
+            VALUES (@id, @ownerPid, @agentPid, @machine, @now, @now)
+            ON CONFLICT(JobId) DO UPDATE SET
+                OwnerPid = excluded.OwnerPid,
+                AgentPid = COALESCE(excluded.AgentPid, JobSlots.AgentPid),
+                MachineName = excluded.MachineName,
+                Heartbeat = excluded.Heartbeat
+            """,
+            new SqliteParameter("@id", jobId),
+            new SqliteParameter("@ownerPid", ownerPid),
+            new SqliteParameter("@agentPid", (object?)agentPid ?? DBNull.Value),
+            new SqliteParameter("@machine", machineName),
+            new SqliteParameter("@now", now));
+    }
+
+    /// <summary>
+    ///     Reclaim, assuming the caller holds the write lock and a transaction. Called both on its own
+    ///     and from inside <see cref="TryAcquireJobSlot" />, where it has to run in the same transaction
+    ///     as the count it affects.
+    /// </summary>
+    private int ReclaimStaleJobSlotsInternal(Func<int, DateTime, bool> isPidAliveSince, TimeSpan ttl, string machineName)
+    {
+        var expired = new List<string>();
+        var terminal = new List<string>();
+        var cutoff = DateTime.UtcNow - ttl;
+
+        using (var cmd = _connection.CreateCommand())
+        {
+            cmd.CommandText = """
+                              SELECT s.JobId, s.OwnerPid, s.AgentPid, s.MachineName, s.Heartbeat, s.AcquiredAt, j.Status
+                              FROM JobSlots s LEFT JOIN Jobs j ON j.Id = s.JobId
+                              """;
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var jobId = reader.GetString(0);
+                var status = reader.IsDBNull(6) ? null : reader.GetString(6);
+
+                // Defence in depth: a lease outliving its own job's completion is nobody's slot.
+                if (status is "Completed" or "Failed" or "Stopped" or "Timeout")
+                {
+                    terminal.Add(jobId);
+                    continue;
+                }
+
+                if (!DateTime.TryParse(reader.GetString(4), CultureInfo.InvariantCulture,
+                        DateTimeStyles.RoundtripKind, out var heartbeat) || heartbeat > cutoff)
+                    continue;
+
+                // A pid is only meaningful on the machine that recorded it, so a foreign row goes on TTL
+                // alone. An instance can exit leaving detached agents running, and those agents are the
+                // resource being capped, so a live AgentPid keeps the lease with nobody renewing it.
+                if (string.Equals(reader.GetString(3), machineName, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!DateTime.TryParse(reader.GetString(5), CultureInfo.InvariantCulture,
+                            DateTimeStyles.RoundtripKind, out var acquiredAt))
+                        acquiredAt = heartbeat;
+
+                    var ownerPid = reader.GetInt32(1);
+                    var agentPid = reader.IsDBNull(2) ? (int?)null : reader.GetInt32(2);
+                    if (isPidAliveSince(ownerPid, acquiredAt)
+                        || (agentPid.HasValue && isPidAliveSince(agentPid.Value, acquiredAt)))
+                        continue;
+                }
+
+                expired.Add(jobId);
+            }
+        }
+
+        foreach (var jobId in expired.Concat(terminal))
+            ExecuteNonQuery("DELETE FROM JobSlots WHERE JobId = @id", new SqliteParameter("@id", jobId));
+
+        if (expired.Count > 0)
+            _logger.LogWarning("Reclaimed {Count} stale job slot lease(s): {JobIds}",
+                expired.Count, string.Join(", ", expired));
+        if (terminal.Count > 0)
+            _logger.LogInformation("Reclaimed {Count} job slot lease(s) whose job had already finished: {JobIds}",
+                terminal.Count, string.Join(", ", terminal));
+
+        return expired.Count + terminal.Count;
     }
 
     public long GetDatabaseSize()

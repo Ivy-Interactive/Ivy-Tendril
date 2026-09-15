@@ -62,7 +62,7 @@ public class JobStartSettings : CommandSettings
     [CommandOption("--priority")]
     public int? Priority { get; set; }
 
-    [Description("Force for CreatePlan")]
+    [Description("Submit even if an identical job is already in progress (CreatePlan, CreatePr, CreateIssue)")]
     [CommandOption("--force")]
     public bool Force { get; set; }
 
@@ -199,7 +199,7 @@ public class JobStartCommand : Command<JobStartSettings>
             {
                 if (string.IsNullOrEmpty(settings.Repo))
                     throw new ArgumentException("--repo is required for CreateIssue");
-                args = new CreateIssueArgs(planFolder, settings.Repo, settings.Assignee, settings.Comment, settings.Labels);
+                args = new CreateIssueArgs(planFolder, settings.Repo, settings.Assignee, settings.Comment, settings.Labels, settings.Force);
             }
             else if (string.Equals(jobType, Constants.JobTypes.CreatePr, StringComparison.OrdinalIgnoreCase))
             {
@@ -214,7 +214,8 @@ public class JobStartCommand : Command<JobStartSettings>
                     Reviewers: reviewers,
                     Comment: settings.Comment,
                     Draft: settings.Draft,
-                    BaseBranch: settings.BaseBranch);
+                    BaseBranch: settings.BaseBranch,
+                    Force: settings.Force);
             }
             else if (string.Equals(jobType, Constants.JobTypes.RetryPlan, StringComparison.OrdinalIgnoreCase))
             {

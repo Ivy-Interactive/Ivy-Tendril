@@ -12,6 +12,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Jobs;
 
+/// <param name="ReleaseLease">
+///     Returns the job's machine wide slot lease, alongside the local permit. Optional so the existing
+///     eight-argument call sites keep compiling; a launch failure with no callback simply releases the
+///     permit as it always did.
+/// </param>
 internal record JobLaunchContext(
     JobItem Job,
     ConcurrentDictionary<string, JobItem> Jobs,
@@ -20,7 +25,8 @@ internal record JobLaunchContext(
     Func<TimeSpan> StaleOutputTimeout,
     Action<string, string, string, string, JobItem> RunHooks,
     Action<string, int?, bool, bool> CompleteJob,
-    Action RaiseStructureChanged);
+    Action RaiseStructureChanged,
+    Action<JobItem>? ReleaseLease = null);
 
 internal record RepoConfigEntry(
     string Path,
@@ -59,11 +65,12 @@ internal class JobLauncher
         Func<TimeSpan> staleOutputTimeout,
         Action<string, string, string, string, JobItem> runHooks,
         Action<string, int?, bool, bool> completeJob,
-        Action raiseStructureChanged)
+        Action raiseStructureChanged,
+        Action<JobItem>? releaseLease = null)
     {
         var ctx = new JobLaunchContext(
             job, jobs, jobSlotSemaphore, jobTimeout, staleOutputTimeout,
-            runHooks, completeJob, raiseStructureChanged);
+            runHooks, completeJob, raiseStructureChanged, releaseLease);
 
         LaunchJob(ctx);
     }
@@ -232,7 +239,7 @@ internal class JobLauncher
         job.Status = JobStatus.Failed;
         job.StatusMessage = ex.Message;
         job.CompletedAt = DateTime.UtcNow;
-        try { ctx.JobSlotSemaphore.Release(); } catch (SemaphoreFullException) { }
+        ReleaseSlotAndLease(ctx);
         ctx.RaiseStructureChanged();
     }
 
@@ -247,8 +254,18 @@ internal class JobLauncher
         job.Status = JobStatus.Failed;
         job.StatusMessage = message;
         job.CompletedAt = DateTime.UtcNow;
-        try { ctx.JobSlotSemaphore.Release(); } catch (SemaphoreFullException) { }
+        ReleaseSlotAndLease(ctx);
         ctx.RaiseStructureChanged();
+    }
+
+    /// <summary>
+    ///     Gives back both halves of the concurrency grant. The lease has to go with the permit or the
+    ///     machine wide count drifts up by one per failed launch until something reclaims it on TTL.
+    /// </summary>
+    private static void ReleaseSlotAndLease(JobLaunchContext ctx)
+    {
+        try { ctx.JobSlotSemaphore.Release(); } catch (SemaphoreFullException) { }
+        ctx.ReleaseLease?.Invoke(ctx.Job);
     }
 
     private bool ValidateProjectReposOrFail(JobLaunchContext ctx)
