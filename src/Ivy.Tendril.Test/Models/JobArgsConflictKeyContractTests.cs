@@ -9,7 +9,9 @@ namespace Ivy.Tendril.Test.Models;
 ///     <c>JobService.TryRejectConflictingJob</c>, so CreatePlan, CreatePr, CreateIssue and SetupProject
 ///     were simply missing from it and shipped undeduplicated. <see cref="JobArgsBase.ConflictKey" />
 ///     being abstract forces every subtype to state an answer, and this table forces that answer to be
-///     a deliberate one: adding a type without deciding fails here by name.
+///     a deliberate one: adding a type without deciding fails here by name. These tests check the
+///     group assignment, not the premise behind it; for <c>JobExclusionGroup.PlanIssue</c> that premise
+///     is checked in <c>PlanIssueGroupPromptwareAuditTests</c>.
 /// </summary>
 public class JobArgsConflictKeyContractTests
 {

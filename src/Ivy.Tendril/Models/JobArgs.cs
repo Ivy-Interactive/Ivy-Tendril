@@ -92,7 +92,11 @@ public enum JobExclusionGroup
     ///     already share the plan folder as their ConflictKey.
     /// </summary>
     PlanWorktree,
-    /// <summary>CreateIssue: reads the plan, mutates GitHub, so exclusive only with itself.</summary>
+    /// <summary>
+    ///     CreateIssue: reads the plan, mutates GitHub, so exclusive only with itself. This group is
+    ///     conditional on CreateIssue never writing inside the plan folder; PlanIssueGroupPromptwareAuditTests
+    ///     enforces that condition.
+    /// </summary>
     PlanIssue,
     /// <summary>SetupProject: exclusive only with itself, as today.</summary>
     ProjectSetup
@@ -209,6 +213,11 @@ public record CreateIssueArgs(
     public override string Type => Constants.JobTypes.CreateIssue;
     public override string PlanFolder => FolderPath;
     public override string? ConflictKey => PlanFolder;
+
+    /// <summary>
+    ///     Conditional on this promptware never writing inside the plan folder;
+    ///     PlanIssueGroupPromptwareAuditTests enforces that condition.
+    /// </summary>
     public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.PlanIssue;
     public override bool ForceDuplicate => Force;
 }
