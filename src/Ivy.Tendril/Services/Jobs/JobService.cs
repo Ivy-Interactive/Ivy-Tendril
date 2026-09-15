@@ -1612,8 +1612,17 @@ public class JobService : IJobService
         if (group == JobExclusionGroup.None)
             return null;
 
+        // A job that names the live job in WaitForJobs is not a concurrent mutation, it is the next
+        // step in a chain: "Update and Execute" submits UpdatePlan then ExecutePlan waiting on it,
+        // and both are PlanWorktree on one plan folder. TryBlockForWaitForJobs below is what
+        // sequences it.
+        var waitingFor = job.WaitForJobIds is { Count: > 0 }
+            ? new HashSet<string>(job.WaitForJobIds, StringComparer.OrdinalIgnoreCase)
+            : null;
+
         var conflictingJob = _jobs.Values.FirstOrDefault(j =>
             j.Id != job.Id &&
+            waitingFor?.Contains(j.Id) != true &&
             j.TypedArgs?.ExclusionGroup == group &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked &&
             !string.IsNullOrEmpty(j.TypedArgs?.ConflictKey) &&
@@ -1643,6 +1652,9 @@ public class JobService : IJobService
         {
             if (_jobs.ContainsKey(candidate.Id))
                 continue; // Already considered by the in-memory scan above, which found it not live.
+
+            if (waitingFor?.Contains(candidate.Id) == true)
+                continue; // Same exemption as the in-memory scan above.
 
             if (IsCandidateStillLive(candidate))
                 return (candidate.Id, candidate.Type);
