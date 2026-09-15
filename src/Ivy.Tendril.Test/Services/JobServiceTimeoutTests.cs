@@ -415,6 +415,106 @@ codingAgent: claude
         Assert.Equal(JobStatus.Running, job.Status);
     }
 
+    // Liveness-aware reaping (#2710). For a detached job the only thing that advances LastOutputAt is
+    // an inbound `tendril job status` call, so one dropped progress report was enough to kill a working
+    // agent: 61 of 427 rows in the live database were Timeout with the identical "No output for 20
+    // minutes" message, and ten of the plans behind them reached Completed anyway. The pid is the
+    // signal that was there all along.
+
+    /// <summary>A pid no process on this machine can plausibly have, so liveness reads false.</summary>
+    private const int DeadPid = 0x7FFFFFF0;
+
+    [Fact]
+    public void RunStuckJobCheck_DetachedJobWithDeadPid_ReapsPromptly()
+    {
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        // Detached: no Process handle, but a pid to ask about. Output is fresh and the stale window is
+        // ten minutes away, so nothing but the dead pid can explain a reap here.
+        job.Process = null;
+        job.ProcessId = DeadPid;
+        job.StartedAt = DateTime.UtcNow;
+        job.LastOutputAt = DateTime.UtcNow;
+
+        service.RunStuckJobCheck();
+
+        // Nothing will ever report output for this job again, so waiting out the stale window would only
+        // hold its slot and leave it "running…" in the UI for another ten minutes.
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Timeout, job.Status);
+        Assert.NotNull(job.CompletedAt);
+    }
+
+    [Fact]
+    public void RunStuckJobCheck_DetachedJobWithLivePid_GrantsExtendedGrace_ThenReapsOnceExpired()
+    {
+        // staleOutputTimeout 1 minute: the plain window is 1 + 2 grace = 3 minutes, and the extended,
+        // liveness-aware one is 4 * 1 + 2 = 6.
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(1));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        // This process is the guaranteed-live pid, and StartedAt is pinned to its real start time so the
+        // pid-reuse guard (start time within the job's launch window) is satisfied by construction.
+        using var self = Process.GetCurrentProcess();
+        job.Process = null;
+        job.ProcessId = Environment.ProcessId;
+        job.StartedAt = self.StartTime.ToUniversalTime();
+
+        job.LastOutputAt = DateTime.UtcNow.AddMinutes(-4);
+        service.RunStuckJobCheck();
+
+        // Past the plain window, which is exactly where a working agent used to be killed for one
+        // dropped progress report.
+        Assert.Equal(JobStatus.Running, service.GetJob(id)!.Status);
+
+        job.LastOutputAt = DateTime.UtcNow.AddMinutes(-7);
+        service.RunStuckJobCheck();
+
+        // Liveness extends the grace rather than granting immunity: a genuinely hung agent is also alive
+        // and silent, so the extended window still ends.
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Timeout, job.Status);
+        Assert.Contains("No output for 1 minutes", job.StatusMessage);
+    }
+
+    [Fact]
+    public void RunStuckJobCheck_RunningJobWithNeitherHandleNorPid_FallsBackToOutputAgeAlone()
+    {
+        // The narrowing that keeps the dead-pid branch honest. A job with no Process handle and no pid
+        // yet is not a detached agent that died, it is one in the window between Status = Running and
+        // the launcher recording its pid, so there is nothing to ask and reaping on the answer would be
+        // the same false kill the branch exists to prevent.
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Null(job.Process);
+        Assert.Null(job.ProcessId);
+
+        job.StartedAt = DateTime.UtcNow.AddMinutes(-3);
+        service.RunStuckJobCheck();
+        Assert.Equal(JobStatus.Running, service.GetJob(id)!.Status);
+
+        // Still reaped on output age, just not before it.
+        job.StartedAt = DateTime.UtcNow.AddMinutes(-20);
+        service.RunStuckJobCheck();
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Timeout, job.Status);
+        Assert.Contains("No output for 10 minutes", job.StatusMessage);
+    }
+
     [Fact]
     public void Constructor_AcceptsLogger()
     {
