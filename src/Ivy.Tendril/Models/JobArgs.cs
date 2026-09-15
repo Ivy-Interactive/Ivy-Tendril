@@ -38,6 +38,14 @@ public abstract record JobArgsBase
     public abstract string? ConflictKey { get; }
 
     /// <summary>
+    ///     Which set of job types cannot run concurrently within one ConflictKey scope. Abstract for the
+    ///     same reason ConflictKey is: the guard used to compare job types, so two types that mutate one
+    ///     plan worktree were admitted 12 seconds apart (CreatePr 03456 and RetryPlan 03462 on plan 00606).
+    /// </summary>
+    [JsonIgnore]
+    public abstract JobExclusionGroup ExclusionGroup { get; }
+
+    /// <summary>
     ///     Whether this submission deliberately bypasses <see cref="ConflictKey" /> deduplication.
     ///     Virtual with a false default: a type with no <c>--force</c> affordance simply cannot opt out,
     ///     which is the safe direction.
@@ -67,6 +75,29 @@ public enum JobOrigin
     Ui
 }
 
+/// <summary>
+///     Which set of job types cannot run concurrently within one <see cref="JobArgsBase.ConflictKey" />
+///     scope. See <see cref="JobExclusionGroups" /> for the group-to-job-type-name table this pairs with.
+/// </summary>
+public enum JobExclusionGroup
+{
+    /// <summary>Not deduplicated at all. Goes with a null ConflictKey.</summary>
+    None = 0,
+    /// <summary>CreatePlan, keyed on the task hash rather than a plan.</summary>
+    CreatePlanTask,
+    /// <summary>
+    ///     Everything that writes inside the plan folder: the worktree (ExecutePlan, RetryPlan,
+    ///     CreatePr) and the revisions (UpdatePlan, ExpandPlan, SplitPlan). One group, not two, because
+    ///     the revision writers have to exclude the worktree writers as well as each other, and they
+    ///     already share the plan folder as their ConflictKey.
+    /// </summary>
+    PlanWorktree,
+    /// <summary>CreateIssue: reads the plan, mutates GitHub, so exclusive only with itself.</summary>
+    PlanIssue,
+    /// <summary>SetupProject: exclusive only with itself, as today.</summary>
+    ProjectSetup
+}
+
 public record CreatePlanArgs(
     string Description,
     string Project,
@@ -85,51 +116,67 @@ public record CreatePlanArgs(
     /// </summary>
     public override string? ConflictKey => InboxBreadcrumb.TaskHash(Project, Description);
 
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.CreatePlanTask;
     public override bool ForceDuplicate => Force;
 }
 
 public record ExecutePlanArgs(
     string FolderPath,
-    string? Note = null) : JobArgsBase
+    string? Note = null,
+    bool Force = false) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.ExecutePlan;
     public override string PlanFolder => FolderPath;
     public override string? ConflictKey => PlanFolder;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.PlanWorktree;
+    public override bool ForceDuplicate => Force;
 }
 
 public record RetryPlanArgs(
     string FolderPath,
-    string ChangeRequest) : JobArgsBase
+    string ChangeRequest,
+    bool Force = false) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.RetryPlan;
     public override string PlanFolder => FolderPath;
     public override string? ConflictKey => PlanFolder;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.PlanWorktree;
+    public override bool ForceDuplicate => Force;
 }
 
 public record ExpandPlanArgs(
-    string FolderPath) : JobArgsBase
+    string FolderPath,
+    bool Force = false) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.ExpandPlan;
     public override string PlanFolder => FolderPath;
     public override string? ConflictKey => PlanFolder;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.PlanWorktree;
+    public override bool ForceDuplicate => Force;
 }
 
 public record UpdatePlanArgs(
     string FolderPath,
     string? Instructions = null,
-    string? UploadSessionId = null) : JobArgsBase
+    string? UploadSessionId = null,
+    bool Force = false) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.UpdatePlan;
     public override string PlanFolder => FolderPath;
     public override string? ConflictKey => PlanFolder;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.PlanWorktree;
+    public override bool ForceDuplicate => Force;
 }
 
 public record SplitPlanArgs(
-    string FolderPath) : JobArgsBase
+    string FolderPath,
+    bool Force = false) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.SplitPlan;
     public override string PlanFolder => FolderPath;
     public override string? ConflictKey => PlanFolder;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.PlanWorktree;
+    public override bool ForceDuplicate => Force;
 }
 
 public record CreatePrArgs(
@@ -147,6 +194,7 @@ public record CreatePrArgs(
     public override string Type => Constants.JobTypes.CreatePr;
     public override string PlanFolder => FolderPath;
     public override string? ConflictKey => PlanFolder;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.PlanWorktree;
     public override bool ForceDuplicate => Force;
 }
 
@@ -161,6 +209,7 @@ public record CreateIssueArgs(
     public override string Type => Constants.JobTypes.CreateIssue;
     public override string PlanFolder => FolderPath;
     public override string? ConflictKey => PlanFolder;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.PlanIssue;
     public override bool ForceDuplicate => Force;
 }
 
@@ -170,6 +219,7 @@ public record SetupProjectArgs(
     public override string Type => Constants.JobTypes.SetupProject;
     public override string PlanFolder => FolderPath;
     public override string? ConflictKey => PlanFolder;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.ProjectSetup;
 }
 
 public record SyncRepoArgs(
@@ -183,6 +233,7 @@ public record SyncRepoArgs(
     // Opt-out on purpose: JobService.TryFindExistingSyncRepoJob already merges a duplicate submission
     // into the existing job, which is richer than rejecting it.
     public override string? ConflictKey => null;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.None;
 }
 
 public record AddProjectArgs(
@@ -193,6 +244,7 @@ public record AddProjectArgs(
     // Opt-out on purpose: no plan scope, and no duplicate submissions of this type in the #2710
     // incident. Stated rather than inherited so the next reader knows it was considered.
     public override string? ConflictKey => null;
+    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.None;
 }
 
 // How SyncRepo should treat uncommitted changes and/or untracked files when syncing a repo.

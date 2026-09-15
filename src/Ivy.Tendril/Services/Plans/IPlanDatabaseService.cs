@@ -75,7 +75,8 @@ public interface IPlanDatabaseService : IDisposable
     ///     row is really live, because a row left <c>Running</c> by a crashed instance must not lock its
     ///     scope out forever.
     /// </summary>
-    List<JobConflictCandidate> FindLiveJobsByConflictKey(string jobType, string conflictKey, string excludeJobId) => [];
+    List<JobConflictCandidate> FindLiveJobsByConflictKey(
+        IReadOnlyCollection<string> jobTypes, string conflictKey, string excludeJobId) => [];
 
     // Machine wide job slots. maxConcurrentJobs used to be enforced by a per-process SemaphoreSlim, so
     // 30 became 120 across four instances and the OOM killer decided the real limit (#2710).
@@ -151,7 +152,7 @@ internal sealed class NullBatch : IDisposable
 /// </summary>
 /// <param name="ProcessId">The agent pid, when one was recorded. Null for a job that never launched.</param>
 /// <param name="StartedAt">Null for a row that was still <c>Pending</c>, which counts as live.</param>
-public record JobConflictCandidate(string Id, int? ProcessId, DateTime? StartedAt);
+public record JobConflictCandidate(string Id, string Type, int? ProcessId, DateTime? StartedAt);
 
 /// <summary>
 ///     One row of a plan folder's <c>costs.csv</c>, as synced into the <c>Costs</c> table.

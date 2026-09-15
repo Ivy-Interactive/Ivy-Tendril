@@ -62,7 +62,7 @@ public class JobStartSettings : CommandSettings
     [CommandOption("--priority")]
     public int? Priority { get; set; }
 
-    [Description("Submit even if an identical job is already in progress (CreatePlan, CreatePr, CreateIssue)")]
+    [Description("Submit even if a conflicting job is already running in this scope (CreatePlan, CreatePr, CreateIssue, ExecutePlan, RetryPlan, UpdatePlan, ExpandPlan, SplitPlan)")]
     [CommandOption("--force")]
     public bool Force { get; set; }
 
@@ -184,17 +184,17 @@ public class JobStartCommand : Command<JobStartSettings>
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
 
             if (string.Equals(jobType, Constants.JobTypes.ExecutePlan, StringComparison.OrdinalIgnoreCase))
-                args = new ExecutePlanArgs(planFolder, settings.Note);
+                args = new ExecutePlanArgs(planFolder, settings.Note, settings.Force);
             else if (string.Equals(jobType, Constants.JobTypes.UpdatePlan, StringComparison.OrdinalIgnoreCase))
             {
                 if (string.IsNullOrEmpty(settings.Instructions))
                     throw new ArgumentException("--instructions is required for UpdatePlan");
-                args = new UpdatePlanArgs(planFolder, settings.Instructions);
+                args = new UpdatePlanArgs(planFolder, settings.Instructions, Force: settings.Force);
             }
             else if (string.Equals(jobType, Constants.JobTypes.SplitPlan, StringComparison.OrdinalIgnoreCase))
-                args = new SplitPlanArgs(planFolder);
+                args = new SplitPlanArgs(planFolder, settings.Force);
             else if (string.Equals(jobType, Constants.JobTypes.ExpandPlan, StringComparison.OrdinalIgnoreCase))
-                args = new ExpandPlanArgs(planFolder);
+                args = new ExpandPlanArgs(planFolder, settings.Force);
             else if (string.Equals(jobType, Constants.JobTypes.CreateIssue, StringComparison.OrdinalIgnoreCase))
             {
                 if (string.IsNullOrEmpty(settings.Repo))
@@ -221,7 +221,7 @@ public class JobStartCommand : Command<JobStartSettings>
             {
                 if (string.IsNullOrEmpty(settings.ChangeRequest))
                     throw new ArgumentException("--change-request is required for RetryPlan");
-                args = new RetryPlanArgs(planFolder, settings.ChangeRequest);
+                args = new RetryPlanArgs(planFolder, settings.ChangeRequest, settings.Force);
             }
             else
             {
