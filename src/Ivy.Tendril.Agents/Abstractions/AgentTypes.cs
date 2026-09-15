@@ -134,6 +134,13 @@ public enum ModelValidationStatus
     Ok,
     InvalidModel,
     AuthError,
+
+    /// <summary>
+    ///     The model is valid and reachable but its quota is exhausted, so nothing launched against it
+    ///     will do any work. Reported as an error rather than a warning: a fleet started in this state
+    ///     produces nothing at all.
+    /// </summary>
+    RateLimit,
     Timeout,
     Unknown
 }
