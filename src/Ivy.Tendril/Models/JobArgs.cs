@@ -239,10 +239,23 @@ public record SyncRepoArgs(
 {
     public override string Type => Constants.JobTypes.SyncRepo;
     public override string? PlanFolder => PlanFolderPath;
-    // Opt-out on purpose: JobService.TryFindExistingSyncRepoJob already merges a duplicate submission
-    // into the existing job, which is richer than rejecting it.
-    public override string? ConflictKey => null;
-    public override JobExclusionGroup ExclusionGroup => JobExclusionGroup.None;
+
+    /// <summary>
+    ///     Normally an opt-out: JobService.TryFindExistingSyncRepoJob already merges a duplicate
+    ///     submission into the existing job, which is richer than rejecting it, and the UI call sites
+    ///     only ever sync a project's bare checkout. But --repo-path takes any path, and syncing a
+    ///     plan worktree (stash, rebase, branch switch, push) is the same mutation ExecutePlan and
+    ///     CreatePr do, so a worktree target takes that plan's worktree scope instead.
+    /// </summary>
+    public override string? ConflictKey => SyncedPlanWorktreeFolder;
+
+    public override JobExclusionGroup ExclusionGroup =>
+        SyncedPlanWorktreeFolder == null ? JobExclusionGroup.None : JobExclusionGroup.PlanWorktree;
+
+    /// <summary>The plan folder whose worktree RepoPath is inside, or null for a bare checkout.</summary>
+    [JsonIgnore]
+    internal string? SyncedPlanWorktreeFolder =>
+        WorktreePathHelper.TryGetPlanFolderFromWorktree(RepoPath, out var folder) ? folder : null;
 }
 
 public record AddProjectArgs(

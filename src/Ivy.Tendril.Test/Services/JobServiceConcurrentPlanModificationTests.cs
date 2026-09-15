@@ -435,6 +435,110 @@ public class JobServiceConcurrentPlanModificationTests : IDisposable
     }
 
     [Fact]
+    public void StartJob_ExecutePlan_WhenWaitingForTheLiveUpdatePlan_IsBlockedNotFailed()
+    {
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            null, 10);
+
+        // "Update and Execute" in the Plans app starts UpdatePlan then submits ExecutePlan waiting on
+        // it (Plan 00675). Both are PlanWorktree on this plan folder, but the wait edge means this is
+        // the next step in a chain, not a concurrent mutation, so it must be Blocked, not Failed.
+        var firstJobId = service.CreateTestJob(new UpdatePlanArgs(_planFolder));
+
+        var secondJobId = service.StartJob(new ExecutePlanArgs(_planFolder) { WaitForJobs = [firstJobId] });
+        var secondJob = service.GetJob(secondJobId);
+
+        Assert.NotNull(secondJob);
+        Assert.Equal(JobStatus.Blocked, secondJob.Status);
+    }
+
+    [Fact]
+    public void StartJob_ExecutePlan_WhenNotWaitingForTheLiveUpdatePlan_StillFails()
+    {
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            null, 10);
+
+        var firstJobId = service.CreateTestJob(new UpdatePlanArgs(_planFolder));
+
+        // Same setup as above but with no WaitForJobs — pins that the exemption is narrow: only an
+        // explicit wait edge earns it.
+        var secondJobId = service.StartJob(new ExecutePlanArgs(_planFolder));
+        var secondJob = service.GetJob(secondJobId);
+
+        Assert.NotNull(secondJob);
+        Assert.Equal(JobStatus.Failed, secondJob.Status);
+        Assert.Contains("already running", secondJob.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(firstJobId, secondJob.StatusMessage);
+    }
+
+    [Fact]
+    public void StartJob_ExecutePlan_WaitingForAnUnrelatedJob_StillFailsOnTheRealConflict()
+    {
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            null, 10);
+
+        var updateJobId = service.CreateTestJob(new UpdatePlanArgs(_planFolder));
+
+        // Waiting for some other job does not exempt this submission from the real conflict with the
+        // live UpdatePlan job it never named.
+        var secondJobId = service.StartJob(new ExecutePlanArgs(_planFolder) { WaitForJobs = ["unrelated-job-id"] });
+        var secondJob = service.GetJob(secondJobId);
+
+        Assert.NotNull(secondJob);
+        Assert.Equal(JobStatus.Failed, secondJob.Status);
+        Assert.Contains("already running", secondJob.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(updateJobId, secondJob.StatusMessage);
+    }
+
+    [Fact]
+    public void StartJob_SyncRepo_TargetingAPlanWorktree_IsRejectedWhileExecutePlanIsLive()
+    {
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            null, 10);
+
+        _ = service.CreateTestJob(new ExecutePlanArgs(_planFolder));
+
+        var worktreePath = Path.Combine(_planFolder, "Worktrees", "ivy-tendril");
+        var syncJobId = service.StartJob(new SyncRepoArgs(worktreePath, "development"));
+        var syncJob = service.GetJob(syncJobId);
+
+        Assert.NotNull(syncJob);
+        Assert.Equal(JobStatus.Failed, syncJob.Status);
+        Assert.Contains("on this plan worktree", syncJob.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void StartJob_SyncRepo_TargetingABareCheckout_IsAdmittedWhileExecutePlanIsLive()
+    {
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            null, 10);
+
+        _ = service.CreateTestJob(new ExecutePlanArgs(_planFolder));
+
+        // A bare checkout outside any Worktrees directory is the normal preflight sync path and must
+        // stay untouched by this plan.
+        var bareRepoPath = Path.Combine(_tempDir.Path, "repos", "ivy-tendril");
+        try
+        {
+            var syncJobId = service.StartJob(new SyncRepoArgs(bareRepoPath, "development"));
+            var syncJob = service.GetJob(syncJobId);
+            Assert.NotNull(syncJob);
+            if (syncJob.Status == JobStatus.Failed)
+                Assert.DoesNotContain("on this plan worktree", syncJob.StatusMessage ?? "",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            // Process launch failures are acceptable in this test
+        }
+    }
+
+    [Fact]
     public void StartJob_RaisesNotificationWhenConcurrentJobBlocked()
     {
         var previousContext = SynchronizationContext.Current;

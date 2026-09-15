@@ -82,6 +82,23 @@ public class JobConflictLookupTests : IDisposable
     }
 
     [Fact]
+    public void FindLiveJobsByConflictKey_FindsALiveWorktreeSync()
+    {
+        // Pins that the cross-process half of the guard sees a worktree sync started by another
+        // instance: SyncRepo now appears in TypesIn(PlanWorktree) (Plan 00675), so this needs no
+        // hardcoded type list here.
+        var worktreePath = Path.Combine(PlanFolder, "Worktrees", "ivy-tendril");
+        _db.UpsertJob(MakeJob("job-1", new SyncRepoArgs(worktreePath, "development"), JobStatus.Running));
+
+        var candidates = _db.FindLiveJobsByConflictKey(
+            JobExclusionGroups.TypesIn(JobExclusionGroup.PlanWorktree), PlanFolder, "job-2");
+
+        var candidate = Assert.Single(candidates);
+        Assert.Equal("job-1", candidate.Id);
+        Assert.Equal("SyncRepo", candidate.Type);
+    }
+
+    [Fact]
     public void FindLiveJobsByConflictKey_ReturnsNothing_ForAnEmptyTypeSet()
     {
         _db.UpsertJob(MakeJob("job-1", new ExecutePlanArgs(PlanFolder), JobStatus.Running));
