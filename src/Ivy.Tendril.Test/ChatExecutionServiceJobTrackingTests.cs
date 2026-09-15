@@ -336,6 +336,102 @@ public class ChatExecutionServiceJobTrackingTests
     }
 
     [Fact]
+    public async Task SendMessageAsync_WithUnknownSession_ReturnsWithoutStartingAnAgentOrCreatingASession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilSendUnknownSessionTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = new CountingAgentRunner(TestAgentRunner.Create());
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService);
+
+            var unknownSessionId = Guid.NewGuid().ToString("N");
+
+            await execService.SendMessageAsync(unknownSessionId, "Hello");
+
+            Assert.Equal(0, agentRunner.LaunchCount);
+            Assert.Empty(chatService.GetSessions());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task OnJobFinished_AfterItsChatSessionWasDeleted_CreatesNoSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilJobFinishedDeletedSessionTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService);
+
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+            chatService.AddSpawnedJob(session.Id, "job-999");
+
+            var finishedJob = new JobItem
+            {
+                Id = "job-999",
+                Type = "ExecutePlan",
+                ChatSessionId = session.Id,
+                Status = JobStatus.Completed,
+                ReportedPlanId = "P-300",
+                ReportedPlanTitle = "Deleted Session Plan"
+            };
+
+            // The chat session is deleted between the job finishing and the dispatch reaching this handler.
+            chatService.DeleteSession(session.Id);
+
+            fakeJobService.FireJobFinished(finishedJob);
+            await Task.Delay(200);
+
+            Assert.Empty(chatService.GetSessions());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
     public async Task SystemEvent_WhenExecutionRunning_NeverEnqueuesIntoUserQueuedMessages()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "TendrilNoQueueTest_" + Guid.NewGuid().ToString("N"));
@@ -573,6 +669,40 @@ public class ChatExecutionServiceJobTrackingTests
 
         public Task<IAgentSession> LaunchAsync(AgentResolutionContext context, CancellationToken ct = default)
             => Task.FromResult(_session);
+
+        public Task<ResultEvent> RunToCompletionAsync(AgentResolutionContext context, CancellationToken ct = default)
+            => _inner.RunToCompletionAsync(context, ct);
+
+        public IReadOnlyList<IAgentSession> ActiveSessions => _inner.ActiveSessions;
+        public IObservable<IAgentSession> Sessions => _inner.Sessions;
+        public Task StopAllAsync(CancellationToken ct = default) => _inner.StopAllAsync(ct);
+        public IReadOnlyList<string> RegisteredAgents => _inner.RegisteredAgents;
+        public IAgentCli GetCli(string agentId) => _inner.GetCli(agentId);
+        public IEventParser GetParser(string agentId) => _inner.GetParser(agentId);
+        public IAgentHealthCheck GetHealthCheck(string agentId) => _inner.GetHealthCheck(agentId);
+        public IAgentDescriptor GetDescriptor(string agentId) => _inner.GetDescriptor(agentId);
+        public IFailureAnalyzer? GetFailureAnalyzer(string agentId) => _inner.GetFailureAnalyzer(agentId);
+        public ISessionCostParser? GetCostParser(string agentId) => _inner.GetCostParser(agentId);
+        public IAgentPty? GetPty(string agentId) => _inner.GetPty(agentId);
+        public IModelCatalogProvider? GetModelCatalog(string agentId) => _inner.GetModelCatalog(agentId);
+        public IEnumerable<IModelCatalogProvider> ModelCatalogs => _inner.ModelCatalogs;
+    }
+
+    private class CountingAgentRunner : IAgentRunner
+    {
+        private readonly IAgentRunner _inner;
+        public int LaunchCount;
+
+        public CountingAgentRunner(IAgentRunner inner)
+        {
+            _inner = inner;
+        }
+
+        public Task<IAgentSession> LaunchAsync(AgentResolutionContext context, CancellationToken ct = default)
+        {
+            LaunchCount++;
+            return _inner.LaunchAsync(context, ct);
+        }
 
         public Task<ResultEvent> RunToCompletionAsync(AgentResolutionContext context, CancellationToken ct = default)
             => _inner.RunToCompletionAsync(context, ct);
@@ -1273,6 +1403,120 @@ public class ChatExecutionServiceJobTrackingTests
     }
 
     [Fact]
+    public async Task AnnounceExecution_WithDeadPlanChatSessionId_PostsNothingAndCreatesNoSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilDeadChatAnnounceExecTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+
+            var deadSessionId = chatService.CreateSession("codex", "gpt-5.6-sol").Id;
+            chatService.DeleteSession(deadSessionId);
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(46, "Tendril", "NiceToHave", "Dead Chat Exec Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: deadSessionId),
+                "# Dead Chat Exec Test",
+                Path.Combine(tempDir, "00046-DeadChatExecPlan"),
+                "state: Draft"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            ManualApprovalAnnouncer.AnnounceExecution(plan, "job-010", chatService, execService, fakeJobService);
+
+            await Task.Delay(200);
+
+            Assert.Empty(chatService.GetSessions());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AnnounceCreatePr_WithDeadPlanChatSessionId_PostsNothingAndCreatesNoSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilDeadChatAnnouncePrTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+
+            var deadSessionId = chatService.CreateSession("codex", "gpt-5.6-sol").Id;
+            chatService.DeleteSession(deadSessionId);
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(47, "Tendril", "NiceToHave", "Dead Chat PR Plan", PlanStatus.Review,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: deadSessionId),
+                "# Dead Chat PR Test",
+                Path.Combine(tempDir, "00047-DeadChatPrPlan"),
+                "state: Review"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            ManualApprovalAnnouncer.AnnounceCreatePr(plan, "job-011", isPrUpdate: false, chatService, execService, fakeJobService);
+
+            await Task.Delay(200);
+
+            Assert.Empty(chatService.GetSessions());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
     public async Task ManualApprovalAnnouncer_NonExistentSession_DoesNotDispatchSystemEvent()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "TendrilPhantomSessionTest_" + Guid.NewGuid().ToString("N"));
@@ -1373,6 +1617,7 @@ public class ChatExecutionServiceJobTrackingTests
             }
         }
     }
+
 
     [Fact]
     public void SetChatSessionId_UpdatesTypedArgs_AndPersistsToDatabase()

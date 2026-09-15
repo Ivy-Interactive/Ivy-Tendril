@@ -15,8 +15,11 @@ namespace Ivy.Tendril.Test.Apps.Chat;
 
 public class ChatAppSidebarListTests
 {
-    private static ChatSessionModel Session(string id, string title, string? kind = null) =>
-        new(id, title, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [], Kind: kind);
+    private static ChatSessionModel Session(string id, string title, string? kind = null, List<ChatMessageModel>? messages = null) =>
+        new(id, title, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", messages ?? [], Kind: kind);
+
+    private static ChatMessageModel UserMessage(string content) =>
+        new(Guid.NewGuid().ToString("N"), "user", content, DateTimeOffset.UtcNow);
 
     [Fact]
     public void BuildSidebarList_MapsSessionsToRowsAndRoutesSelectionThroughChatArgs()
@@ -58,7 +61,7 @@ public class ChatAppSidebarListTests
     {
         var sessions = new List<ChatSessionModel>
         {
-            Session("chat", "Chat", ChatSessionKinds.Chat),
+            Session("chat", "Chat", ChatSessionKinds.Chat, [UserMessage("Hi")]),
             Session("term", "Terminal", ChatSessionKinds.Terminal)
         };
         var started = false;
@@ -71,6 +74,41 @@ public class ChatAppSidebarListTests
         Assert.Equal("New chat", list.NewLabel);
         list.OnNew!();
         Assert.True(started);
+    }
+
+    [Fact]
+    public void BuildSidebarList_OmitsContentFreeSessions()
+    {
+        var systemOnly = Session("phantom", "New Chat", ChatSessionKinds.Chat, [new("m1", "system", "[System Event] Job finished.", DateTimeOffset.UtcNow)]);
+        var emptyAssistant = Session("blank", "New Chat", ChatSessionKinds.Chat, [new("m2", "assistant", "", DateTimeOffset.UtcNow)]);
+        var withContent = Session("real", "Real Chat", ChatSessionKinds.Chat, [UserMessage("Hi")]);
+
+        var list = ChatApp.BuildSidebarList([systemOnly, emptyAssistant, withContent], null, new HashSet<string>(), new HashSet<string>(), () => { });
+
+        Assert.Collection(list.Items, item => Assert.Equal("real", item.Id));
+    }
+
+    [Fact]
+    public void BuildSidebarList_KeepsContentFreeSessionWhenSelectedOrGenerating()
+    {
+        var selected = Session("selected", "New Chat", ChatSessionKinds.Chat, [new("m1", "system", "[System Event] Job finished.", DateTimeOffset.UtcNow)]);
+        var generating = Session("generating", "New Chat", ChatSessionKinds.Chat, [new("m2", "assistant", "", DateTimeOffset.UtcNow)]);
+
+        var list = ChatApp.BuildSidebarList([selected, generating], "selected", new HashSet<string> { "generating" }, new HashSet<string>(), () => { });
+
+        Assert.Collection(list.Items,
+            item => Assert.Equal("selected", item.Id),
+            item => Assert.Equal("generating", item.Id));
+    }
+
+    [Fact]
+    public void BuildSidebarList_KeepsTerminalSessionsWithoutMessages()
+    {
+        var terminal = Session("term", "Terminal", ChatSessionKinds.Terminal);
+
+        var list = ChatApp.BuildSidebarList([terminal], null, new HashSet<string>(), new HashSet<string>(), () => { });
+
+        Assert.Collection(list.Items, item => Assert.Equal("term", item.Id));
     }
 
     [Fact]
@@ -333,8 +371,8 @@ public class ChatAppSidebarListTests
     [Fact]
     public void BuildSidebarList_MapsPinnedStatus_AndExposesTogglePinHandler()
     {
-        var pinnedSession = new ChatSessionModel("pinned-1", "Pinned Chat", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [], IsPinned: true);
-        var unpinnedSession = new ChatSessionModel("unpinned-1", "Regular Chat", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [], IsPinned: false);
+        var pinnedSession = new ChatSessionModel("pinned-1", "Pinned Chat", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [UserMessage("Hi")], IsPinned: true);
+        var unpinnedSession = new ChatSessionModel("unpinned-1", "Regular Chat", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [UserMessage("Hi")], IsPinned: false);
 
         string? toggledId = null;
         var list = ChatApp.BuildSidebarList(

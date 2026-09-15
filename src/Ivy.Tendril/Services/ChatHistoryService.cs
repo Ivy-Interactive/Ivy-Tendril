@@ -257,7 +257,8 @@ public class ChatHistoryService : IChatHistoryService
                     var session = JsonSerializer.Deserialize<ChatSessionModel>(json, JsonOptions);
                     if (session != null && !string.IsNullOrEmpty(session.Id))
                     {
-                        if (session.Messages == null || session.Messages.Count == 0)
+                        if ((session.Messages == null || session.Messages.Count == 0) ||
+                            (!session.IsTerminal() && !session.HasVisibleContent()))
                         {
                             try
                             {
@@ -1003,8 +1004,11 @@ public class ChatHistoryService : IChatHistoryService
         // A session becomes durable from its first message. Zero-message sessions are deliberately
         // memory-only, and are pruned or deleted at load time (LoadSessionsFromDisk, PruneEmptySessions).
         // This applies uniformly: plan-linked sessions are no exception and also persist only after
-        // receiving at least one message.
+        // receiving at least one message. A non-terminal session whose messages hold no visible
+        // content (only system events and/or an empty assistant placeholder) is equally deliberately
+        // memory-only; a terminal session is exempt because its lifetime belongs to its pane.
         if (session == null || session.Messages == null || session.Messages.Count == 0) return;
+        if (!session.IsTerminal() && !session.HasVisibleContent()) return;
         try
         {
             var filePath = Path.Combine(GetStorageDir(), $"{session.Id}.json");
@@ -1040,7 +1044,7 @@ public class ChatHistoryService : IChatHistoryService
                 continue;
             }
 
-            if (session.Messages == null || session.Messages.Count == 0)
+            if (!session.HasVisibleContent())
             {
                 if (_sessions.TryRemove(id, out _))
                 {

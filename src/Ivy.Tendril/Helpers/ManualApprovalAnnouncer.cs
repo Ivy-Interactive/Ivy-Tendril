@@ -72,6 +72,11 @@ public static class ManualApprovalAnnouncer
                     }
                 }
             }
+
+            if (!string.IsNullOrEmpty(chatSessionId) && chatHistory.GetSession(chatSessionId) == null)
+            {
+                chatSessionId = null;
+            }
         }
         else
         {

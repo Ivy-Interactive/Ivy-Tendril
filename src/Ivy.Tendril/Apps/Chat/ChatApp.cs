@@ -109,6 +109,7 @@ public class ChatApp : ViewBase
         Action<string>? togglePinSession = null)
     {
         var items = sessions
+            .Where(s => s.IsTerminal() || s.HasVisibleContent() || s.Id == selectedId || generatingIds.Contains(s.Id))
             .Select(s => new ShellSectionItemDto(
                 s.Id,
                 DisplayTitle(s),

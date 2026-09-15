@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Services;
@@ -54,6 +55,16 @@ public static class ChatSessionKinds
 
     public static bool IsTerminal(this ChatSessionModel session) =>
         string.Equals(session.Kind, Terminal, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    ///     True when the session holds a message worth showing in the chat list: a user message, or
+    ///     an assistant reply that has actually produced text. A system message alone does not count
+    ///     — it is an instruction about an event the user can already see in Jobs and Plans.
+    /// </summary>
+    public static bool HasVisibleContent(this ChatSessionModel session) =>
+        session.Messages?.Any(m =>
+            !string.IsNullOrWhiteSpace(m.Content) &&
+            !string.Equals(m.Role, "system", StringComparison.OrdinalIgnoreCase)) == true;
 }
 
 public interface IChatHistoryService
@@ -86,10 +97,12 @@ public interface IChatHistoryService
     IReadOnlyList<string> GetSpawnedJobs(string sessionId);
     bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers);
     /// <summary>
-    ///     Drops chat sessions that hold no messages, so a chat the user never typed into is not kept
-    ///     in the history. The session named by <paramref name="activeSessionId" />, any session that
-    ///     is generating, and every terminal session are left alone: a terminal session belongs to its
-    ///     pane, which may legitimately be open with nothing typed into it yet.
+    ///     Drops chat sessions that have no visible content (see <see cref="ChatSessionKinds.HasVisibleContent" />),
+    ///     so a chat the user never typed into — or one that only ever received system events or an
+    ///     empty assistant placeholder — is not kept in the history. The session named by
+    ///     <paramref name="activeSessionId" />, any session that is generating, and every terminal
+    ///     session are left alone: a terminal session belongs to its pane, which may legitimately be
+    ///     open with nothing typed into it yet.
     /// </summary>
     void PruneEmptySessions(string? activeSessionId = null);
 }
