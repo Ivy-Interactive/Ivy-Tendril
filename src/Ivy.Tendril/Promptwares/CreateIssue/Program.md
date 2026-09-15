@@ -48,7 +48,7 @@ gh issue create --repo <owner/repo> --title "<title>" --body "<body>"
   - If `Comment` is non-empty, append it under an `## Additional Context` heading separated by a horizontal rule (`---`).
 - **Assignee:** If provided, add `--assignee <Assignee>`
 
-### 4. Update plan.yaml
+### 4. Report the Issue URL
 
 The issue URL should be noted in the output for the user.
 
@@ -57,4 +57,5 @@ The issue URL should be noted in the output for the user.
 - Do NOT modify any source code
 - Use `gh` CLI for all GitHub operations
 - If the repo has no GitHub remote, fail with a clear message
+- **Plan-read-only.** Do NOT write anything into the plan folder, including plan.yaml, revisions and artifacts. This promptware is in the PlanIssue exclusion group precisely because it does not, so a write here has to be paired with a move to PlanWorktree (see PlanIssueGroupPromptwareAuditTests).
 
