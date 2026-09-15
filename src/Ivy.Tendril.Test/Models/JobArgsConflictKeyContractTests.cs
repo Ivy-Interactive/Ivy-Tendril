@@ -16,23 +16,24 @@ public class JobArgsConflictKeyContractTests
     private const string SampleFolder = "/plans/00601-SamplePlan";
 
     /// <summary>
-    ///     Every concrete <see cref="JobArgsBase" /> subtype mapped to whether a representative instance
-    ///     must produce a non-null <see cref="JobArgsBase.ConflictKey" />. False means an intentional
-    ///     opt-out, documented on the type itself, not an omission.
+    ///     Every concrete <see cref="JobArgsBase" /> subtype mapped to its
+    ///     <see cref="JobArgsBase.ExclusionGroup" />. <see cref="JobExclusionGroup.None" /> is the
+    ///     documented dedup opt-out (a null <see cref="JobArgsBase.ConflictKey" />); anything else
+    ///     expects a non-null key.
     /// </summary>
-    private static readonly Dictionary<Type, bool> Expectations = new()
+    private static readonly Dictionary<Type, JobExclusionGroup> Expectations = new()
     {
-        [typeof(CreatePlanArgs)] = true,
-        [typeof(ExecutePlanArgs)] = true,
-        [typeof(RetryPlanArgs)] = true,
-        [typeof(ExpandPlanArgs)] = true,
-        [typeof(UpdatePlanArgs)] = true,
-        [typeof(SplitPlanArgs)] = true,
-        [typeof(CreatePrArgs)] = true,
-        [typeof(CreateIssueArgs)] = true,
-        [typeof(SetupProjectArgs)] = true,
-        [typeof(SyncRepoArgs)] = false,
-        [typeof(AddProjectArgs)] = false
+        [typeof(CreatePlanArgs)] = JobExclusionGroup.CreatePlanTask,
+        [typeof(ExecutePlanArgs)] = JobExclusionGroup.PlanWorktree,
+        [typeof(RetryPlanArgs)] = JobExclusionGroup.PlanWorktree,
+        [typeof(ExpandPlanArgs)] = JobExclusionGroup.PlanWorktree,
+        [typeof(UpdatePlanArgs)] = JobExclusionGroup.PlanWorktree,
+        [typeof(SplitPlanArgs)] = JobExclusionGroup.PlanWorktree,
+        [typeof(CreatePrArgs)] = JobExclusionGroup.PlanWorktree,
+        [typeof(CreateIssueArgs)] = JobExclusionGroup.PlanIssue,
+        [typeof(SetupProjectArgs)] = JobExclusionGroup.ProjectSetup,
+        [typeof(SyncRepoArgs)] = JobExclusionGroup.None,
+        [typeof(AddProjectArgs)] = JobExclusionGroup.None
     };
 
     private static JobArgsBase CreateSample(Type type)
@@ -68,22 +69,69 @@ public class JobArgsConflictKeyContractTests
         var undecided = reflected.Where(t => !Expectations.ContainsKey(t)).Select(t => t.Name).ToList();
         Assert.True(undecided.Count == 0,
             $"New JobArgsBase subtype(s) with no dedup decision recorded: {string.Join(", ", undecided)}. " +
-            "Add each to Expectations (true if ConflictKey should be non-null, false for a documented opt-out).");
+            "Add each to Expectations (its JobExclusionGroup, or None for a documented opt-out).");
 
         var stale = Expectations.Keys.Except(reflected).Select(t => t.Name).ToList();
         Assert.True(stale.Count == 0,
             $"Expectations names type(s) that no longer exist: {string.Join(", ", stale)}");
 
-        foreach (var (type, expectsKey) in Expectations)
+        foreach (var (type, group) in Expectations)
         {
             var conflictKey = CreateSample(type).ConflictKey;
-            if (expectsKey)
-                Assert.False(string.IsNullOrEmpty(conflictKey),
-                    $"{type.Name} is expected to be deduplicated but produced no ConflictKey");
-            else
+            if (group == JobExclusionGroup.None)
                 Assert.True(conflictKey == null,
                     $"{type.Name} is a documented dedup opt-out but produced ConflictKey '{conflictKey}'");
+            else
+                Assert.False(string.IsNullOrEmpty(conflictKey),
+                    $"{type.Name} is expected to be deduplicated but produced no ConflictKey");
         }
+    }
+
+    [Fact]
+    public void EveryJobArgsType_DeclaresTheGroupTheGroupTableAgrees()
+    {
+        foreach (var (type, expectedGroup) in Expectations)
+        {
+            var sample = CreateSample(type);
+            Assert.Equal(expectedGroup, sample.ExclusionGroup);
+
+            if (expectedGroup == JobExclusionGroup.None)
+                Assert.Empty(JobExclusionGroups.TypesIn(expectedGroup));
+            else
+                Assert.Contains(sample.Type, JobExclusionGroups.TypesIn(expectedGroup));
+        }
+    }
+
+    [Fact]
+    public void JobExclusionGroups_NamesOnlyKnownJobTypes()
+    {
+        var allGroups = Enum.GetValues<JobExclusionGroup>().Where(g => g != JobExclusionGroup.None);
+        var seen = new Dictionary<string, JobExclusionGroup>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in allGroups)
+        {
+            foreach (var name in JobExclusionGroups.TypesIn(group))
+            {
+                Assert.Contains(name, Constants.JobTypes.BuiltIn);
+
+                Assert.False(seen.TryGetValue(name, out var otherGroup),
+                    $"{name} appears in both {otherGroup} and {group}");
+                seen[name] = group;
+            }
+        }
+    }
+
+    [Fact]
+    public void PlanMutatingTypes_ShareOneExclusionGroup()
+    {
+        Type[] planMutatingTypes =
+        [
+            typeof(ExecutePlanArgs), typeof(RetryPlanArgs), typeof(CreatePrArgs),
+            typeof(UpdatePlanArgs), typeof(ExpandPlanArgs), typeof(SplitPlanArgs)
+        ];
+
+        Assert.All(planMutatingTypes,
+            t => Assert.Equal(JobExclusionGroup.PlanWorktree, CreateSample(t).ExclusionGroup));
     }
 
     [Fact]
@@ -92,7 +140,7 @@ public class JobArgsConflictKeyContractTests
         // CreatePlan is the one deduplicated type with no plan to scope to, so it is excluded here and
         // covered below.
         var planScoped = Expectations
-            .Where(e => e.Value && e.Key != typeof(CreatePlanArgs))
+            .Where(e => e.Value != JobExclusionGroup.None && e.Key != typeof(CreatePlanArgs))
             .Select(e => e.Key)
             .ToList();
 
@@ -126,5 +174,7 @@ public class JobArgsConflictKeyContractTests
         Assert.True(new CreatePlanArgs("Add a widget", "Tendril", Force: true).ForceDuplicate);
         Assert.True(new CreatePrArgs(SampleFolder, Force: true).ForceDuplicate);
         Assert.True(new CreateIssueArgs(SampleFolder, "repo", Force: true).ForceDuplicate);
+        Assert.True(new ExecutePlanArgs(SampleFolder, Force: true).ForceDuplicate);
+        Assert.True(new RetryPlanArgs(SampleFolder, "Try again", Force: true).ForceDuplicate);
     }
 }
