@@ -356,6 +356,18 @@ public sealed class ChatExecutionService : IChatExecutionService
             return;
         }
 
+        var sess = _chatService.GetSession(sessionId);
+        if (sess == null)
+        {
+            // A phantom or unlinked session id must never reach the queue/dispatch below - that is
+            // exactly the path that used to make ChatHistoryService.AddMessage manufacture a
+            // random-GUID orphan session (see ManualApprovalAnnouncer's liveness check).
+            _logger.LogWarning(
+                "SendMessageAsync aborted: session {SessionId} does not exist (role={Role})",
+                sessionId, role);
+            return;
+        }
+
         // If this session is already running an execution, enqueue this message.
         if (_activeExecutions.ContainsKey(sessionId))
         {
@@ -372,7 +384,6 @@ public sealed class ChatExecutionService : IChatExecutionService
             return;
         }
 
-        var sess = _chatService.GetSession(sessionId);
         var targetAgent = !string.IsNullOrEmpty(agentId)
             ? agentId
             : (sess?.AgentId ?? _configService.Settings.CodingAgent ?? "claude");

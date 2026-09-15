@@ -1586,35 +1586,41 @@ public class JobService : IJobService
             return false;
         }
 
-        var existingId = FindConflictingJobId(job, conflictKey);
-        if (existingId == null)
+        var conflict = FindConflictingJob(job, conflictKey);
+        if (conflict == null)
             return false;
 
+        var group = job.TypedArgs!.ExclusionGroup;
         job.Status = JobStatus.Failed;
         job.StatusMessage =
-            $"{job.Type} already in progress for this scope (job {existingId}). Re-run with --force to submit a duplicate.";
+            $"{job.Type} cannot start: {conflict.Value.Type} job {conflict.Value.Id} is already running " +
+            $"{JobExclusionGroups.ScopeDescription(group)}. Re-run with --force to submit a duplicate.";
         job.CompletedAt = DateTime.UtcNow;
         _jobs[job.Id] = job;
 
         RaiseNotification(new JobNotification(
             $"{job.Type} Already Running",
-            $"{job.PlanFile}: Cannot start {job.Type} while another is in progress",
+            $"{job.PlanFile}: Cannot start {job.Type} while {conflict.Value.Type} job {conflict.Value.Id} is in progress",
             false));
         RaiseJobsStructureChanged();
         return true;
     }
 
-    private string? FindConflictingJobId(JobItem job, string conflictKey)
+    private (string Id, string Type)? FindConflictingJob(JobItem job, string conflictKey)
     {
+        var group = job.TypedArgs!.ExclusionGroup;
+        if (group == JobExclusionGroup.None)
+            return null;
+
         var conflictingJob = _jobs.Values.FirstOrDefault(j =>
             j.Id != job.Id &&
-            j.Type == job.Type &&
+            j.TypedArgs?.ExclusionGroup == group &&
             j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked &&
             !string.IsNullOrEmpty(j.TypedArgs?.ConflictKey) &&
             j.TypedArgs!.ConflictKey!.Equals(conflictKey, StringComparison.OrdinalIgnoreCase));
 
         if (conflictingJob != null)
-            return conflictingJob.Id;
+            return (conflictingJob.Id, conflictingJob.Type);
 
         // _jobs only holds what this process launched, and during the storm 3-4 instances shared one
         // TENDRIL_HOME, so ask the database too.
@@ -1624,7 +1630,7 @@ public class JobService : IJobService
         List<JobConflictCandidate> candidates;
         try
         {
-            candidates = _database.FindLiveJobsByConflictKey(job.Type, conflictKey, job.Id);
+            candidates = _database.FindLiveJobsByConflictKey(JobExclusionGroups.TypesIn(group), conflictKey, job.Id);
         }
         catch (Exception ex)
         {
@@ -1639,7 +1645,7 @@ public class JobService : IJobService
                 continue; // Already considered by the in-memory scan above, which found it not live.
 
             if (IsCandidateStillLive(candidate))
-                return candidate.Id;
+                return (candidate.Id, candidate.Type);
 
             // Not fatal, but worth saying out loud: a row left Running by a crashed instance would lock
             // this scope out forever if it were taken at face value.

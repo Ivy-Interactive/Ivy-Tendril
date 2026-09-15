@@ -1117,28 +1117,36 @@ public class PlanDatabaseService : IPlanDatabaseService
     }
 
     /// <inheritdoc />
-    public List<JobConflictCandidate> FindLiveJobsByConflictKey(string jobType, string conflictKey, string excludeJobId)
+    public List<JobConflictCandidate> FindLiveJobsByConflictKey(
+        IReadOnlyCollection<string> jobTypes, string conflictKey, string excludeJobId)
     {
+        if (jobTypes.Count == 0)
+            return [];
+
         using (new ReadLockHandle(_lock))
         {
+            var placeholders = string.Join(",", jobTypes.Select((_, i) => $"@t{i}"));
+            var parameters = jobTypes.Select((t, i) => new SqliteParameter($"@t{i}", t)).ToList();
+            parameters.Add(new SqliteParameter("@key", conflictKey));
+            parameters.Add(new SqliteParameter("@self", excludeJobId));
+
             return ReadList(
-                """
-                SELECT Id, ProcessId, StartedAt FROM Jobs
-                WHERE Type = @type AND ConflictKey = @key
-                  AND Status IN ('Pending','Queued','Running','Blocked')
-                  AND Id <> @self
-                ORDER BY Id DESC
-                """,
+                $"""
+                 SELECT Id, Type, ProcessId, StartedAt FROM Jobs
+                 WHERE ConflictKey = @key AND Type IN ({placeholders})
+                   AND Status IN ('Pending','Queued','Running','Blocked')
+                   AND Id <> @self
+                 ORDER BY Id DESC
+                 """,
                 reader => new JobConflictCandidate(
                     reader.GetString(0),
-                    reader.IsDBNull(1) ? null : reader.GetInt32(1),
-                    reader.IsDBNull(2)
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetInt32(2),
+                    reader.IsDBNull(3)
                         ? null
-                        : DateTime.Parse(reader.GetString(2), CultureInfo.InvariantCulture,
+                        : DateTime.Parse(reader.GetString(3), CultureInfo.InvariantCulture,
                             DateTimeStyles.RoundtripKind)),
-                new SqliteParameter("@type", jobType),
-                new SqliteParameter("@key", conflictKey),
-                new SqliteParameter("@self", excludeJobId));
+                parameters.ToArray());
         }
     }
 

@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Ivy.Tendril.Widgets;
 using Microsoft.Extensions.Logging;
@@ -277,6 +279,10 @@ public class ChatHistoryService : IChatHistoryService
                         _sessions[session.Id] = session;
                     }
                 }
+                catch (JsonException ex)
+                {
+                    TrySalvageCorruptSession(file, ex);
+                }
                 catch (Exception ex)
                 {
                     _logger?.LogError(ex, "Failed to load chat session from file {File}", file);
@@ -287,6 +293,173 @@ public class ChatHistoryService : IChatHistoryService
         {
             _logger?.LogError(ex, "Failed to load chat sessions from disk");
         }
+    }
+
+    /// <summary>
+    ///     Handles a chat session file that failed <c>JsonSerializer.Deserialize</c>, typically because
+    ///     the process was killed mid-write and the file is truncated. Quarantines the original bytes
+    ///     to <c>{file}.corrupt.bak</c> so nothing is lost, then attempts to recover whatever complete
+    ///     messages precede the truncation point rather than discarding the whole session.
+    /// </summary>
+    private void TrySalvageCorruptSession(string file, JsonException parseError)
+    {
+        string backupPath;
+        try
+        {
+            backupPath = file + ".corrupt.bak";
+            if (!File.Exists(backupPath))
+            {
+                File.Copy(file, backupPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to quarantine corrupted chat session file {File}", file);
+            return;
+        }
+
+        try
+        {
+            var raw = Ivy.Tendril.Helpers.FileHelper.ReadAllText(file);
+            var salvaged = SalvageChatSession(raw);
+            if (salvaged == null || salvaged.Messages.Count == 0)
+            {
+                _logger?.LogError(parseError,
+                    "Chat session file {File} is corrupted and no messages could be salvaged; quarantined to {Backup}",
+                    file, backupPath);
+                return;
+            }
+
+            var json = JsonSerializer.Serialize(salvaged, JsonOptions);
+            Ivy.Tendril.Helpers.FileHelper.WriteAllText(file, json);
+            _sessions[salvaged.Id] = salvaged;
+            _logger?.LogInformation(
+                "Salvaged chat session {SessionId} from truncated file {File}: recovered {Count} message(s), original quarantined to {Backup}",
+                salvaged.Id, file, salvaged.Messages.Count, backupPath);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to salvage corrupted chat session file {File}", file);
+        }
+    }
+
+    /// <summary>
+    ///     Recovers a best-effort <see cref="ChatSessionModel"/> from raw (possibly truncated) JSON
+    ///     text by regex-extracting top-level session properties and parsing each complete message
+    ///     object in the "Messages" array up to the point of truncation.
+    /// </summary>
+    private static ChatSessionModel? SalvageChatSession(string raw)
+    {
+        var id = ExtractStringProperty(raw, "Id");
+        if (string.IsNullOrEmpty(id)) return null;
+
+        var messages = SalvageMessages(raw);
+        if (messages.Count == 0) return null;
+
+        var title = ExtractStringProperty(raw, "Title") ?? "Recovered Chat";
+        var agentId = ExtractStringProperty(raw, "AgentId") ?? "claude";
+        var modelId = ExtractStringProperty(raw, "ModelId") ?? "opus";
+        var createdAt = ExtractDateProperty(raw, "CreatedAt") ?? DateTimeOffset.UtcNow;
+        var updatedAt = ExtractDateProperty(raw, "UpdatedAt") ?? createdAt;
+
+        return new ChatSessionModel(id, title, createdAt, updatedAt, agentId, modelId, messages);
+    }
+
+    private static string? ExtractStringProperty(string json, string propertyName)
+    {
+        var match = Regex.Match(json, $"\"{propertyName}\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+        if (!match.Success) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<string>("\"" + match.Groups[1].Value + "\"");
+        }
+        catch (JsonException)
+        {
+            return match.Groups[1].Value;
+        }
+    }
+
+    private static DateTimeOffset? ExtractDateProperty(string json, string propertyName)
+    {
+        var value = ExtractStringProperty(json, propertyName);
+        return value != null &&
+            DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt)
+                ? dt
+                : null;
+    }
+
+    /// <summary>
+    ///     Walks the "Messages" array in raw JSON text, tracking string/escape state and brace depth so
+    ///     nested quotes and braces inside message content don't confuse object boundaries, and parses
+    ///     each fully-closed <c>{...}</c> object it finds. Stops at the first object that never closes
+    ///     (the truncation point) rather than throwing, so every message before it is still recovered.
+    /// </summary>
+    private static List<ChatMessageModel> SalvageMessages(string raw)
+    {
+        var result = new List<ChatMessageModel>();
+        var messagesIdx = raw.IndexOf("\"Messages\"", StringComparison.Ordinal);
+        if (messagesIdx < 0) return result;
+
+        var arrayStart = raw.IndexOf('[', messagesIdx);
+        if (arrayStart < 0) return result;
+
+        var i = arrayStart + 1;
+        while (i < raw.Length)
+        {
+            while (i < raw.Length && (char.IsWhiteSpace(raw[i]) || raw[i] == ',')) i++;
+            if (i >= raw.Length || raw[i] == ']') break;
+            if (raw[i] != '{') break;
+
+            var objStart = i;
+            var depth = 0;
+            var inString = false;
+            var escape = false;
+            var objEnd = -1;
+            for (var j = objStart; j < raw.Length; j++)
+            {
+                var c = raw[j];
+                if (inString)
+                {
+                    if (escape) escape = false;
+                    else if (c == '\\') escape = true;
+                    else if (c == '"') inString = false;
+                    continue;
+                }
+
+                if (c == '"') { inString = true; continue; }
+                if (c == '{') depth++;
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        objEnd = j;
+                        break;
+                    }
+                }
+            }
+
+            if (objEnd < 0) break; // Remaining text is a truncated, unclosed object.
+
+            var objJson = raw.Substring(objStart, objEnd - objStart + 1);
+            try
+            {
+                var msg = JsonSerializer.Deserialize<ChatMessageModel>(objJson, JsonOptions);
+                if (msg != null && !string.IsNullOrEmpty(msg.Id))
+                {
+                    result.Add(msg);
+                }
+            }
+            catch (JsonException)
+            {
+                // Skip a malformed entry; siblings already recovered are kept.
+            }
+
+            i = objEnd + 1;
+        }
+
+        return result;
     }
 
     public IReadOnlyList<ChatSessionModel> GetSessions()
@@ -437,12 +610,18 @@ public class ChatHistoryService : IChatHistoryService
 
     public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null)
     {
+        if (string.IsNullOrEmpty(sessionId))
+            throw new KeyNotFoundException("Cannot add a message to a session with no id.");
+
         ChatMessageModel msg;
         ChatSessionModel updatedSession;
         lock (_sessionLock)
         {
-            var session = GetSession(sessionId)
-                ?? throw new KeyNotFoundException($"Chat session '{sessionId}' does not exist");
+            var session = GetSession(sessionId);
+            if (session == null)
+            {
+                throw new KeyNotFoundException($"Chat session '{sessionId}' does not exist.");
+            }
 
             msg = new ChatMessageModel(
                 Id: Guid.NewGuid().ToString("N"),
