@@ -66,6 +66,26 @@ public class ChatHistoryServiceTests
     }
 
     [Fact]
+    public void AddMessage_WithUnknownSessionId_ThrowsAndCreatesNoSession()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var unknownId = Guid.NewGuid().ToString("N");
+            Assert.Throws<KeyNotFoundException>(() => service.AddMessage(unknownId, "user", "Hello"));
+
+            Assert.Empty(service.GetSessions());
+            var sessionFile = Path.Combine(tempDir, "Chats", $"{unknownId}.json");
+            Assert.False(File.Exists(sessionFile));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void DeleteSession_RemovesSessionFromStorage()
     {
         var (service, tempDir) = CreateTestService();
@@ -885,6 +905,82 @@ public class ChatHistoryServiceTests
     }
 
     [Fact]
+    public void LoadSessionsFromDisk_DeletesAndExcludesContentFreeFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            Directory.CreateDirectory(chatsDir);
+
+            var systemOnlySessionId = Guid.NewGuid().ToString("N");
+            var systemOnlySession = new ChatSessionModel(
+                Id: systemOnlySessionId,
+                Title: "New Chat",
+                CreatedAt: DateTimeOffset.UtcNow,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                AgentId: "claude",
+                ModelId: "opus",
+                Messages: new List<ChatMessageModel>
+                {
+                    new(Guid.NewGuid().ToString("N"), "system", "[System Event] Job finished.", DateTimeOffset.UtcNow)
+                }
+            );
+            var systemOnlyFilePath = Path.Combine(chatsDir, $"{systemOnlySessionId}.json");
+            File.WriteAllText(systemOnlyFilePath, System.Text.Json.JsonSerializer.Serialize(systemOnlySession));
+
+            var emptyAssistantSessionId = Guid.NewGuid().ToString("N");
+            var emptyAssistantSession = new ChatSessionModel(
+                Id: emptyAssistantSessionId,
+                Title: "New Chat",
+                CreatedAt: DateTimeOffset.UtcNow,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                AgentId: "claude",
+                ModelId: "opus",
+                Messages: new List<ChatMessageModel>
+                {
+                    new(Guid.NewGuid().ToString("N"), "assistant", "", DateTimeOffset.UtcNow)
+                }
+            );
+            var emptyAssistantFilePath = Path.Combine(chatsDir, $"{emptyAssistantSessionId}.json");
+            File.WriteAllText(emptyAssistantFilePath, System.Text.Json.JsonSerializer.Serialize(emptyAssistantSession));
+
+            var validSessionId = Guid.NewGuid().ToString("N");
+            var validSession = new ChatSessionModel(
+                Id: validSessionId,
+                Title: "Valid Chat",
+                CreatedAt: DateTimeOffset.UtcNow,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                AgentId: "claude",
+                ModelId: "opus",
+                Messages: new List<ChatMessageModel>
+                {
+                    new(Guid.NewGuid().ToString("N"), "user", "Hi", DateTimeOffset.UtcNow)
+                }
+            );
+            var validFilePath = Path.Combine(chatsDir, $"{validSessionId}.json");
+            File.WriteAllText(validFilePath, System.Text.Json.JsonSerializer.Serialize(validSession));
+
+            var configService = new ConfigService(new TendrilSettings(), tempDir);
+            var service = new ChatHistoryService(configService);
+
+            Assert.False(File.Exists(systemOnlyFilePath));
+            Assert.False(File.Exists(emptyAssistantFilePath));
+            Assert.True(File.Exists(validFilePath));
+
+            var sessions = service.GetSessions();
+            Assert.Single(sessions);
+            Assert.Equal(validSessionId, sessions[0].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void AddMessage_PersistsSessionToDisk()
     {
         var (service, tempDir) = CreateTestService();
@@ -896,6 +992,69 @@ public class ChatHistoryServiceTests
             Assert.False(File.Exists(sessionFile));
 
             service.AddMessage(session.Id, "user", "Hello");
+            Assert.True(File.Exists(sessionFile));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PersistSessionToDisk_SkipsSessionWithOnlySystemMessage()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            var sessionFile = Path.Combine(chatsDir, $"{session.Id}.json");
+
+            service.AddMessage(session.Id, "system", "[System Event] Job finished.");
+
+            Assert.False(File.Exists(sessionFile));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PersistSessionToDisk_SkipsSessionWithOnlyEmptyAssistantMessage()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            var sessionFile = Path.Combine(chatsDir, $"{session.Id}.json");
+
+            service.AddMessage(session.Id, "assistant", "");
+
+            Assert.False(File.Exists(sessionFile));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PersistSessionToDisk_KeepsTerminalSessionWithEmptyAssistantMessage()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus", kind: ChatSessionKinds.Terminal);
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            var sessionFile = Path.Combine(chatsDir, $"{session.Id}.json");
+
+            service.AddMessage(session.Id, "assistant", "");
+
             Assert.True(File.Exists(sessionFile));
         }
         finally
@@ -946,6 +1105,59 @@ public class ChatHistoryServiceTests
             // pane's decision, not the prune's.
             Assert.NotNull(service.GetSession(terminal.Id));
             Assert.Null(service.GetSession(chat.Id));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PruneEmptySessions_RemovesSessionWithOnlySystemAndEmptyAssistantMessages()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var phantom = service.CreateSession("claude", "opus", "Phantom");
+            service.AddMessage(phantom.Id, "system", "[System Event] Job finished.");
+
+            var blank = service.CreateSession("claude", "opus", "Blank");
+            service.AddMessage(blank.Id, "assistant", "");
+
+            service.PruneEmptySessions();
+
+            Assert.Null(service.GetSession(phantom.Id));
+            Assert.Null(service.GetSession(blank.Id));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PruneEmptySessions_KeepsActiveGeneratingAndTerminalContentFreeSessions()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var active = service.CreateSession("claude", "opus", "Active");
+            service.AddMessage(active.Id, "system", "[System Event] Job finished.");
+
+            var generating = service.CreateSession("claude", "opus", "Generating");
+            service.AddMessage(generating.Id, "assistant", "");
+            service.SetSessionGenerating(generating.Id, true);
+
+            var terminal = service.CreateSession("claude", "opus", "Terminal", kind: ChatSessionKinds.Terminal);
+            service.AddMessage(terminal.Id, "assistant", "");
+
+            service.PruneEmptySessions(activeSessionId: active.Id);
+
+            Assert.NotNull(service.GetSession(active.Id));
+            Assert.NotNull(service.GetSession(generating.Id));
+            Assert.NotNull(service.GetSession(terminal.Id));
         }
         finally
         {
