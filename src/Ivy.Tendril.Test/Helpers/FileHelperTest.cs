@@ -227,4 +227,43 @@ public class FileHelperTest : IDisposable
         var content = FileHelper.ReadAllText(file);
         Assert.Equal("Clean text with 🚀", content);
     }
+
+    [Fact]
+    public void WriteAllText_AtomicOverwrite_ReplacesTargetFileWithoutLeavingTempFiles()
+    {
+        var file = Path.Combine(_tempDir, "atomic.txt");
+        FileHelper.WriteAllText(file, "original content");
+
+        FileHelper.WriteAllText(file, "replaced content");
+
+        Assert.Equal("replaced content", FileHelper.ReadAllText(file));
+        var leftoverTempFiles = Directory.GetFiles(_tempDir, ".atomic.txt.*.tmp");
+        Assert.Empty(leftoverTempFiles);
+    }
+
+    [Fact]
+    public void WriteAllText_ReadOnlyTarget_ReplacedWithoutError()
+    {
+        var file = Path.Combine(_tempDir, "readonly.txt");
+        FileHelper.WriteAllText(file, "original content");
+        File.SetAttributes(file, File.GetAttributes(file) | FileAttributes.ReadOnly);
+
+        FileHelper.WriteAllText(file, "replaced content");
+
+        Assert.Equal("replaced content", FileHelper.ReadAllText(file));
+        Assert.Equal((FileAttributes)0, File.GetAttributes(file) & FileAttributes.ReadOnly);
+    }
+
+    [Fact]
+    public async Task WriteAllTextAsync_AtomicOverwrite_ReplacesTargetFileWithoutLeavingTempFiles()
+    {
+        var file = Path.Combine(_tempDir, "atomic-async.txt");
+        await FileHelper.WriteAllTextAsync(file, "original content");
+
+        await FileHelper.WriteAllTextAsync(file, "replaced content");
+
+        Assert.Equal("replaced content", await FileHelper.ReadAllTextAsync(file));
+        var leftoverTempFiles = Directory.GetFiles(_tempDir, ".atomic-async.txt.*.tmp");
+        Assert.Empty(leftoverTempFiles);
+    }
 }

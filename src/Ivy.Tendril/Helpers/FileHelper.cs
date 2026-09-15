@@ -197,19 +197,32 @@ internal static class FileHelper
             }
     }
 
+    /// <summary>
+    ///     Writes <paramref name="contents"/> to a temporary file in the same directory as
+    ///     <paramref name="path"/> and atomically renames it into place, so a crash or kill mid-write
+    ///     can never leave <paramref name="path"/> truncated or partially written. The temp file lives
+    ///     alongside the target so <see cref="File.Move(string, string, bool)"/> is a same-volume
+    ///     rename rather than a cross-volume copy.
+    /// </summary>
     public static void WriteAllText(string path, string contents)
     {
         ValidatePath(path);
-        ClearReadOnly(path);
         var sanitized = SanitizeUtf8(contents);
+        var targetDir = Path.GetDirectoryName(path) ?? ".";
+        var tempPath = Path.Combine(targetDir, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
         for (var attempt = 0; ; attempt++)
             try
             {
-                using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
-                using var writer = new StreamWriter(stream, Utf8NoBom);
-                writer.Write(sanitized);
-                writer.Flush();
-                stream.Flush(flushToDisk: true);
+                using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var writer = new StreamWriter(stream, Utf8NoBom))
+                {
+                    writer.Write(sanitized);
+                    writer.Flush();
+                    stream.Flush(flushToDisk: true);
+                }
+
+                ClearReadOnly(path);
+                File.Move(tempPath, path, overwrite: true);
                 return;
             }
             catch (UnauthorizedAccessException) when (attempt < MaxRetries)
@@ -220,6 +233,10 @@ internal static class FileHelper
             catch (IOException) when (attempt < MaxRetries)
             {
                 Thread.Sleep(RetryDelaysMs[attempt]);
+            }
+            finally
+            {
+                TryDeleteTempFile(tempPath);
             }
     }
 
@@ -244,21 +261,28 @@ internal static class FileHelper
             }
     }
 
+    /// <inheritdoc cref="WriteAllText"/>
     public static async Task WriteAllTextAsync(string path, string contents)
     {
         ValidatePath(path);
-        ClearReadOnly(path);
         var sanitized = SanitizeUtf8(contents);
+        var targetDir = Path.GetDirectoryName(path) ?? ".";
+        var tempPath = Path.Combine(targetDir, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
         for (var attempt = 0; ; attempt++)
             try
             {
-                var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
+                var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
                 await using (stream.ConfigureAwait(false))
                 {
                     await using var writer = new StreamWriter(stream, Utf8NoBom);
                     await writer.WriteAsync(sanitized).ConfigureAwait(false);
-                    return;
+                    await writer.FlushAsync().ConfigureAwait(false);
+                    stream.Flush(flushToDisk: true);
                 }
+
+                ClearReadOnly(path);
+                File.Move(tempPath, path, overwrite: true);
+                return;
             }
             catch (UnauthorizedAccessException) when (attempt < MaxRetries)
             {
@@ -269,6 +293,23 @@ internal static class FileHelper
             {
                 await Task.Delay(RetryDelaysMs[attempt]).ConfigureAwait(false);
             }
+            finally
+            {
+                TryDeleteTempFile(tempPath);
+            }
+    }
+
+    private static void TryDeleteTempFile(string tempPath)
+    {
+        if (!File.Exists(tempPath)) return;
+        try
+        {
+            File.Delete(tempPath);
+        }
+        catch (IOException)
+        {
+            // Best-effort: the move already succeeded or a later retry will overwrite it.
+        }
     }
 
     /// <summary>

@@ -83,6 +83,10 @@ public static class ManualApprovalAnnouncer
 
         if (string.IsNullOrEmpty(chatSessionId)) return;
 
+        // No fallback found a live session for this plan/job: abort rather than let
+        // SendMessageAsync manufacture a phantom orphan session for a stale/pruned id.
+        if (chatHistory != null && chatHistory.GetSession(chatSessionId) == null) return;
+
         if (chatHistory != null)
         {
             try

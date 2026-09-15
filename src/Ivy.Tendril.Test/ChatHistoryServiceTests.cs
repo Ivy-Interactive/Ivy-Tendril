@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Ivy.Tendril.Services;
 using Xunit;
@@ -1058,6 +1059,74 @@ public class ChatHistoryServiceTests
             Assert.Equal(2, sessions.Count);
             Assert.Equal(session1.Id, sessions[0].Id);
             Assert.Equal(session2.Id, sessions[1].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void AddMessage_UnknownSessionId_ThrowsKeyNotFoundException()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var unknownId = Guid.NewGuid().ToString("N");
+
+            Assert.Throws<KeyNotFoundException>(() => service.AddMessage(unknownId, "user", "Hello"));
+
+            // No orphan session should have been created for the unknown id.
+            Assert.Null(service.GetSession(unknownId));
+            Assert.Empty(service.GetSessions());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void LoadSessionsFromDisk_TruncatedFile_QuarantinesAndSalvagesValidMessages()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet", "Truncation Test");
+            service.AddMessage(session.Id, "user", "First message survives");
+            service.AddMessage(session.Id, "assistant", "Second message gets cut off mid-write");
+
+            var filePath = Path.Combine(tempDir, "Chats", $"{session.Id}.json");
+            var fullJson = File.ReadAllText(filePath);
+
+            // Simulate a crash mid-write: cut the file off partway through the second
+            // message's Content string, leaving the first message intact and closed.
+            var cutIndex = fullJson.IndexOf("Second message", StringComparison.Ordinal);
+            Assert.True(cutIndex > 0);
+            var truncated = fullJson[..(cutIndex + 5)];
+            File.WriteAllText(filePath, truncated);
+
+            var reloadedConfigService = new ConfigService(new TendrilSettings(), tempDir);
+            var reloadedService = new ChatHistoryService(reloadedConfigService);
+
+            var backupPath = filePath + ".corrupt.bak";
+            Assert.True(File.Exists(backupPath));
+            Assert.Equal(truncated, File.ReadAllText(backupPath));
+
+            var salvaged = reloadedService.GetSession(session.Id);
+            Assert.NotNull(salvaged);
+            Assert.Single(salvaged.Messages);
+            Assert.Equal("First message survives", salvaged.Messages[0].Content);
+
+            // The repaired file on disk should now be valid JSON containing only the salvaged message.
+            var repairedJson = File.ReadAllText(filePath);
+            var reparsed = System.Text.Json.JsonSerializer.Deserialize<ChatSessionModel>(
+                repairedJson,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            Assert.NotNull(reparsed);
+            Assert.Single(reparsed.Messages);
         }
         finally
         {

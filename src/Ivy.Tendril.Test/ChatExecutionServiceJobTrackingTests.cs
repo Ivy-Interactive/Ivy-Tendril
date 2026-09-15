@@ -1273,6 +1273,108 @@ public class ChatExecutionServiceJobTrackingTests
     }
 
     [Fact]
+    public async Task ManualApprovalAnnouncer_NonExistentSession_DoesNotDispatchSystemEvent()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilPhantomSessionTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var deadSessionId = Guid.NewGuid().ToString("N");
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(46, "Tendril", "NiceToHave", "Phantom Session Plan", PlanStatus.Review,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: deadSessionId),
+                "# Phantom Session Test",
+                Path.Combine(tempDir, "00046-PhantomSessionPlan"),
+                "state: Review"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            ManualApprovalAnnouncer.AnnounceExecution(plan, "job-006", chatService, execService, fakeJobService);
+
+            // Give any (incorrectly) dispatched Task.Run a moment to run, then verify nothing happened.
+            await Task.Delay(200);
+
+            Assert.Null(chatService.GetSession(deadSessionId));
+            Assert.Empty(chatService.GetSessions());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_UnknownSession_AbortsSystemEvent()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilUnknownSessionSendTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var unknownSessionId = Guid.NewGuid().ToString("N");
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            await execService.SendMessageAsync(unknownSessionId, "[System Event] test", role: "system");
+
+            Assert.Null(chatService.GetSession(unknownSessionId));
+            Assert.Empty(chatService.GetSessions());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
     public void SetChatSessionId_UpdatesTypedArgs_AndPersistsToDatabase()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "JobServiceChatSessionTest_" + Guid.NewGuid().ToString("N"));
