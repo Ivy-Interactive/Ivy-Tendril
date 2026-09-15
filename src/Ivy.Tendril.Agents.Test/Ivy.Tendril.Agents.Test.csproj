@@ -29,4 +29,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Recorded agent transcripts replayed through the parsers. -->
+  <ItemGroup>
+    <Content Include="Antigravity/Fixtures/*.jsonl" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
