@@ -245,6 +245,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     }
 
     /// <summary>
+    ///     Whether the Inbox leaves the nav and sits in the sidebar footer, beside an icon-only
+    ///     settings button. Every mode pairs them except share mode, whose footer identifies the
+    ///     reviewer instead of exposing the settings menu.
+    /// </summary>
+    internal static bool ShowInboxInFooter(bool isShareMode) => !isShareMode;
+
+    /// <summary>
     ///     Flattens the app menu into the sidebar nav rows. The agent and chat entries are excluded (they
     ///     are reached through the dedicated Chat button above the nav instead), as are the apps in
     ///     <paramref name="footerAppIds"/>, which get their own button in the sidebar footer.
@@ -1091,8 +1098,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     OpenApp(new NavigateArgs(chatList.AppId, chatList.BuildSelectArgs(itemId))));
         }
 
-        // Beta: the inbox moves out of the nav into the footer, beside an icon-only settings button.
-        var inboxInFooter = isBeta && !isShareMode;
+        var inboxInFooter = ShowInboxInFooter(isShareMode);
         string[] footerAppIds = inboxInFooter ? [InboxAppId] : [];
 
         var nav = new ShellNav()
