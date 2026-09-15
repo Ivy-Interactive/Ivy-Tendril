@@ -350,6 +350,11 @@ public sealed class ChatExecutionService : IChatExecutionService
         var attList = attachments ?? Array.Empty<ChatAttachmentDto>();
         if (string.IsNullOrWhiteSpace(userPrompt) && attList.Count == 0) return;
         if (string.IsNullOrEmpty(sessionId)) return;
+        if (_chatService.GetSession(sessionId) == null)
+        {
+            _logger.LogWarning("Dropping {Role} message addressed to unknown chat session {SessionId}", role, sessionId);
+            return;
+        }
 
         // If this session is already running an execution, enqueue this message.
         if (_activeExecutions.ContainsKey(sessionId))

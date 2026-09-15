@@ -41,6 +41,7 @@ public class ChatSearchDialog(
 
         var term = query.Value.Trim();
         var results = chatService.GetSessions()
+            .Where(s => s.IsTerminal() || s.HasVisibleContent())
             .Where(s => term.Length == 0 || ChatApp.DisplayTitle(s).Contains(term, StringComparison.OrdinalIgnoreCase))
             .Take(MaxResults)
             .ToList();
