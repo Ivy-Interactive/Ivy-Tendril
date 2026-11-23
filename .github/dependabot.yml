@@ -1,0 +1,63 @@
+# Dependabot version updates: one grouped pull request per ecosystem a week.
+# Security updates are switched on in the repository settings.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+  - package-ecosystem: "npm"
+    directories:
+      - "/extensions/vscode"
+      - "/src/Ivy.Tendril.Widgets/.tests"
+      - "/src/Ivy.Tendril.Widgets/frontend"
+      - "/src/experiments/transcription"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      npm:
+        patterns:
+          - "*"
+  - package-ecosystem: "nuget"
+    directories:
+      - "/src/Ivy.Tendril"
+      - "/src/Ivy.Tendril.Agents"
+      - "/src/Ivy.Tendril.Agents.Test"
+      - "/src/Ivy.Tendril.Agents.Test.End2End"
+      - "/src/Ivy.Tendril.Docs"
+      - "/src/Ivy.Tendril.TeamIvyConfig"
+      - "/src/Ivy.Tendril.Test"
+      - "/src/Ivy.Tendril.Test.End2End"
+      - "/src/Ivy.Tendril.Widgets"
+      - "/src/Ivy.Tendril.Widgets/.samples"
+      - "/src/experiments/FieldToolsDemo"
+      - "/src/experiments/JobCostSheet"
+      - "/src/experiments/LatexMarkdownFix"
+      - "/src/news"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      nuget:
+        patterns:
+          - "*"
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+      - "/.github/docker"
+      - "/src/Ivy.Tendril.Docs"
+      - "/src/experiments/transcription"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      docker:
+        patterns:
+          - "*"
